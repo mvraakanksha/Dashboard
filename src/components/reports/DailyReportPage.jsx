@@ -392,6 +392,44 @@ const downloadExcel = async () => {
 }
 
 
+/* =====================================================
+   REPORT TITLE (BELOW LOGO, ABOVE TABLE)
+===================================================== */
+
+// Ensure rows exist
+while (sheet.rowCount < 6) {
+  sheet.addRow([]);
+}
+
+// Merge A6 → L6 (S.No to Remarks = 12 columns)
+sheet.mergeCells("A6:L6");
+
+const titleCell = sheet.getCell("A6");
+titleCell.value = `FSTP Daily Operation Report - ${reportDate}`;
+
+titleCell.font = {
+  name: "Times New Roman",
+  bold: true,
+  size: 14,
+  color: { argb: "FF000000" },
+};
+;
+
+titleCell.alignment = {
+  horizontal: "center",
+  vertical: "middle",
+};
+
+// Optional background (remove if not needed)
+titleCell.fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFFFFFFF" }, // light blue
+};
+
+sheet.getRow(6).height = 28;
+
+
   /* =====================================================
      TABLE HEADER (MATCH HTML / PDF)
   ===================================================== */
@@ -406,7 +444,7 @@ const headerRow = sheet.addRow([
   "Closing\nSTL (L)",
   "Plant run\nhrs",
   "Biochar\nquantity (kgs)",
-  "Power\n(kWh)",
+  "Power\n(Kwh)",
   "Remarks",
 ]);
 
@@ -431,6 +469,8 @@ const headerRow = sheet.addRow([
     };
   });
 
+
+  
   /* =====================================================
      DATA ROWS
   ===================================================== */
@@ -611,135 +651,161 @@ const imageToBase64Compressed = (image, quality = 0.6, maxWidth = 800) => {
 //   doc.line(10, 32, pageWidth - 10, 32);
 // };
 
-
 const downloadPdf = async () => {
   if (!processedData.length) return alert("No data");
 
- const doc = new jsPDF({
-  orientation: "landscape",
-  unit: "mm",
-  format: "a4",
-  compress: true,      // ✅ VERY IMPORTANT
-});
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: "a4",
+    compress: true, // ✅ IMPORTANT
+  });
 
-
+  /* =====================================================
+     CONSTANTS (DEFINE FIRST!)
+  ===================================================== */
+  const SIDE_MARGIN = 42;
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  /* =====================================================
-     LOGO
-  ===================================================== */
-if (!cachedCompanyLogo) {
-  cachedCompanyLogo = await imageToBase64Compressed(companyLogo, 0.5, 600);
-}
-if (!cachedMainLogo) {
-  cachedMainLogo = await imageToBase64Compressed(logo, 0.5, 800);
-}
-
-const companyLogoBase64 = cachedCompanyLogo;
-const logoBase64 = cachedMainLogo;
-
-  // LEFT TOP LOGO
-doc.addImage(companyLogoBase64, "JPEG", 15, 6, 20, 15);
+  const tableStartX = SIDE_MARGIN;
+  const tableEndX = pageWidth - SIDE_MARGIN;
+  const tableCenterX = (tableStartX + tableEndX) / 2;
 
   /* =====================================================
-     HEADER TEXT (SAME STYLE AS MONTHLY)
+     LOAD LOGOS (CACHED)
   ===================================================== */
+  if (!cachedCompanyLogo) {
+    cachedCompanyLogo = await imageToBase64Compressed(companyLogo, 0.5, 600);
+  }
+  if (!cachedMainLogo) {
+    cachedMainLogo = await imageToBase64Compressed(logo, 0.5, 800);
+  }
+
+  const companyLogoBase64 = cachedCompanyLogo;
+  const logoBase64 = cachedMainLogo;
+
+  /* =====================================================
+     HEADER – LOGOS + TEXT (ALIGNED TO TABLE)
+  ===================================================== */
+
+  // Company logo → table start
+  doc.addImage(
+    companyLogoBase64,
+    "JPEG",
+    tableStartX,
+    6,
+    14,
+    10
+  );
+
+  // Title
   doc.setFont("times", "bold");
   doc.setFontSize(16);
   doc.setTextColor(179, 24, 24);
-  doc.text("MVR TECHNOLOGY", pageWidth / 2, 10, { align: "center" });
+  doc.text("MVR TECHNOLOGY", tableCenterX, 10, { align: "center" });
 
-  doc.setFontSize(8);
+  // Address
   doc.setFont("times", "normal");
+  doc.setFontSize(8);
   doc.setTextColor(0);
   doc.text(
     "#207, Gowra Fountainhead, Madhapur, Hitech City, Hyderabad-500081",
-    pageWidth / 2,
+    tableCenterX,
     14,
     { align: "center" }
   );
+
+  // Email
   doc.text(
     "email: mvrhydoffice@mvrtech.org",
-    pageWidth / 2,
+    tableCenterX,
     17,
     { align: "center" }
   );
 
+  // Subtitle
   doc.setFont("times", "bold");
-  doc.text("FSTP RAJASTHAN", pageWidth / 2, 21, { align: "center" });
+  doc.text("FSTP RAJASTHAN", tableCenterX, 21, { align: "center" });
 
-  // doc.setFontSize(10);
-  // doc.text("DAILY PLANT OPERATIONS REPORT", pageWidth - 10, 10, {
-  //   align: "right",
-  // });
-
-  doc.setFontSize(8);
-  doc.text(`Report Date: ${reportDate}`, pageWidth - 10, 14, {
-    align: "right",
-  });
-
+    doc.text(`FSTP Daily Operation Report -  ${reportDate}`, tableCenterX, 24, { align: "center" });
+  
+    // Report Date → table end
+  // doc.setFont("times", "normal");
+  // doc.setFontSize(8);
+  // doc.text(
+  //   `Report Date: ${reportDate}`,
+  //   tableEndX,
+  //   14,
+  //   { align: "right" }
+  // );
 
   /* =====================================================
-     TABLE (SINGLE PAGE + CENTERED)
+     TABLE
   ===================================================== */
   autoTable(doc, {
-    startY: 24,
-    theme: "grid",
+      startY: 26,
+  theme: "grid",
 
-    // 🔥 FORCE SINGLE PAGE
-    pageBreak: "avoid",
-    rowPageBreak: "avoid",
-    showHead: "everyPage",
-    showFoot: "lastPage",
-
-    // CENTER TABLE WITH SIDE MARGINS
-    tableWidth: pageWidth - 20,
-    margin: { left: 15, right: 15 },
-
-    styles: {
-      font: "times",
-      fontSize: 5,
-      cellPadding: 0.4,
-      halign: "center",
-      valign: "middle",
-      lineWidth: 0.1,
-      overflow: "linebreak",
-    },
-
-     bodyStyles: {
-    textColor: [0, 0, 0],   // 🔥 BLACK BODY TEXT
+  margin: {
+    left: SIDE_MARGIN,
+    right: SIDE_MARGIN,
+    top: 8,
+    bottom: 8,
   },
 
- headStyles: {
-  fillColor: [255, 255, 255],   // white background
-  textColor: [0, 0, 0],         // black text
-  fontStyle: "bold",
-  lineWidth: 0.1,
+  tableWidth: "auto",
+
+  styles: {
+    font: "times",
+    fontSize: 5,
+    cellPadding: 0.25,
+    halign: "center",
+    valign: "middle",
+
+    lineWidth: 0.2,          // 🔥 THICK INNER GRID
+    lineColor: [0, 0, 0],    // solid black
+    textColor: [0, 0, 0],
+  },
+
+  headStyles: {
+    fontStyle: "bold",
+    lineWidth: 0.2,          // 🔥 EXTRA THICK HEADER
+    fillColor: [255, 255, 255],
+    textColor: [0, 0, 0],
+  },
+
+  bodyStyles: {
+    lineWidth: 0.2,          // 🔥 BODY GRID
+  },
+
+  footStyles: {
+    fontStyle: "bold",
+    lineWidth: 0.2,          // 🔥 EXTRA THICK FOOTER
+    fillColor: [255, 255, 255],
+    textColor: [0, 0, 0],
+  },
+
+columnStyles: {
+  11: {
+    halign: "center",   // ✅ center text horizontally
+    valign: "middle",  // ✅ center vertically
+  },
 },
 
-footStyles: {
-  fillColor: [255, 255, 255],   // white background
-  textColor: [0, 0, 0],         // black text
-  fontStyle: "bold",
-  lineWidth: 0.1,
-},
-
-
-    /* ===== EXACT DAILY TABLE STRUCTURE ===== */
     head: [[
-  "S.No",
-  "ID / KLD",
-  "District",
-  "Plant name",
-  "Opening\nSTL (L)",
-  "Sludge\nReceived (L)",
-  "Sludge\nProcessed (L)",
-  "Closing\nSTL (L)",
-  "Plant run\nhrs",
-  "Biochar\nquantity (kgs)",
-  "Power\n(kWh)",
-  "Remarks"
-]],
+      "S.No",
+      "ID / KLD",
+      "District",
+      "Plant name",
+      "Opening\nSTL (L)",
+      "Sludge\nReceived (L)",
+      "Sludge\nProcessed (L)",
+      "Closing\nSTL (L)",
+      "Plant run\nhrs",
+      "Biochar\nquantity (kgs)",
+      "Power\n(Kwh)",
+      "Remarks",
+    ]],
 
     body: processedData.map((r, i) => [
       i + 1,
@@ -767,13 +833,13 @@ footStyles: {
       "-",
       "-",
     ]],
-
-
   });
 
-doc.save(`FSTP Daily Plant Operating-Report-${formattedDate}.pdf`);
+  /* =====================================================
+     SAVE
+  ===================================================== */
+  doc.save(`FSTP Daily Operating Report-${formattedDate}.pdf`);
 };
-
 
 
 
@@ -805,7 +871,7 @@ Plant run<br />hrs</th>
                 <th className="px-1 py-1 text-[12px] font-semibold text-center border border-black border-b-2">
 Biochar<br />quantity (kgs)</th>
                <th className="px-1 py-1 text-[12px] font-semibold text-center border border-black border-b-2">
-Power<br />(kWh)</th>
+Power<br />(Kwh)</th>
                
                 
                 {/* MODIFIED CELL: The Remarks header now includes the title and dates */}

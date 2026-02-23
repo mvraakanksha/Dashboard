@@ -36,6 +36,18 @@ const StatusBadge = ({ active, label }) => (
   </div>
 );
 
+const formatDate = (dateString) => {
+  if (!dateString) return "";
+
+  const date = new Date(dateString);
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}/${month}/${year}`;
+};
+
 /* ================= STAT CARD ================= */
 const StatCard = ({ title, count, icon, active, onClick }) => (
   <div
@@ -94,15 +106,13 @@ const zoneFilteredPlants = useMemo(() => {
 
   /* ================= FILTERED PLANTS ================= */
 const filteredPlants = useMemo(() => {
-  return zoneFilteredPlants.filter(p => {
-    if (selectedCard === "MNIT") return p.mnit;
-    if (selectedCard === "POWER") return p.permanentPower;
-    if (selectedCard === "SOLAR") return p.solar;
-    if (selectedCard === "INTERNET") return p.internet;
-    return true; // ALL
-  });
-}, [zoneFilteredPlants, selectedCard]);
+  if (selectedCard === "CTE/CTO") {
+    return zoneFilteredPlants;
+  }
 
+  // 🔥 DO NOT FILTER — show all plants
+  return zoneFilteredPlants;
+}, [zoneFilteredPlants, selectedCard]);
 
   /* ================= COUNTS ================= */
 const counts = useMemo(() => ({
@@ -111,8 +121,13 @@ const counts = useMemo(() => ({
   power: zoneFilteredPlants.filter(p => p.permanentPower).length,
   solar: zoneFilteredPlants.filter(p => p.solar).length,
   internet: zoneFilteredPlants.filter(p => p.internet).length,
-}), [zoneFilteredPlants]);
 
+  // ✅ CTE / CTO
+  cteCertified: zoneFilteredPlants.filter(p => p.cteCertified).length,
+  cteIssued: zoneFilteredPlants.filter(p => p.cteIssuedDate).length,
+  ctoCertified: zoneFilteredPlants.filter(p => p.ctoCertified).length,
+  ctoIssued: zoneFilteredPlants.filter(p => p.ctoIssuedDate).length,
+}), [zoneFilteredPlants]);
 
   /* ================= TODAY DATE ================= */
   const today = useMemo(
@@ -202,34 +217,47 @@ const downloadTablePdf = async () => {
   doc.setFont("times", "normal");
   doc.setFontSize(10);
   doc.setTextColor(90);
-  doc.text(
-    selectedCard === "ALL"
-      ? "Plant Infrastructure Report"
-      : `${selectedCard} Completion Report`,
-    pageWidth / 2,
-    20,
-    { align: "center" }
-  );
+doc.text(
+  selectedCard === "ALL"
+    ? "Plant Infrastructure Report"
+    : `${selectedCard} Completion Report`,
+  pageWidth / 2,
+  20,
+  { align: "center" }
+);
+
 
   doc.setDrawColor(220);
   doc.line(6, 24, pageWidth - 6, 24);
 
   /* ================= DYNAMIC HEAD ================= */
   const isAll = selectedCard === "ALL";
+const isCTECTO = selectedCard === "CTE/CTO";
 
-  const pdfHead = isAll
+const pdfHead = isAll
+  ? [[
+      "S.No",
+      "Plant ID",
+      "Plant Name",
+      "KLD",
+      "District",
+      "Zone",
+      "MNIT",
+      "POWER",
+      "SOLAR",
+      "INTERNET",
+      "COD/BOD"
+    ]]
+  : isCTECTO
     ? [[
         "S.No",
         "Plant ID",
         "Plant Name",
         "KLD",
-        "District",
-        "Zone",
-        "MNIT",
-        "POWER",
-        "SOLAR",
-        "INTERNET",
-        "COD/BOD"
+        "CTE Certified",
+        "CTE Issued Date",
+        "CTO Certified",
+        "CTO Issued Date"
       ]]
     : [[
         "S.No",
@@ -241,52 +269,69 @@ const downloadTablePdf = async () => {
       ]];
 
   /* ================= DYNAMIC BODY ================= */
-  const pdfBody = filteredPlants.map((p, i) => {
-    if (isAll) {
-      return [
-        i + 1,
-        p.plantID,
-        p.plantName,
-        p.kld,
-        p.district,
-        p.zones,
-        p.mnit,
-        p.permanentPower,
-        p.solar,
-        p.internet,
-        !!p.codAndBodSenserDate
-      ];
-    }
-
-    let status = false;
-    let completionDate = "-";
-
-    if (selectedCard === "MNIT") {
-      status = p.mnit;
-      completionDate = p.mnitDateOfCompletion;
-    }
-    if (selectedCard === "POWER") {
-      status = p.permanentPower;
-      completionDate = p.permanentPowerDateOfCompletion;
-    }
-    if (selectedCard === "SOLAR") {
-      status = p.solar;
-      completionDate = p.solarDateOfCompletion;
-    }
-    if (selectedCard === "INTERNET") {
-      status = p.internet;
-      completionDate = p.internetDateOfCompletion;
-    }
-
+const pdfBody = filteredPlants.map((p, i) => {
+  if (isAll) {
     return [
       i + 1,
       p.plantID,
       p.plantName,
       p.kld,
-      status ? "YES" : "NO",
-      completionDate || "-"
+      p.district,
+      p.zones,
+      p.mnit,
+      p.permanentPower,
+      p.solar,
+      p.internet,
+      !!p.codAndBodSenserDate
     ];
-  });
+  }
+
+  // ✅ CTE / CTO MODE
+  if (isCTECTO) {
+    return [
+      i + 1,
+      p.plantID,
+      p.plantName,
+      p.kld,
+
+      p.cteCertified ? "YES" : "No",
+      p.cteCertified ? formatDate(p.cteIssuedDate) : "-",
+
+      p.ctoCertified ? "YES" : "No",
+      p.ctoCertified ? formatDate(p.ctoIssuedDate) : "-"
+    ];
+  }
+
+  // ✅ EXISTING SINGLE-STATUS MODE
+  let status = false;
+  let completionDate = "-";
+
+  if (selectedCard === "MNIT") {
+    status = p.mnit;
+   completionDate = formatDate(p.mnitDateOfCompletion);
+  }
+  if (selectedCard === "POWER") {
+    status = p.permanentPower;
+    completionDate =formatDate( p.permanentPowerDateOfCompletion);
+  }
+  if (selectedCard === "SOLAR") {
+    status = p.solar;
+    completionDate = formatDate(p.solarDateOfCompletion);
+  }
+  if (selectedCard === "INTERNET") {
+    status = p.internet;
+    completionDate = formatDate(p.internetDateOfCompletion);
+  }
+
+  return [
+    i + 1,
+    p.plantID,
+    p.plantName,
+    p.kld,
+    status ? "YES" : "NO",
+    completionDate || "-"
+  ];
+});
 
   /* ================= TABLE ================= */
   autoTable(doc, {
@@ -344,22 +389,67 @@ const downloadTablePdf = async () => {
     <div className="space-y-6 p-6">
 
       {/* STAT CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <StatCard title="Total Plants" count={counts.total} icon={<Factory size={20} />} active={selectedCard === "ALL"} onClick={() => setSelectedCard("ALL")} />
-        <StatCard title="MNIT Completed" count={counts.mnit} icon={<CheckCircle size={20} />} active={selectedCard === "MNIT"} onClick={() => setSelectedCard("MNIT")} />
-        <StatCard title="Internet Active" count={counts.internet} icon={<Wifi size={20} />} active={selectedCard === "INTERNET"} onClick={() => setSelectedCard("INTERNET")} />
-        <StatCard title="Solar Plants" count={counts.solar} icon={<Sun size={20} />} active={selectedCard === "SOLAR"} onClick={() => setSelectedCard("SOLAR")} />
-        <StatCard title="Permanent Power" count={counts.power} icon={<Zap size={20} />} active={selectedCard === "POWER"} onClick={() => setSelectedCard("POWER")} />
-      </div>
+<div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+  {selectedCard !== "CTE/CTO" ? (
+    <>
+      <StatCard title="Total Plants" count={counts.total}
+        icon={<Factory size={20} />} active={selectedCard === "ALL"}
+        onClick={() => setSelectedCard("ALL")} />
+
+      <StatCard title="MNIT Completed" count={counts.mnit}
+        icon={<CheckCircle size={20} />} active={selectedCard === "MNIT"}
+        onClick={() => setSelectedCard("MNIT")} />
+
+      <StatCard title="Internet Active" count={counts.internet}
+        icon={<Wifi size={20} />} active={selectedCard === "INTERNET"}
+        onClick={() => setSelectedCard("INTERNET")} />
+
+      <StatCard title="Solar Plants" count={counts.solar}
+        icon={<Sun size={20} />} active={selectedCard === "SOLAR"}
+        onClick={() => setSelectedCard("SOLAR")} />
+
+      <StatCard title="Permanent Power" count={counts.power}
+        icon={<Zap size={20} />} active={selectedCard === "POWER"}
+        onClick={() => setSelectedCard("POWER")} />
+
+      <StatCard title="CTE / CTO Report" count={counts.total}
+        icon={<Zap size={20} />} active={selectedCard === "CTE/CTO"}
+        onClick={() => setSelectedCard("CTE/CTO")} />
+    </>
+  ) : (
+    <>
+      {/* ✅ CTE / CTO Cards */}
+      <StatCard title="CTE Certified" count={counts.cteCertified}
+        icon={<CheckCircle size={20} />}
+        active={selectedCard === "CTE_CERT"}
+        />
+
+
+      <StatCard title="CTO Certified" count={counts.ctoCertified}
+        icon={<CheckCircle size={20} />}
+        active={selectedCard === "CTO_CERT"}
+       />
+
+     
+    </>
+  )}
+</div>
+
 
       {/* TABLE */}
       <div className="bg-white rounded-xl border overflow-x-auto p-4">
-   <div className="flex items-center justify-between mb-3 gap-4">
-  {/* LEFT: HEADING */}
-  <h3 className="font-bold flex items-center gap-2 whitespace-nowrap">
-    <LayoutDashboard size={18} />
-    Matching Plants ({filteredPlants.length})
-  </h3>
+<div className="flex items-center justify-between mb-3 gap-4">
+  {/* LEFT: HEADING + BACK */}
+  <div className="flex items-center gap-3">
+   
+    <h3 className="font-bold flex items-center gap-2 whitespace-nowrap">
+      <LayoutDashboard size={18} />
+      {selectedCard === "CTE/CTO"
+        ? "CTE / CTO Report"
+        : `Matching Plants (${filteredPlants.length})`}
+    </h3>
+  </div>
+
 
   {/* RIGHT: ZONE + DOWNLOAD */}
   <div className="flex items-center gap-3">
@@ -378,12 +468,28 @@ const downloadTablePdf = async () => {
 
     <button
       onClick={downloadTablePdf}
-      className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow whitespace-nowrap"
+      className="bg-indigo-600 hover:bg-indigo-700
+                 text-white px-5 py-2 rounded-lg
+                 text-sm font-semibold shadow"
     >
       Download
     </button>
+     {selectedCard === "CTE/CTO" && (
+      <button
+        onClick={() => setSelectedCard("ALL")}
+        className="flex items-center gap-1 text-sm font-semibold
+                   text-indigo-600 border border-indigo-300
+                   px-3 py-1.5 rounded-lg
+                   hover:bg-indigo-50 transition"
+      >
+        ← Back
+      </button>
+    )}
+
   </div>
+  
 </div>
+
 
 
         {selectedCard === "ALL" ? (
@@ -450,45 +556,82 @@ const downloadTablePdf = async () => {
 
         ) : (
           <table className="border-collapse w-full text-sm">
-            <thead>
-              <tr className="bg-slate-100">
-                <th rowSpan={2} className="border p-2">S.No</th>
-                <th rowSpan={2} className="border p-2">Plant ID</th>
-                <th rowSpan={2} className="border p-2">Plant Name</th>
-                <th rowSpan={2} className="border p-2">KLD</th>
+ <thead>
+  <tr className="bg-slate-100 text-xs font-bold">
+    <th className="border p-2">S.No</th>
+    <th className="border p-2">Plant ID</th>
+    <th className="border p-2">Plant Name</th>
+    <th className="border p-2">KLD</th>
 
-                <th className="border p-2 text-center">{selectedCard}</th>
-            <th className="border p-2 text-center">Completion Date</th>
+    {selectedCard === "CTE/CTO" ? (
+      <>
+        <th className="border p-2 text-center">CTE Certified</th>
+        <th className="border p-2 text-center">CTE Issued Date</th>
+        <th className="border p-2 text-center">CTO Certified</th>
+        <th className="border p-2 text-center">CTO Issued Date</th>
+      </>
+    ) : (
+      <>
+        <th className="border p-2 text-center">{selectedCard}</th>
+        <th className="border p-2 text-center">Completion Date</th>
+      </>
+    )}
+  </tr>
+</thead>
 
-              </tr>
-             
-            </thead>
-          <tbody>
+       <tbody>
   {filteredPlants.map((p, i) => (
-    <tr key={p.plantID}>
+    <tr key={p.plantID} className="hover:bg-indigo-50">
       <td className="border p-2 text-center">{i + 1}</td>
       <td className="border p-2 text-center">{p.plantID}</td>
       <td className="border p-2 text-center">{p.plantName}</td>
       <td className="border p-2 text-center">{p.kld}</td>
 
-      {/* STATUS */}
-      <td className="border p-2 text-center font-semibold">
-        {selectedCard === "MNIT" && (p.mnit ? "YES" : "NO")}
-        {selectedCard === "POWER" && (p.permanentPower ? "YES" : "NO")}
-        {selectedCard === "SOLAR" && (p.solar ? "YES" : "NO")}
-        {selectedCard === "INTERNET" && (p.internet ? "YES" : "NO")}
-      </td>
+      {selectedCard === "CTE/CTO" ? (
+        <>
+          {/* CTE CERTIFIED */}
+          <td className="border p-2 text-center font-semibold">
+            {p.cteCertified ? "YES" : "NO"}
+          </td>
 
-      {/* COMPLETION DATE */}
-      <td className="border p-2 text-center">
-        {selectedCard === "MNIT" && (p.mnitDateOfCompletion || "-")}
-        {selectedCard === "POWER" && (p.permanentPowerDateOfCompletion || "-")}
-        {selectedCard === "SOLAR" && (p.solarDateOfCompletion || "-")}
-        {selectedCard === "INTERNET" && (p.internetDateOfCompletion || "-")}
-      </td>
+          {/* CTE ISSUED DATE */}
+          <td className="border p-2 text-center">
+            {p.cteCertified ? formatDate(p.cteIssuedDate) : "-"}
+          </td>
+
+          {/* CTO CERTIFIED */}
+          <td className="border p-2 text-center font-semibold">
+            {p.ctoCertified ? "YES" : "NO"}
+          </td>
+
+          {/* CTO ISSUED DATE */}
+          <td className="border p-2 text-center">
+            {p.ctoCertified ? formatDate(p.ctoIssuedDate) : "-"}
+          </td>
+        </>
+      ) : (
+        <>
+          {/* EXISTING LOGIC (MNIT / POWER / SOLAR / INTERNET) */}
+ <td className="border p-2 text-center font-semibold">
+  {selectedCard === "MNIT" && (p.mnit ? "YES" : "NO")}
+  {selectedCard === "POWER" && (p.permanentPower ? "YES" : "NO")}
+  {selectedCard === "SOLAR" && (p.solar ? "YES" : "NO")}
+  {selectedCard === "INTERNET" && (p.internet ? "YES" : "NO")}
+</td>
+
+<td className="border p-2 text-center">
+  {selectedCard === "MNIT" && (p.mnit ? formatDate(p.mnitDateOfCompletion) : "")}
+  {selectedCard === "POWER" && (p.permanentPower ? formatDate(p.permanentPowerDateOfCompletion) : "")}
+  {selectedCard === "SOLAR" && (p.solar ? formatDate(p.solarDateOfCompletion) : "")}
+  {selectedCard === "INTERNET" && (p.internet ? formatDate(p.internetDateOfCompletion) : "")}
+</td>
+
+        </>
+      )}
     </tr>
   ))}
 </tbody>
+
 
           </table>
         )}

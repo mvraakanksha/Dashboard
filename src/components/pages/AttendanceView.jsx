@@ -62,6 +62,25 @@ const mark = (v) => {
   return <span className="text-slate-400">-</span>;
 };
 
+const DateTick = ({ x, y, payload }) => {
+  if (!payload?.value) return null;
+
+  return (
+    <text
+      x={x}
+      y={y + 10}
+      textAnchor="end"
+      fill="#1E3A8A"
+      fontSize={11}
+      fontWeight={600}
+      transform={`rotate(-45 ${x} ${y + 10})`}
+    >
+      {formatDisplay(payload.value)}
+    </text>
+  );
+};
+
+
 /* ===================================================================== */
 export default function AttendanceView() {
   const navigate = useNavigate();
@@ -273,14 +292,12 @@ useEffect(() => {
                 <CartesianGrid strokeDasharray="3 3" />
 
                 <XAxis
-                  dataKey="date"
-                  tickFormatter={formatDisplay}
-                  interval={0}
-                  angle={-45}
-                  height={80}
-                  textAnchor="end"
-                  tick={{ fontSize: 11, fill: "#1E3A8A", fontWeight: 600 }}
-                />
+  dataKey="date"
+  interval={0}
+  height={80}
+  tick={<DateTick />}
+/>
+
 
                 <YAxis
                   domain={[0, 6]}

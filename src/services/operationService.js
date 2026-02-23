@@ -54,15 +54,54 @@ export const getLabOperationsByDate = (date) => {
   return apiFetch(`/laboperations/date?date=${date}`);
 };
 
+
 /**
  * Lab operations between dates
  * GET /api/laboperations/date-range?fromDate=yyyy-MM-dd&toDate=yyyy-MM-dd
  */
-export const getLabOperationsByDateRange = (fromDate, toDate) => {
+export const getLabOperationsByDateRange = (
+  fromDate,
+  toDate,
+  options = {}
+) => {
   if (!fromDate || !toDate)
     throw new Error("From date and To date are required");
 
   return apiFetch(
-    `/laboperations/date-range?fromDate=${fromDate}&toDate=${toDate}`
+    `/laboperations/date-range?fromDate=${fromDate}&toDate=${toDate}`,
+    options
   );
+};
+
+
+
+
+export const getLatestPowerBill = (plantId, date) => {
+  if (!plantId || !date)
+    throw new Error("Plant ID and Date are required");
+
+  return apiFetch(
+    `/operations/plant/${plantId}/latest-power-bill?date=${date}`
+  );
+};
+
+
+export const getLatestWaterBill = (plantId, date) => {
+  if (!plantId || !date)
+    throw new Error("Plant ID and Date are required");
+
+  return apiFetch(
+    `/operations/plant/${plantId}/latest-water?date=${date}`
+  );
+};
+
+export const getPowerBillDetailsByPlant = (plantId) => {
+  if (!plantId) throw new Error("Plant ID is required");
+  return apiFetch(`/operations/powerbill/${plantId}`);
+};
+
+/* ================= WATER ================= */
+export const getWaterDetailsByPlant = (plantId) => {
+  if (!plantId) throw new Error("Plant ID is required");
+  return apiFetch(`/operations/water/${plantId}`);
 };

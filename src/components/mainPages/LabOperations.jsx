@@ -18,8 +18,8 @@ import {
   Waves,
 } from "lucide-react";
 // import { FlaskConical } from "lucide-react";
-import { getAllPlants } from "../services/plantService";
-import { getLabOperationsByDate } from "../services/operationService";
+import { getAllPlants } from "../../services/plantService";
+import { getLabOperationsByDate } from "../../services/operationService";
 
 
 const KPICard = ({ label, value, unit, theme, icon }) => (

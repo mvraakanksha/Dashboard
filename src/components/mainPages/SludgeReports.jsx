@@ -7,7 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts";
-import WaveCircle from "../components/WaveCircle";
+import WaveCircle from "./WaveCircle";
 import { useNavigate } from "react-router-dom";
 import { 
   Droplets, 
@@ -18,8 +18,8 @@ import {
   Thermometer ,
    Activity
 } from "lucide-react";
-import { getAllPlants } from "../services/plantService";
-import { getOperationsByDate } from "../services/operationService";
+import { getAllPlants } from "../../services/plantService";
+import { getOperationsByDate } from "../../services/operationService";
 /* ================= UTILS ================= */
 const formatIndianNumber = (num) => {
   if (num === 0) return "0";

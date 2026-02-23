@@ -67,11 +67,15 @@ const downloadTablePdf = async () => {
   doc.setTextColor(200, 0, 0);
   doc.text("MVR TECHNOLOGY", pageWidth / 2, 14, { align: "center" });
 
+    doc.setFontSize(10);
+  doc.setTextColor(0,0,0);
+doc.text("FSTP RAJASTHAN", pageWidth / 2, 18, { align: "center" });
+
   // Subtitle
   doc.setFont("times", "normal");
   doc.setFontSize(10);
   doc.setTextColor(80);
-  doc.text("Water Report", pageWidth / 2, 20, { align: "center" });
+  doc.text("Water Report", pageWidth / 2, 23, { align: "center" });
 
   // Divider line
   doc.setDrawColor(220);

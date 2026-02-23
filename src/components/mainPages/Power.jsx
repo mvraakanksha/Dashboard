@@ -10,8 +10,8 @@ import {
 } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { Zap } from "lucide-react";
-import { getAllPlants } from "../services/plantService";
-import { getOperationsByDate } from "../services/operationService";
+import { getAllPlants } from '../../services/plantService'
+import { getOperationsByDate } from '../../services/operationService'
 
 
 
@@ -58,6 +58,18 @@ const ClickableTick = ({ x, y, payload, plantMap, onPlantClick }) => {
     </text>
   );
 };
+const formatDDMMYYYY = (dateStr) => {
+  if (!dateStr) return "";
+
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+
+  return `${day}/${month}/${year}`;
+};
 
 /* ================= TOOLTIP ================= */
 const PowerTooltip = ({ active, payload, label }) => {
@@ -73,6 +85,16 @@ const PowerTooltip = ({ active, payload, label }) => {
   return (
     <div className="bg-white border shadow-md rounded p-3 text-xs w-64">
       <p className="font-bold text-blue-900">PID: {row.plantId} - {row.label} - {row.kld} KLD</p>
+      {row.powerCompletedOn && (
+  <p className="text-[11px] font-semibold text-slate-500 mt-1">
+     Power completed On : {formatDDMMYYYY(row.powerCompletedOn)}
+  </p> 
+)}
+{row.solarCompletedOn && (
+  <p className="text-[11px] font-semibold text-slate-500">
+    Solar completed On : {formatDDMMYYYY(row.solarCompletedOn)}
+  </p>
+)}
 
       {importItem && importItem.value > 0 && (
         <div className="mt-2">
@@ -179,6 +201,8 @@ const rawChartData = useMemo(() => {
         label: p.plantName,
         plantId: p.plantID,
         kld:p.kld,
+         powerCompletedOn: p.permanentPowerDateOfCompletion, 
+         solarCompletedOn: p.solarDateOfCompletion,
         importPower: +importPower.toFixed(2),
         exportPower: +exportPower.toFixed(2),
         runHours: +runHours.toFixed(2),

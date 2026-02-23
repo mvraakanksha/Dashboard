@@ -13,12 +13,12 @@ import {
 import { lazy, Suspense } from "react";
 
 const Dashboard = lazy(() => import("./components/Dashboard"));
-const SludgeReports = lazy(() => import("./components/SludgeReports"));
-const Attendance = lazy(() => import("./components/Attendance"));
-const Vehicle = lazy(() => import("./components/Vehicle"));
-const Power = lazy(() => import("./components/Power"));
-const Pellets = lazy(() => import("./components/Pellets"));
-const LabOperations = lazy(() => import("./components/LabOperations"));
+const SludgeReports = lazy(() => import('./components/mainPages/SludgeReports'));
+const Attendance = lazy(() => import("./components/mainPages/Attendance"));
+const Vehicle = lazy(() => import("./components/mainPages/Vehicle"));
+const Power = lazy(() => import("./components/mainPages/Power"));
+const Pellets = lazy(() => import("./components/mainPages/Pellets"));
+const LabOperations = lazy(() => import("./components/mainPages/LabOperations"));
 
 // Pages
 const SludgeReportView = lazy(() => import("./components/pages/SludgeReportView"));
@@ -29,7 +29,6 @@ const PowerPage = lazy(() => import("./components/pages/PowerPage"));
 // Pages
 
 
-
 const PelletsPage = lazy(() => import("./components/pages/PelletsPage"));
 const Report = lazy(() => import("./components/Report"));
 const DailyReportPage = lazy(() => import("./components/reports/DailyReportPage"));
@@ -38,8 +37,11 @@ const CustomizedReport = lazy(() => import("./components/reports/CustomizedRepor
 const Individual = lazy(() => import("./components/reports/Individual"));
 const AttendanceReport = lazy(() => import("./components/reports/AttendanceReport"));
 const WaterReport = lazy(() => import("./components/reports/WaterReport"));
+const EmployeeDetails =  lazy(() => import("./components/reports/EmployeeDetails"));
 
-
+const Performance = lazy(() => import("./components/reports/Performance"));
+const powerbillReport = lazy(() => import("./components/reports/PowerbillReport"));
+const Utility = lazy(() => import('./components/reports/Utility'));
 
 // Shared UI
 import FilterBar from "./components/FilterBar";
@@ -48,7 +50,8 @@ import PlantReport from "./components/reports/PlantReport";
 
 import PlantOneTimeReport from "./components/reports/PlantOneTimeReport";
 import DaterangeView from "./components/DaterangeView";
-
+import PowerbillReport from "./components/reports/PowerbillReport";
+import Discom from "./components/reports/Discom";
 
 
 const TODAY = new Date().toISOString().split("T")[0];
@@ -305,6 +308,11 @@ useEffect(() => {
               element={<PowerPage />}
             />
 
+            <Route
+              path="/utility-view/:plantId/:plantName"
+              element={<Utility />}
+            />
+
             {/* <Route
               path="/pellets"
               element={<Pellets isDark={isDark} date={date} zone={zone} />}
@@ -331,6 +339,10 @@ useEffect(() => {
                <Route path="individual" element={<Individual/>} />
                 <Route path="attendance" element={<AttendanceReport/>} />
                    <Route path="water" element={<WaterReport/>} />
+                   <Route path="performance" element={<Performance/>} />
+                      <Route path="utility" element={<Utility/>} />
+                      <Route path="discom" element={<Discom />} />
+                        <Route path="employee" element={<EmployeeDetails/>} />
             </Route>
 <Route
   path="/plants"

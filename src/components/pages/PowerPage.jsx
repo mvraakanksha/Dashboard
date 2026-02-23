@@ -44,6 +44,37 @@ const RunHourLabel = ({ x, y, width, value }) =>
     </text>
   ) : null;
 
+const formatDisplayDate = (dateString) => {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
+};
+
+
+  const DateTick = ({ x, y, payload }) => {
+  if (!payload?.value) return null;
+
+  return (
+    <text
+      x={x}
+      y={y + 10}
+      textAnchor="end"
+      fill="#003f8a"
+      fontSize={11}
+      fontWeight={600}
+      transform={`rotate(-45 ${x} ${y + 10})`}
+    >
+      {formatDisplayDate(payload.value)}
+    </text>
+  );
+};
+
+
 /* ---------------- TOOLTIP ---------------- */
 const PowerTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -51,7 +82,7 @@ const PowerTooltip = ({ active, payload }) => {
 
   return (
     <div className="bg-white border shadow-md rounded p-3 text-xs w-64">
-      <p className="font-bold text-blue-900">{d.date}</p>
+      <p className="font-bold text-blue-900">{formatDisplayDate(d.date)}</p>
       <p className="mt-2 text-red-700">Power Consumption: {rd(d.importPower)} Kwh</p>
       {d.exportPower > 0 && (
         <p className="mt-1 text-green-700">Solar Power Generated: {rd(d.exportPower)} Kwh</p>
@@ -62,6 +93,7 @@ const PowerTooltip = ({ active, payload }) => {
     </div>
   );
 };
+
 
 /* ================= PAGE ================= */
 export default function PowerPage() {
@@ -213,7 +245,13 @@ export default function PowerPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={{ top: 30, right: 30, left: 60, bottom: 80 }} barCategoryGap={20}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" interval={0} angle={-45} height={80} textAnchor="end" />
+                <XAxis
+  dataKey="date"
+  interval={0}
+  height={80}
+  tick={<DateTick />}
+/>
+
                 <YAxis
                                 label={{
                                   value: "Power (Kwh) / Run Hours",

@@ -17,9 +17,9 @@ import {
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
-import { getAllPlants } from "../services/plantService";
-import { getVehicleOperationsByDate } from "../services/vehicleService";
-
+import { getAllPlants } from "../../services/plantService";
+import { getVehicleOperationsByDate} from "../../services/vehicleService";
+import { getOperationsByDate,getOperationsByDateRange} from "../../services/operationService";
 
 /* ---------------- CLICKABLE X-TICK ---------------- */
 const ClickableTick = ({ x, y, payload, plantMap, navigate }) => {
@@ -123,6 +123,7 @@ export default function Vehicle({ date, zone })
   const [vehicleOps, setVehicleOps] = useState([]);
 
   const [vehicleSortMode, setVehicleSortMode] = useState("distance");
+const [operationsData, setOperationsData] = useState([]);
 
 //   const kpiTheme = {
 //   blue: {
@@ -180,6 +181,23 @@ useEffect(() => {
   loadVehicleOps();
 }, [date]);
 
+
+useEffect(() => {
+  if (!date) return;
+
+  const loadOperations = async () => {
+    try {
+      const data = await getOperationsByDate(date); // or date-range version
+      setOperationsData(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("Failed to load operations", e);
+      setOperationsData([]);
+    }
+  };
+
+  loadOperations();
+}, [date]);
+
   /* ---------------- ZONE FILTERED DATA ---------------- */
 const filteredPlants = useMemo(() => {
   return plants.filter(
@@ -192,6 +210,14 @@ const filteredPlants = useMemo(() => {
     const plantIds = new Set(filteredPlants.map((p) => p.plantID));
     return vehicleOps.filter((v) => plantIds.has(v.plantId));
   }, [vehicleOps, filteredPlants]);
+
+  const filteredOperationsData = useMemo(() => {
+  const plantIds = new Set(filteredPlants.map((p) => p.plantID));
+
+  return operationsData.filter((op) =>
+    plantIds.has(op.plantId)
+  );
+}, [operationsData, filteredPlants]);
 
   /* ---------------- BUILD CHART DATA ---------------- */
   const chartData = useMemo(() => {
@@ -264,6 +290,29 @@ const filteredPlants = useMemo(() => {
     );
   }, [filteredVehicleOps]);
 
+  const totalOwnSludge = useMemo(() => {
+  return filteredVehicleOps.reduce(
+    (sum, v) => sum + (v.vehicleOp?.sludgeCollect || 0),
+    0
+  );
+}, [filteredVehicleOps]);
+
+
+const totalPrivateTrips = useMemo(() => {
+  return filteredOperationsData.reduce((sum, op) => {
+    return sum + (op.operation?.noOfTripsPrivateVehicle || 0);
+  }, 0);
+}, [filteredOperationsData]);
+
+
+const totalPrivateSludge = useMemo(() => {
+  return filteredOperationsData.reduce((sum, op) => {
+    return sum + (op.operation?.sludgeCollectPrivateVehicle || 0);
+  }, 0);
+}, [filteredOperationsData]);
+
+
+
   const avgDistance =
     movedVehicles > 0 ? (totalDistance / movedVehicles).toFixed(1) : "0.0";
 
@@ -301,7 +350,8 @@ const filteredPlants = useMemo(() => {
   }, [chartData, vehicleSortMode]);
 
   /* ---------------- UI ---------------- */
-  return (
+ /* ---------------- UI ---------------- */
+return (
   <div className="min-h-screen p-6 bg-gradient-to-br from-[#CFE2FF] via-[#BBD8FE] to-[#013B88]">
 
     {/* 🔝 HEADER */}
@@ -322,66 +372,79 @@ const filteredPlants = useMemo(() => {
       </div>
     </div>
 
-    {/* KPI + FILTERS */}
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+    {/* ================= KPI CARDS ================= */}
+    <div className="rounded-2xl p-6 bg-white shadow-lg mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
 
-      {/* KPI CARDS */}
-      <div className="lg:col-span-3 rounded-2xl p-6 bg-white shadow-lg">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {[
-            { label: "Total Vehicles", value: totalVehicles, icon: <Truck size={18} />, bg: "#DBEAFE", bar: "#2563EB" },
-            { label: "Moved Vehicles", value: movedVehicles, icon: <Navigation size={18} />, bg: "#D1FAE5", bar: "#059669" },
-            { label: "No. of Trips", value: totalTrips, icon: <Milestone size={18} />, bg: "#E0E7FF", bar: "#4F46E5" },
-            { label: "Total Distance", value: Math.round(totalDistance), icon: <Activity size={18} />, bg: "#FFE4E6", bar: "#E11D48" },
-            { label: "Avg Distance", value: Math.round(avgDistance), icon: <Activity  size={18} />, bg: "#FEF3C7", bar: "#D97706" },
-          ].map((card, i) => (
+        {[
+          { label: "Total Vehicles", value: totalVehicles, icon: <Truck size={18} />, bg: "#DBEAFE", bar: "#2563EB" },
+          { label: "Moved Vehicles", value: movedVehicles, icon: <Navigation size={18} />, bg: "#D1FAE5", bar: "#059669" },
+          { label: "Own Vehicle Trips", value: totalTrips, subValue: `Sludge collected : ${totalOwnSludge.toLocaleString()} L`, icon: <Milestone size={18} />, bg: "#E0E7FF", bar: "#4F46E5" },
+          { label: "Total Distance", value: Math.round(totalDistance), icon: <Activity size={18} />, bg: "#FFE4E6", bar: "#E11D48" },
+          { label: "Avg Distance", value: Math.round(avgDistance), icon: <Activity size={18} />, bg: "#FEF3C7", bar: "#D97706" },
+          { label: "Private Vehicle Trips", value: totalPrivateTrips, subValue: `Sludge collected : ${totalPrivateSludge.toLocaleString()} L`, icon: <Milestone size={18} />, bg: "#EDE9FE", bar: "#7C3AED" }
+        ].map((card, i) => (
+          <div
+            key={i}
+            className="group relative rounded-xl p-4 shadow-sm hover:shadow-md transition"
+            style={{ backgroundColor: card.bg }}
+          >
             <div
-              key={i}
-              className="group relative rounded-xl p-4 shadow-sm hover:shadow-md transition"
-              style={{ backgroundColor: card.bg }}
-            >
-              <div
-                className="absolute bottom-0 left-0 h-1 w-full origin-left scale-x-0
-                           group-hover:scale-x-100 transition-transform duration-500"
-                style={{ backgroundColor: card.bar }}
-              />
+              className="absolute bottom-0 left-0 h-1 w-full origin-left scale-x-0
+                         group-hover:scale-x-100 transition-transform duration-500"
+              style={{ backgroundColor: card.bar }}
+            />
 
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-white text-slate-700">
-                {card.icon}
-              </div>
-
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                {card.label}
-              </p>
-
-              <p className="text-xl font-black mt-1 text-slate-900">
-                {card.value}
-              </p>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-white text-slate-700">
+              {card.icon}
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* SORT FILTER */}
-      <div className="rounded-xl p-4 flex flex-col justify-center bg-white shadow-md">
-        <label className="text-xs font-semibold text-gray-700 mb-1">
-          Sort By
-        </label>
-        <select
-          value={vehicleSortMode}
-          onChange={(e) => setVehicleSortMode(e.target.value)}
-          className="border p-2 rounded-md text-sm font-semibold outline-none bg-white border-slate-300"
-        >
-          <option value="distance">Total Distance</option>
-          <option value="v1">Vehicle 1 Distance</option>
-          <option value="v2">Vehicle 2 Distance</option>
-          <option value="id">Plant Id</option>
-        </select>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              {card.label}
+            </p>
+
+            <p className="text-xl font-black mt-1 text-slate-900">
+              {card.value}
+            </p>
+
+            {card.subValue && (
+              <p className="text-xs font-semibold mt-1 text-slate-600">
+                {card.subValue}
+              </p>
+            )}
+          </div>
+        ))}
+
       </div>
     </div>
 
     {/* ===================== CHART ===================== */}
     <div className="rounded-2xl p-6 bg-white shadow-lg">
+
+      {/* 🔹 TITLE + SORT (Top Right like Attendance) */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-bold text-blue-900 text-lg">
+          Vehicle Movement
+        </h3>
+
+        <div className="flex-col justify-end">
+          <span className="text-xs font-semibold text-slate-500">
+            Sort by
+          </span>
+
+          <select
+            value={vehicleSortMode}
+            onChange={(e) => setVehicleSortMode(e.target.value)}
+            className="border rounded-md px-3 py-1 text-xs font-semibold
+                       bg-white border-slate-300 outline-none"
+          >
+            <option value="distance">Total Distance</option>
+            <option value="v1">Vehicle 1 Distance</option>
+            <option value="v2">Vehicle 2 Distance</option>
+            <option value="id">Plant ID</option>
+          </select>
+        </div>
+      </div>
 
       <div className={needsScroll ? "overflow-x-auto" : ""}>
         <div style={{ width: vehicleChartWidth, height: 520 }}>
@@ -392,6 +455,7 @@ const filteredPlants = useMemo(() => {
               barCategoryGap={30}
             >
               <CartesianGrid strokeDasharray="3 3" />
+
               <XAxis
                 dataKey="label"
                 interval={0}
@@ -404,6 +468,7 @@ const filteredPlants = useMemo(() => {
                   />
                 )}
               />
+
               <YAxis
                 label={{
                   value: "Distance Covered (Km)",
@@ -414,9 +479,22 @@ const filteredPlants = useMemo(() => {
                   fontWeight: "bold",
                 }}
               />
+
               <Tooltip content={<CombinedTooltip />} />
-              <Bar dataKey="bar1" fill="#6AA6FF" barSize={28} label={<TopBarLabel />} />
-              <Bar dataKey="bar2" fill="#0047B3" barSize={28} label={<TopBarLabel />} />
+
+              <Bar
+                dataKey="bar1"
+                fill="#6AA6FF"
+                barSize={28}
+                label={<TopBarLabel />}
+              />
+
+              <Bar
+                dataKey="bar2"
+                fill="#0047B3"
+                barSize={28}
+                label={<TopBarLabel />}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -438,6 +516,7 @@ const filteredPlants = useMemo(() => {
       <p className="text-center text-lg font-bold mt-3 text-gray-700">
         Plants
       </p>
+
     </div>
   </div>
 );

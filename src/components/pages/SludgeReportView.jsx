@@ -46,7 +46,7 @@ const SludgeTooltip = ({ active, payload, mode }) => {
 
   return (
     <div className="bg-white border shadow-md rounded p-3 text-xs w-56">
-      <p className="font-bold text-blue-900">{d.date}</p>
+      <p className="font-bold text-blue-900">{formatDisplayDate(d.date)}</p>
       {mode === "received" && <p>Received: {formatIndianNumber(d.received)} L</p>}
       {mode === "tank" && <p>Tank Level: {formatIndianNumber(d.tankLevel)} L</p>}
       {mode === "processed" && <p>Processed: {formatIndianNumber(d.processed)} L</p>}
@@ -71,13 +71,43 @@ const TopBarLabel = ({ x, y, width, value }) => {
     </text>
   );
 };
+const DateTick = ({ x, y, payload }) => {
+  if (!payload?.value) return null;
+
+  return (
+    <text
+      x={x}
+      y={y + 10}
+      textAnchor="end"
+      fill="#003f8a"
+      fontSize={11}
+      fontWeight={600}
+      transform={`rotate(-45 ${x} ${y + 10})`}
+    >
+      {formatDisplayDate(payload.value)}
+    </text>
+  );
+};
+
+const formatDisplayDate = (dateString) => {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
+};
 
 /* ---------------- MAIN COMPONENT ---------------- */
 export default function SludgeReportView() {
   const navigate = useNavigate();
   const { plantId } = useParams();
   const [params] = useSearchParams();
-  const mode = params.get("mode") || "received";
+  const urlMode = params.get("mode") || "received";
+const [activeMode, setActiveMode] = useState(urlMode);
+const [allTankData, setAllTankData] = useState([]);
 
   /* -------- PLANT DETAILS -------- */
   const [plantDetails, setPlantDetails] = useState(null);
@@ -107,8 +137,16 @@ export default function SludgeReportView() {
   /* ---------------- FETCH DAYWISE DATA ---------------- */
 const fetchDaywise = useCallback(async () => {
   try {
-    const result = await getOperationsByDateRange(fromDate, toDate);
+    const extendedFromDate = formatDate(
+      subtractDays(new Date(fromDate), 30)
+    );
 
+    const result = await getOperationsByDateRange(
+      extendedFromDate,
+      toDate
+    );
+
+    // 1️⃣ Build map FIRST
     const map = {};
     result.forEach((item) => {
       if (String(item.plantId) === String(plantId)) {
@@ -116,18 +154,43 @@ const fetchDaywise = useCallback(async () => {
       }
     });
 
-    const finalData = getDateRange(fromDate, toDate).map((date) => {
+    // 2️⃣ Build full tank dataset (for fallback logic)
+    const fullData = getDateRange(
+      extendedFromDate,
+      toDate
+    ).map((date) => {
+      const op = map[date];
+      return {
+        date,
+        tankLevel:
+          op?.sludgeTankLevelPm ??
+          op?.sludgeTankLevelAm ??
+          null,
+      };
+    });
+
+    // 3️⃣ Build chart dataset (only selected range)
+    const finalData = getDateRange(
+      fromDate,
+      toDate
+    ).map((date) => {
       const op = map[date];
       return {
         date,
         received: op?.sludgeReceived ?? 0,
-        tankLevel: op?.sludgeTankLevelPm ?? op?.sludgeTankLevelAm ?? 0,
+        tankLevel:
+          op?.sludgeTankLevelPm ??
+          op?.sludgeTankLevelAm ??
+          null,
         processed: op?.sludgeProcessed ?? 0,
         biochar: op?.biocharProduced ?? 0,
       };
     });
 
+    // 4️⃣ Set states
+    setAllTankData(fullData);
     setDaywiseData(finalData);
+
   } catch (err) {
     console.error("Failed to fetch daywise data", err);
     setDaywiseData([]);
@@ -138,9 +201,13 @@ useEffect(() => {
   fetchDaywise();
 }, [fetchDaywise]);
 
+useEffect(() => {
+  setActiveMode(urlMode);
+}, [urlMode]);
+
   /* ---------------- KPI CALCULATIONS ---------------- */
   const totalValue = daywiseData.reduce((sum, d) => {
-    switch (mode) {
+    switch (activeMode) {
       case "received":
         return sum + d.received;
       case "tank":
@@ -153,6 +220,31 @@ useEffect(() => {
         return sum;
     }
   }, 0);
+/* -------- TANK LEVEL (FROM / TO DATE) -------- */
+/* -------- UNIVERSAL BACKWARD CARRY TANK LOGIC -------- */
+const getLastAvailableTankLevel = (targetDate) => {
+  if (!allTankData.length) return 0;
+
+  const sortedData = [...allTankData].sort(
+    (a, b) => new Date(a.date) - new Date(b.date)
+  );
+
+  for (let i = sortedData.length - 1; i >= 0; i--) {
+    if (
+      new Date(sortedData[i].date) <= new Date(targetDate) &&
+      sortedData[i].tankLevel !== null &&
+      sortedData[i].tankLevel !== undefined
+    ) {
+      return sortedData[i].tankLevel;
+    }
+  }
+
+  return 0;
+};
+
+
+const fromTankLevel = getLastAvailableTankLevel(fromDate);
+const toTankLevel = getLastAvailableTankLevel(toDate);
 
   const avgValue =
     daywiseData.length > 0 ? totalValue / daywiseData.length : 0;
@@ -191,7 +283,7 @@ useEffect(() => {
       </button>
 
       <h2 className="text-2xl font-bold text-blue-900 mb-6">
-        {labels[mode][0]}
+        {labels[activeMode][0]}
         <span className="text-2xl font-bold text-blue-900 mb-6">
           -  PID: {plantDetails?.plantID ?? "-"} :{" "}
           {plantDetails?.plantName ?? "Loading..."} :{" "}
@@ -202,18 +294,54 @@ useEffect(() => {
       {/* KPI + FILTERS (UNCHANGED) */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
         <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[0, 1].map((i) => (
-              <div
-                key={i}
-                className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center"
-              >
-                <p className="text-sm font-medium">{labels[mode][i]}</p>
-                <h2 className="text-xl font-extrabold text-green-400 mt-3">
-                  {formatIndianRounded(i === 0 ? totalValue : avgValue)}
-                </h2>
-              </div>
-            ))}
+      <div
+  className={`grid grid-cols-1 sm:grid-cols-2 ${
+    activeMode === "biochar"
+      ? "lg:grid-cols-2"
+      : "lg:grid-cols-4"
+  } gap-4`}
+>
+
+{/* TOTAL + AVERAGE */}
+{[0, 1].map((i) => (
+  <div
+    key={i}
+    className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center"
+  >
+    <p className="text-sm font-medium">
+      {labels[activeMode][i]}
+    </p>
+    <h2 className="text-xl font-extrabold text-green-400 mt-3">
+      {formatIndianRounded(i === 0 ? totalValue : avgValue)}
+    </h2>
+  </div>
+))}
+
+{/* EXTRA TANK CARDS */}
+{activeMode !== "biochar" && (
+  <>
+    <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center">
+      <p className="text-sm font-medium">
+       Tank Level on {formatDisplayDate(fromDate)}
+
+      </p>
+      <h2 className="text-xl font-extrabold text-green-400 mt-3">
+        {formatIndianRounded(fromTankLevel)} L
+      </h2>
+    </div>
+
+    <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center">
+      <p className="text-sm font-medium">
+       Tank Level on {formatDisplayDate(toDate)}
+
+      </p>
+      <h2 className="text-xl font-extrabold text-green-400 mt-3">
+        {formatIndianRounded(toTankLevel)} L
+      </h2>
+    </div>
+  </>
+)}
+
           </div>
         </div>
 
@@ -247,6 +375,32 @@ useEffect(() => {
 
       {/* CHART (UNCHANGED) */}
       <div className="bg-white shadow-xl rounded-xl p-6 w-full">
+
+              
+{/* 🔄 MODE TOGGLE */}
+<div className="flex justify-end mb-4">
+  <div className="flex p-1 rounded-lg bg-slate-100 shadow-sm">
+    {[
+      { key: "received", label: "Received" },
+      { key: "processed", label: "Processed" },
+      { key: "tank", label: "Tank Level" },
+      { key: "biochar", label: "Biochar" },
+    ].map((item) => (
+      <button
+        key={item.key}
+        onClick={() => setActiveMode(item.key)}
+        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+          activeMode === item.key
+            ? "bg-white text-emerald-600 shadow-sm"
+            : "text-slate-500"
+        }`}
+      >
+        {item.label}
+      </button>
+    ))}
+  </div>
+</div>
+
         <div className={needsScroll ? "overflow-x-auto" : ""}>
           <div style={{ width: chartWidth, height: 420 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -256,23 +410,22 @@ useEffect(() => {
                 barCategoryGap={20}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  interval={0}
-                  angle={-45}
-                  height={80}
-                  textAnchor="end"
-                  tick={{ fontSize: 11, fill: "#003f8a", fontWeight: 600 }}
-                />
+              <XAxis
+  dataKey="date"
+  interval={0}
+  height={80}
+  tick={<DateTick />}
+/>
+
                 <YAxis
                   tickFormatter={formatIndianRounded}
                   label={{
                     value:
-                      mode === "received"
+                      activeMode === "received"
                         ? "Sludge Received (L)"
-                        : mode === "tank"
+                        : activeMode === "tank"
                         ? "Tank Level (L)"
-                        : mode === "processed"
+                        : activeMode === "processed"
                         ? "Sludge Processed (L)"
                         : "Biochar Produced (Kg)",
                     angle: -90,
@@ -283,18 +436,18 @@ useEffect(() => {
                     fontWeight: "bold",
                   }}
                 />
-                <Tooltip content={<SludgeTooltip mode={mode} />} />
+                <Tooltip content={<SludgeTooltip mode={activeMode} />} />
 
-                {mode === "received" && (
+                {activeMode === "received" && (
                   <Bar dataKey="received" fill="#003f8a" barSize={28} label={<TopBarLabel />} />
                 )}
-                {mode === "tank" && (
+                {activeMode === "tank" && (
                   <Bar dataKey="tankLevel" fill="#6a1b9a" barSize={28} label={<TopBarLabel />} />
                 )}
-                {mode === "processed" && (
+                {activeMode === "processed" && (
                   <Bar dataKey="processed" fill="#0277bd" barSize={28} label={<TopBarLabel />} />
                 )}
-                {mode === "biochar" && (
+                {activeMode === "biochar" && (
                   <Bar dataKey="biochar" fill="#d84315" barSize={28} label={<TopBarLabel />} />
                 )}
               </BarChart>

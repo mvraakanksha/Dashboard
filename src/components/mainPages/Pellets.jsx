@@ -10,8 +10,8 @@ import {
 import { Layers, ExternalLink, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Box } from "lucide-react";
-import { getAllPlants } from "../services/plantService";
-import { getOperationsByDateRange } from "../services/operationService";
+import { getAllPlants } from "../../services/plantService";
+import { getOperationsByDateRange } from "../../services/operationService";
 
 const formatIN = (value, decimals = 1) => {
   if (value === null || value === undefined || isNaN(value)) return "0";

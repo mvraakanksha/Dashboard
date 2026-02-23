@@ -1,7 +1,26 @@
-/* @import "tailwindcss"; */
+@import "tailwindcss";
 
 
 .no-sidebar {
   margin-left: 0 !important;
   width: 100% !important;
 }
+
+
+.pdf-safe,
+.pdf-safe * {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  box-shadow: none !important;
+  border-color: #000000 !important;
+}
+
+.pdf-safe th {
+  background-color: #f1f5f9 !important;
+}
+
+.pdf-safe h3,
+.pdf-safe h4 {
+  color: #1e3a8a !important;
+}
+

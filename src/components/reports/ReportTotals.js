@@ -44,6 +44,8 @@ export const sumVehicleMetricOverall = (rows, dates, metric) =>
     0
   );
 
+
+
 // 🔹 Non-vehicle metric DATE total
 export const sumMetricForDate = (rows = [], date, metric) => {
   if (!Array.isArray(rows)) return 0;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback,useRef } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, LabelList, CartesianGrid, Label
@@ -6,11 +6,11 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Users, UserCheck, UserMinus, Activity } from "lucide-react";
 
-import { getAllPlants } from "../services/plantService";
+import { getAllPlants } from "../../services/plantService";
 import {
   getEmployeesByPlant,
   getEmployeeOperationsByDate
-} from "../services/employeeService";
+} from "../../services/employeeService";
 
 /* ---------------- UTIL ---------------- */
 const mark = (v) => {
@@ -110,6 +110,8 @@ export default function Attendance({ isDark, date, zone }) {
 const [attendanceSortMode, setAttendanceSortMode] =
   useState("attendanceDesc");
 
+  const abortRef = useRef(null);
+
   /* ---------- LOAD PLANTS ---------- */
   useEffect(() => {
     getAllPlants().then(setPlants).catch(console.error);
@@ -124,38 +126,66 @@ const [attendanceSortMode, setAttendanceSortMode] =
   }, [date]);
 
   /* ---------- LOAD EMPLOYEES (PER PLANT) ---------- */
-  useEffect(() => {
-    if (!plants.length) return;
+useEffect(() => {
+  abortRef.current?.abort();
+  abortRef.current = new AbortController();
+  const signal = abortRef.current.signal;
 
-    let cancelled = false;
+  const run = async () => {
+    try {
+      const plantsData = await getAllPlants({ signal });
+      setPlants(plantsData);
 
-    const run = async () => {
-      const all = await Promise.all(
-        plants.map(p =>
-          getEmployeesByPlant(p.plantID).then(arr =>
+      if (!date) return;
+
+      const attendance = await getEmployeeOperationsByDate(date, { signal });
+      setAttendanceOps(attendance);
+
+      // 🔥 parallel employee fetch
+      const employeesData = await Promise.all(
+        plantsData.map(p =>
+          getEmployeesByPlant(p.plantID, { signal }).then(arr =>
             arr.map(e => ({ ...e, plantId: p.plantID }))
           )
         )
       );
-      if (!cancelled) setEmployees(all.flat());
-    };
 
-    run();
-    return () => (cancelled = true);
-  }, [plants]);
+      setEmployees(employeesData.flat());
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        console.error(err);
+      }
+    }
+  };
+
+  run();
+
+  return () => abortRef.current?.abort();
+}, [date]);
+
 
   /* ---------- CALCULATE PER PLANT ---------- */
+const employeesByPlant = useMemo(() => {
+  const map = {};
+  employees.forEach(e => {
+    (map[e.plantId] ||= []).push(e);
+  });
+  return map;
+}, [employees]);
+
+const attendanceByPlant = useMemo(() => {
+  const map = {};
+  attendanceOps.forEach(o => {
+    (map[o.plantId] ||= []).push(o);
+  });
+  return map;
+}, [attendanceOps]);
 
 
 const calculatePlant = useCallback(
   (plantId) => {
-    const emps = employees.filter(
-      e => String(e.plantId) === String(plantId)
-    );
-
-    const ops = attendanceOps.filter(
-      o => String(o.plantId) === String(plantId)
-    );
+    const emps = employeesByPlant[plantId] || [];
+    const ops  = attendanceByPlant[plantId] || [];
 
     let presentUnits = 0;
 
@@ -176,34 +206,29 @@ const calculatePlant = useCallback(
       }
     });
 
-    return {
-      presentUnits,
-      employees: emps,
-      attendance: ops
-    };
+    return { presentUnits, employees: emps, attendance: ops };
   },
-  [employees, attendanceOps]   // ✅ correct dependencies
+  [employeesByPlant, attendanceByPlant]
 );
 
 
   /* ---------- BUILD CHART DATA ---------- */
-  const allPlantsData = useMemo(() => {
-    return plants
-      .filter(p => zone === "All" || String(p.zones) === String(zone))
-      .map(p => {
-        const stats = calculatePlant(p.plantID);
-        return {
-          label: p.plantName,
-          plantId: p.plantID,
-          kld:p.kld,
-          presentUnits: stats.presentUnits,
-          employees: stats.employees,
-          attendance: stats.attendance,
-          totalEmployees: p.noOfEmployees ?? stats.employees.length
-        };
-      })
-      .sort((a, b) => b.presentUnits - a.presentUnits);
-  }, [plants, employees, attendanceOps, zone]);
+const allPlantsData = useMemo(() => {
+  return plants
+    .filter(p => zone === "All" || String(p.zones) === String(zone))
+    .map(p => {
+      const stats = calculatePlant(p.plantID);
+      return {
+        label: p.plantName,
+        plantId: p.plantID,
+        kld: p.kld,
+        presentUnits: stats.presentUnits,
+        employees: stats.employees,
+        attendance: stats.attendance,
+        totalEmployees: p.noOfEmployees ?? stats.employees.length
+      };
+    });
+}, [plants, zone, calculatePlant]);
 
 
   const sortedAttendanceData = useMemo(() => {
@@ -229,27 +254,31 @@ const calculatePlant = useCallback(
     ? (totalPresent / allPlantsData.length).toFixed(1)
     : 0;
 
-  const plantMap = Object.fromEntries(
+const plantMap = useMemo(() => {
+  return Object.fromEntries(
     allPlantsData.map(p => [p.label, p])
   );
+}, [allPlantsData]);
 
   /* ---------- BAR LABEL ---------- */
-  const renderBarLabel = ({ x, y, width, index }) => {
-     const row = sortedAttendanceData[index];
-    if (!row) return null;
-    return (
-      <text
-        x={x + width / 2}
-        y={y - 10}
-        textAnchor="middle"
-        fill={isDark ? "#60a5fa" : "#013B88"}
-        fontSize={11}
-        fontWeight={800}
-      >
-        {row.presentUnits}/{row.totalEmployees}
-      </text>
-    );
-  };
+const renderBarLabel = useCallback(({ x, y, width, index }) => {
+  const row = sortedAttendanceData[index];
+  if (!row) return null;
+
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 10}
+      textAnchor="middle"
+      fill={isDark ? "#60a5fa" : "#013B88"}
+      fontSize={11}
+      fontWeight={800}
+    >
+      {row.presentUnits}/{row.totalEmployees}
+    </text>
+  );
+}, [sortedAttendanceData, isDark]);
+
 
 
     return (

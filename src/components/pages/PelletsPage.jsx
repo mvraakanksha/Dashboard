@@ -41,6 +41,19 @@ const getDateRange = (from, to) => {
   return arr;
 };
 
+
+const formatDisplayDate = (dateString) => {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
+};
+
+
 // ---------------- TOOLTIP ----------------
 const DaywiseTooltip = ({ active, payload, materialType }) => {
   if (!active || !payload?.length) return null;
@@ -48,7 +61,7 @@ const DaywiseTooltip = ({ active, payload, materialType }) => {
 
   return (
     <div className="bg-white border shadow-md rounded p-3 text-xs w-52">
-      <p className="font-bold text-blue-900">{d.date}</p>
+      <p className="font-bold text-blue-900">{formatDisplayDate(d.date)}</p>
 
       {materialType === "pellets" ? (
         <>
@@ -62,6 +75,23 @@ const DaywiseTooltip = ({ active, payload, materialType }) => {
         </>
       )}
     </div>
+  );
+};
+const DateTick = ({ x, y, payload }) => {
+  if (!payload?.value) return null;
+
+  return (
+    <text
+      x={x}
+      y={y + 10}
+      textAnchor="end"
+      fill="#003f8a"
+      fontSize={11}
+      fontWeight={600}
+      transform={`rotate(-45 ${x} ${y + 10})`}
+    >
+      {formatDisplayDate(payload.value)}
+    </text>
   );
 };
 
@@ -321,14 +351,12 @@ const chartWidth = needsScroll
       >
         <CartesianGrid strokeDasharray="3 3" />
 
-        <XAxis
-          dataKey="date"
-          interval={0}                     // ✅ show all dates
-          angle={-45}
-          height={80}
-          textAnchor="end"
-          tick={{ fontSize: 11, fill: "#003f8a", fontWeight: 600 }}
-        />
+     <XAxis
+  dataKey="date"
+  interval={0}
+  height={80}
+  tick={<DateTick />}
+/>
 
         <YAxis
           label={{
@@ -387,4 +415,5 @@ const chartWidth = needsScroll
 
   );
 }
+
 

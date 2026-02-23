@@ -1,0 +1,971 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { getAllPlants } from "../../services/plantService";
+import { getEmployeesByPlant } from "../../services/employeeService";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
+import companyLogo from './company_logo.png'
+
+const DESIGNATIONS = [
+  "Supervisor",
+  "Operator",
+  "Driver",
+  "Helper",
+  "Security Guard"
+];
+
+const formatDate = (date) => {
+  if (!date) return "-";
+
+  const d = new Date(date);
+
+  if (isNaN(d)) return date;
+
+  return d.toLocaleDateString("en-GB"); 
+  // gives DD/MM/YYYY
+};
+
+
+export default function EmployeeDetails() {
+  const [plants, setPlants] = useState([]);
+  const [employeesMap, setEmployeesMap] = useState({});
+  const [selectedDesignations, setSelectedDesignations] = useState([]);
+  const [selectedPlants, setSelectedPlants] = useState([]);
+  const [zoneFilter, setZoneFilter] = useState("All");
+  const [showReport, setShowReport] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  /* ================= LOAD PLANTS ================= */
+  useEffect(() => {
+    getAllPlants().then(res => {
+      const data = Array.isArray(res) ? res : [];
+      setPlants(data);
+      setSelectedPlants(data.map(p => p.plantID));
+    });
+  }, []);
+
+  /* ================= ZONES ================= */
+const zones = useMemo(() => {
+  return [...new Set(plants.map(p => p.zones).filter(Boolean))]
+    .sort((a, b) => Number(a) - Number(b));
+}, [plants]);
+
+  /* ================= FILTER PLANTS ================= */
+  const filteredPlants = useMemo(() => {
+    return plants.filter(
+      p => zoneFilter === "All" || String(p.zones) === String(zoneFilter)
+    );
+  }, [plants, zoneFilter]);
+
+  /* AUTO SELECT WHEN ZONE CHANGES */
+  useEffect(() => {
+    if (zoneFilter === "All") {
+      setSelectedPlants(plants.map(p => p.plantID));
+    } else {
+      setSelectedPlants(
+        plants
+          .filter(p => String(p.zones) === String(zoneFilter))
+          .map(p => p.plantID)
+      );
+    }
+  }, [zoneFilter, plants]);
+
+  const togglePlant = id => {
+    setSelectedPlants(prev =>
+      prev.includes(id)
+        ? prev.filter(p => p !== id)
+        : [...prev, id]
+    );
+  };
+
+  const toggleDesignation = d => {
+    setSelectedDesignations(prev =>
+      prev.includes(d)
+        ? prev.filter(x => x !== d)
+        : [...prev, d]
+    );
+  };
+
+  const allSelected =
+    filteredPlants.length > 0 &&
+    filteredPlants.every(p => selectedPlants.includes(p.plantID));
+
+  const matchingCount = filteredPlants.length;
+  const selectedCount = selectedPlants.filter(id =>
+    filteredPlants.some(p => p.plantID === id)
+  ).length;
+
+ 
+const backToSelection = () => {
+  setShowReport(false);
+
+  // restore plant list based on zone
+  if (zoneFilter === "All") {
+    setSelectedPlants(plants.map(p => p.plantID));
+  } else {
+    setSelectedPlants(
+      plants
+        .filter(p => String(p.zones) === String(zoneFilter))
+        .map(p => p.plantID)
+    );
+  }
+};
+
+  /* LOAD EMPLOYEES AFTER GENERATE */
+  useEffect(() => {
+    if (!showReport || !selectedPlants.length) return;
+
+    const load = async () => {
+      setLoading(true);
+
+      const map = {};
+      for (const id of selectedPlants) {
+        const list = await getEmployeesByPlant(id);
+        map[id] = Array.isArray(list) ? list : [];
+      }
+
+      setEmployeesMap(map);
+      setLoading(false);
+    };
+
+    load();
+  }, [showReport, selectedPlants]);
+
+  const getByDesignation = (plantId, designation) => {
+    const list = employeesMap[plantId] || [];
+    return list.filter(e => e.designation === designation);
+  };
+
+  const generate = () => setShowReport(true);
+  const reset = () => {
+    setShowReport(false);
+    setSelectedDesignations([]);
+  };
+
+  
+   const isMultiRole = selectedDesignations.length > 1;
+
+   const roleCounts = useMemo(() => {
+  const counts = {};
+
+  selectedDesignations.forEach(d => {
+    counts[d] = 0;
+  });
+
+  selectedPlants.forEach(id => {
+    const list = employeesMap[id] || [];
+
+    list.forEach(emp => {
+      if (counts.hasOwnProperty(emp.designation)) {
+        counts[emp.designation]++;
+      }
+    });
+  });
+
+  return counts;
+}, [employeesMap, selectedPlants, selectedDesignations]);
+
+const totalEmployees = useMemo(() => {
+  let total = 0;
+
+  selectedPlants.forEach(id => {
+    const list = employeesMap[id] || [];
+    total += list.length;
+  });
+
+  return total;
+}, [employeesMap, selectedPlants]);
+
+const reportSummary = {
+  totalPlants: selectedPlants.length,
+  totalEmployees,
+  roleCounts
+};
+
+
+let serial = 1;
+
+
+const buildReportRows = () => {
+  const rows = [];
+  let s = 1;
+
+  selectedPlants.forEach(id => {
+    const plant = plants.find(p => p.plantID === id);
+    if (!plant) return;
+
+    if (!isMultiRole) {
+      selectedDesignations.forEach(d => {
+        const emps = getByDesignation(id, d);
+
+        rows.push([
+          s++,
+          `${plant.plantID}/${plant.kld}`,
+          plant.plantName,
+          emps.map(e=>e.employeeId).join(", "),
+          emps.map(e=>e.employeeName).join(", "),
+         emps.map(e => formatDate(e.dateOfJoining)).join(", "),
+          emps.map(e=>e.mobileNo).join(", ")
+        ]);
+      });
+
+      return;
+    }
+
+    selectedDesignations.forEach(d=>{
+      const emps = getByDesignation(id,d);
+
+      emps.forEach(e=>{
+        rows.push([
+          s++,
+          `${plant.plantID}/${plant.kld}`,
+          plant.plantName,
+          d,
+          e.employeeId,
+          e.employeeName,
+          formatDate(e.dateOfJoining),
+          e.mobileNo
+        ]);
+      });
+    });
+  });
+
+  return rows;
+};
+
+const compressImage = (src, maxWidth = 400) =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+
+      const scale = maxWidth / img.width;
+      canvas.width = maxWidth;
+      canvas.height = img.height * scale;
+
+      const ctx = canvas.getContext("2d");
+
+      // ⭐ keep transparency
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      resolve(canvas.toDataURL("image/png")); // ⭐ PNG not JPEG
+    };
+
+    img.src = src;
+  });
+
+
+const formatIndian = (val) => {
+  if (val === null || val === undefined || val === "-") return "-";
+  const num = Number(val);
+  if (isNaN(num)) return val;
+  return num.toLocaleString("en-IN", {
+    minimumFractionDigits: Number.isInteger(num) ? 0 : 1,
+    maximumFractionDigits: 1,
+  });
+}; 
+
+const downloadPdf = async () => {
+  const doc = new jsPDF("l", "mm", "a4");
+
+  /* ===== LOAD LOGO ===== */
+const logo = await compressImage(companyLogo, 350);
+
+doc.addImage(logo, "PNG", 14, 8, 35, 20);
+
+  /* ===== HEADER TEXT ===== */
+  doc.setFont("times", "bold");
+
+  doc.setFontSize(18);
+  doc.setTextColor(179, 24, 24);
+  doc.text("MVR TECHNOLOGY", 148, 15, { align: "center" });
+
+  doc.setFontSize(12);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`FSTP RAJASTHAN`, 148, 22, {
+    align: "center",
+  });
+
+  doc.text("EMPLOYEE DETAILS", 148, 28, { align: "center" });
+
+  /* ===== SUMMARY ===== */
+  doc.setFontSize(10);
+
+  doc.text(
+    `Total Plants: ${selectedPlants.length} | Total Employees: ${totalEmployees}`,
+    148,
+    36,
+    { align: "center" }
+  );
+
+  const roleStats = selectedDesignations
+    .map(d => `${d}: ${roleCounts[d] || 0}`)
+    .join(" | ");
+
+  doc.text(roleStats, 148, 42, { align: "center" });
+
+  /* ===== HEADERS ===== */
+  const headers = ["S.No", "Plant ID / KLD", "Plant Name"];
+
+  if (isMultiRole) {
+    headers.push("Designation", "Emp Id", "Name", "DOJ", "Mobile");
+  } else {
+    selectedDesignations.forEach(d =>
+      headers.push(`${d} ID`, `${d} Name`, "DOJ", "Mobile")
+    );
+  }
+
+  /* ===== BODY ===== */
+  const body = [];
+  let s = 1;
+
+  selectedPlants.forEach(id => {
+    const plant = plants.find(p => p.plantID === id);
+    if (!plant) return;
+
+    if (!isMultiRole) {
+      const row = [s++, `${plant.plantID}/${plant.kld}`, plant.plantName];
+
+      selectedDesignations.forEach(d => {
+        const emps = getByDesignation(id, d);
+
+       row.push(
+  emps.map(e => e.employeeId).join(", ") || "-",
+  emps.map(e => e.employeeName).join(", ") || "-",
+  emps.map(e => formatDate(e.dateOfJoining)).join(", ") || "-",
+  emps.map(e => e.mobileNo).join(", ") || "-"
+);
+
+      });
+
+      body.push(row);
+      return;
+    }
+
+    const plantEmployees = [];
+
+    selectedDesignations.forEach(d => {
+      getByDesignation(id, d).forEach(e =>
+        plantEmployees.push({ d, ...e })
+      );
+    });
+
+    if (!plantEmployees.length) {
+      body.push([
+        "-",
+        `${plant.plantID}/${plant.kld}`,
+        plant.plantName,
+        "No employees",
+        "",
+        "",
+        "",
+        "",
+      ]);
+      return;
+    }
+
+    plantEmployees.forEach((e, idx) => {
+      body.push([
+        s++,
+        idx === 0 ? `${plant.plantID}/${plant.kld}` : "",
+        idx === 0 ? plant.plantName : "",
+        e.d,
+        e.employeeId,
+        e.employeeName,
+      formatDate(e.dateOfJoining),
+        e.mobileNo,
+      ]);
+    });
+  });
+
+  /* ===== TABLE ===== */
+autoTable(doc, {
+  startY: 48,
+  head: [headers],
+  body,
+  theme: "grid",
+
+  styles: {
+    font: "times",
+    fontSize: 8,
+    cellPadding: 2,
+  },
+
+  /* ⭐ HEADER STYLE */
+  headStyles: {
+    fillColor: [221, 238, 255], // ⭐ light blue
+    textColor: [0, 0, 0],       // ⭐ black text
+    fontStyle: "bold",
+  },
+
+  alternateRowStyles: {
+    fillColor: [248, 250, 252], // optional soft zebra
+  },
+});
+
+
+  doc.save("EmployeeReport.pdf");
+};
+
+
+  let cachedLeftLogo = null;
+
+const imageToBase64 = async (url) => {
+  const res = await fetch(url);
+  const blob = await res.blob();
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+};
+
+
+const downloadExcel = async () => {
+  const workbook = new ExcelJS.Workbook();
+
+  /* ===== LOAD LOGO ===== */
+  if (!cachedLeftLogo) {
+    cachedLeftLogo = await imageToBase64(companyLogo);
+  }
+
+  const leftLogoId = workbook.addImage({
+    base64: cachedLeftLogo,
+    extension: "png"
+  });
+
+  /* ===== GROUP BY ZONE ===== */
+  const zoneMap = {};
+  selectedPlants.forEach((pid) => {
+    const plant = plants.find((p) => p.plantID === pid);
+    if (!plant) return;
+
+    if (!zoneMap[plant.zones]) zoneMap[plant.zones] = [];
+    zoneMap[plant.zones].push(plant);
+  });
+
+  /* ===== CREATE ZONE SHEETS ===== */
+  for (const [zone, zonePlants] of Object.entries(zoneMap)) {
+    const sheet = workbook.addWorksheet(`Zone_${zone}`);
+
+    /* HEADER HEIGHT */
+    sheet.getRow(1).height = 30;
+    sheet.getRow(2).height = 22;
+    sheet.getRow(3).height = 20;
+
+    /* LOGO */
+    sheet.addImage(leftLogoId, {
+      tl: { col: 0, row: 0 },
+      ext: { width: 90, height: 55 }
+    });
+
+const lastColLetter = "H";
+
+/* MERGES */
+sheet.mergeCells(`A1:${lastColLetter}1`);
+sheet.mergeCells(`A2:${lastColLetter}2`);
+sheet.mergeCells(`A3:${lastColLetter}3`);
+sheet.mergeCells(`A4:${lastColLetter}4`);
+sheet.mergeCells(`A5:${lastColLetter}5`);
+
+/* COMMON STYLE FUNCTION */
+const setHeaderStyle = (cellRef, size = 12) => {
+  const cell = sheet.getCell(cellRef);
+  cell.alignment = { horizontal: "center", vertical: "middle" };
+  cell.font = {
+    name: "Times New Roman",
+    bold: true,
+    size
+  };
+};
+
+/* TITLE */
+sheet.getCell("A1").value = "MVR TECHNOLOGY";
+sheet.getCell("A1").font = {
+  name: "Times New Roman",
+  bold: true,
+  size: 18,
+  color: { argb: "FFB31818" }
+};
+sheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
+
+/* SUB TITLE */
+sheet.getCell("A2").value = `FSTP RAJASTHAN`;
+setHeaderStyle("A2", 12);
+
+/* REPORT TITLE */
+sheet.getCell("A3").value = `EMPLOYEE DETAILS `;
+setHeaderStyle("A3", 12);
+
+/* SUMMARY ROW */
+sheet.getCell("A4").value =
+  `Total Plants: ${selectedPlants.length} | Total Employees : ${totalEmployees}`;
+setHeaderStyle("A4", 11);
+
+/* ROLE COUNTS */
+const roleSummary = selectedDesignations
+  .map(d => `${d}: ${roleCounts[d] || 0}`)
+  .join(" | ");
+
+sheet.getCell("A5").value = roleSummary;
+setHeaderStyle("A5", 11);
+
+
+    /* ===== TABLE HEADER ===== */
+    const headerRowIndex = 7;
+
+    const headers = ["S.No", "Plant ID / KLD", "Plant Name"];
+
+    if (isMultiRole) {
+      headers.push("Designation", "Emp Id", "Name", "DOJ", "Mobile");
+    } else {
+      selectedDesignations.forEach((d) =>
+        headers.push(`${d} ID`, `${d} Name`, "DOJ", "Mobile")
+      );
+    }
+
+    const headerRow = sheet.getRow(headerRowIndex);
+    headerRow.values = headers;
+
+    /* ===== FIXED COLUMN WIDTHS (DYNAMIC) ===== */
+const columnWidths = [8, 18, 28]; // S.No, Plant ID, Plant Name
+
+if (isMultiRole) {
+  columnWidths.push(18, 18, 25, 15, 18);
+} else {
+  selectedDesignations.forEach(() => {
+    columnWidths.push(18, 25, 15, 18);
+  });
+}
+
+sheet.columns = columnWidths.map(w => ({ width: w }));
+
+
+/* ===== FIXED COLUMN WIDTHS ===== */
+sheet.columns = [
+  { width: 8 },   // S.No
+  { width: 18 },  // Plant ID / KLD
+  { width: 28 },  // Plant Name
+  { width: 18 },  // Designation OR Role ID
+  { width: 18 },  // Emp Id
+  { width: 25 },  // Name
+  { width: 15 },  // DOJ
+  { width: 18 }   // Mobile
+];
+
+    headerRow.eachCell((cell) => {
+       cell.font = { name: "Times New Roman", bold: true };
+      cell.font = { bold: true };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+
+    /* ===== DATA (same logic as preview) ===== */
+    let rowIndex = headerRowIndex + 1;
+    let s = 1;
+
+    zonePlants.forEach((plant) => {
+      const plantEmployees = [];
+
+      if (isMultiRole) {
+        selectedDesignations.forEach((d) => {
+          getByDesignation(plant.plantID, d).forEach((e) =>
+            plantEmployees.push({ d, ...e })
+          );
+        });
+      }
+
+      /* SINGLE ROLE */
+      if (!isMultiRole) {
+        const row = sheet.getRow(rowIndex);
+
+        const base = [s++, `${plant.plantID}/${plant.kld}`, plant.plantName];
+
+        selectedDesignations.forEach((d) => {
+          const emps = getByDesignation(plant.plantID, d);
+          base.push(
+            emps.map((e) => e.employeeId).join(", ") || "-",
+            emps.map((e) => e.employeeName).join(", ") || "-",
+            emps.map((e) => formatDate(e.dateOfJoining)).join(", ") || "-",
+            emps.map((e) => e.mobileNo).join(", ") || "-"
+          );
+        });
+
+        row.values = base;
+        rowIndex++;
+        return;
+      }
+
+      /* NO EMP */
+      if (!plantEmployees.length) {
+  sheet.addRow([
+    "-", // ⭐ S.NO as dash
+    `${plant.plantID}/${plant.kld}`,
+    plant.plantName,
+    "No employees"
+  ]);
+
+  rowIndex++;
+  return;
+}
+
+
+      /* MULTI ROLE */
+      const startRow = rowIndex;
+
+      plantEmployees.forEach((e, idx) => {
+        sheet.addRow([
+          s++,
+          idx === 0 ? `${plant.plantID}/${plant.kld}` : "",
+          idx === 0 ? plant.plantName : "",
+          e.d,
+          e.employeeId,
+          e.employeeName,
+         formatDate(e.dateOfJoining),
+          e.mobileNo
+        ]);
+        rowIndex++;
+      });
+
+      const endRow = rowIndex - 1;
+
+      sheet.mergeCells(`B${startRow}:B${endRow}`);
+      sheet.mergeCells(`C${startRow}:C${endRow}`);
+    });
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), "EmployeeDetails.xlsx");
+};
+
+  return (
+<div className="max-w-7xl mx-auto p-6 space-y-6 bg-slate-50 min-h-screen text-slate-800">
+
+      {/* ================= FILTER BAR ================= */}
+<div className="bg-white border rounded-xl shadow-sm p-5 flex flex-col lg:flex-row gap-6 lg:items-end flex-wrap">
+
+  {/* ZONE */}
+  <div>
+  <label className="text-[10px] font-bold uppercase text-slate-500">Zone</label>
+
+    <select
+      value={zoneFilter}
+      onChange={e => setZoneFilter(e.target.value)}
+   className="w-full border p-2 rounded-lg text-sm mt-1 focus:ring-2 focus:ring-emerald-500 outline-none"
+
+    >
+      <option value="All">All Zones</option>
+      {zones.map(z => (
+        <option key={z} value={z}>Zone {z}</option>
+      ))}
+    </select>
+  </div>
+
+  {/* DESIGNATIONS */}
+  <div className="flex-1">
+    <label className="text-xs font-bold">DESIGNATIONS</label>
+    <div className="flex flex-wrap gap-4 mt-2">
+      {DESIGNATIONS.map(d => (
+      <label key={d} className="flex items-center gap-2 text-sm cursor-pointer hover:text-emerald-600 transition">
+
+          <input
+            type="checkbox"
+            checked={selectedDesignations.includes(d)}
+            onChange={() => toggleDesignation(d)}
+          />
+          {d}
+        </label>
+      ))}
+    </div>
+  </div>
+
+  {/* GENERATE */}
+  <button
+    onClick={generate}
+    disabled={!selectedPlants.length}
+  className="px-8 py-2 bg-blue-500 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-lg font-semibold transition shadow active:scale-95"
+
+  >
+    Generate
+  </button>
+
+</div>
+
+{/* ================= PLANT SELECTION ================= */}
+{!showReport && (
+<div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+
+    <div className="px-5 py-3 border-b font-bold flex justify-between">
+      <span>Total Plants ({matchingCount})</span>
+      <span className="text-sm">Selected: {selectedCount}</span>
+    </div>
+
+    <div className="overflow-x-auto">
+      <table className="min-w-[900px] w-full border-collapse text-sm">
+<thead className="bg-slate-100 text-slate-600">
+
+          <tr>
+            <th className="border p-2 text-center w-[60px]">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={() => {
+                  if (allSelected) {
+                    setSelectedPlants([]);
+                  } else {
+                    setSelectedPlants(filteredPlants.map(p => p.plantID));
+                  }
+                }}
+              />
+            </th>
+
+  <th className="border p-2 text-center w-[60px]">S.No</th>
+            <th className="border p-2 text-center">Plant ID / KLD</th>
+            <th className="border p-2 text-center">Plant Name</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {filteredPlants.map(p => (
+
+            <tr key={p.plantID}>
+              <td className="border text-center">
+                <input
+                  type="checkbox"
+                  checked={selectedPlants.includes(p.plantID)}
+                  onChange={() => togglePlant(p.plantID)}
+                />
+              </td>
+   <td className="border text-center">{serial++}</td>
+              <td className="border text-center font-semibold">
+                {p.plantID} / {p.kld}
+              </td>
+
+              <td className="border text-center">
+                {p.plantName}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+
+      </table>
+    </div>
+  </div>
+)}
+
+
+      {/* ================= REPORT ================= */}
+      {/* ================= EMPLOYEE REPORT ================= */}
+{showReport && (
+ <div className="bg-white border rounded-xl shadow-lg overflow-hidden">
+
+    {/* HEADER */}
+<div className="p-3 border-b flex flex-col gap-2">
+
+  {/* TOP ROW */}
+  <div className="flex justify-between items-center">
+
+    <span className="font-bold">Employee Details</span>
+
+   <div className="flex gap-4 flex-wrap">
+
+  <button
+    onClick={downloadPdf}
+    className="px-4 py-2 bg-red-600 hover:bg-red-700 
+               text-white text-sm font-semibold 
+               rounded-lg shadow transition 
+               active:scale-95"
+  >
+    Download PDF
+  </button>
+
+  <button
+    onClick={downloadExcel}
+    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 
+               text-white text-sm font-semibold 
+               rounded-lg shadow transition 
+               active:scale-95"
+  >
+    Download Excel
+  </button>
+
+  <button
+    onClick={backToSelection}
+    className="px-4 py-2 bg-slate-600 hover:bg-slate-700 
+               text-white text-sm font-semibold 
+               rounded-lg shadow transition 
+               active:scale-95"
+  >
+    ← Back
+  </button>
+
+</div>
+
+  </div>
+
+  {/* SUMMARY */}
+{selectedDesignations.length > 0 && (
+  <div className="w-full mt-2 px-4 py-3 rounded bg-slate-50
+                  flex flex-wrap gap-6 text-sm font-semibold">
+
+    <div>Total Plants: {selectedPlants.length}</div>
+    <div>Total Employees : {totalEmployees}</div>
+
+    {selectedDesignations.map(d => (
+      <div key={d}>
+        {d}: {roleCounts[d] || 0}
+      </div>
+    ))}
+  </div>
+)}
+
+
+</div>
+
+    {/* NO DESIGNATION SELECTED */}
+    {!selectedDesignations.length ? (
+      <div className="p-6 text-sm text-slate-500">
+        Select at least one designation to view employee details.
+      </div>
+    ) : loading ? (
+      <div className="p-4">Loading...</div>
+    ) : (
+    <table className="min-w-[900px] w-full text-sm">
+
+<thead className="bg-slate-100">
+<tr>
+    <th className="border p-2 text-center">S.No</th>
+  <th className="border p-2 text-center">Plant ID / KLD</th>
+  <th className="border p-2 text-center">Plant Name</th>
+
+  {!isMultiRole ? (
+    selectedDesignations.map(d => (
+      <React.Fragment key={d}>
+        <th className="border p-2">{d} Emp Id</th>
+        <th className="border p-2">{d} Name</th>
+        <th className="border p-2">{d} DOJ</th>
+        <th className="border p-2">{d} Mobile </th>
+      </React.Fragment>
+    ))
+  ) : (
+    <>
+      <th className="border p-2">Designation</th>
+      <th className="border p-2">Emp Id</th>
+      <th className="border p-2">Employee Name</th>
+      <th className="border p-2">DOJ</th>
+      <th className="border p-2">Mobile number</th>
+    </>
+  )}
+</tr>
+</thead>
+
+<tbody>
+{selectedPlants.map(id => {
+  const plant = plants.find(p => p.plantID === id);
+  if (!plant) return null;
+
+  /* ===== SINGLE ROLE MODE (YOUR CURRENT STYLE) ===== */
+  if (!isMultiRole) {
+    return (
+      <tr key={id}>
+          <td className="border text-center">{serial++}</td>
+        <td className="border text-center">{plant.plantID}/{plant.kld}</td>
+        <td className="border text-center">{plant.plantName}</td>
+
+        {selectedDesignations.map(d => {
+          const emps = getByDesignation(id, d);
+
+          return (
+            <React.Fragment key={d}>
+              <td className="border text-center">{emps.map(e=>e.employeeId).join(", ")||"-"}</td>
+              <td className="border text-center">{emps.map(e=>e.employeeName).join(", ")||"-"}</td>
+              <td className="border text-center">{emps.map(e=>formatDate(e.dateOfJoining)).join(", ")||"-"}</td>
+              <td className="border text-center">{emps.map(e=>e.mobileNo).join(", ")||"-"}</td>
+            </React.Fragment>
+          );
+        })}
+      </tr>
+    );
+  }
+
+  /* ===== MULTI ROLE MODE (VERTICAL) ===== */
+/* ===== MULTI ROLE MODE (MERGED) ===== */
+const plantEmployees = [];
+
+selectedDesignations.forEach(d => {
+  const emps = getByDesignation(id, d);
+  emps.forEach(e => {
+    plantEmployees.push({ designation: d, ...e });
+  });
+});
+
+if (!plantEmployees.length) {
+  return (
+    <tr key={id}>
+      {/* ✅ Serial should increment */}
+      <td className="border text-center">{serial++}</td>
+
+      <td className="border text-center font-semibold">
+        {plant.plantID}/{plant.kld}
+      </td>
+
+      <td className="border text-center">
+        {plant.plantName}
+      </td>
+
+      <td className="border text-center text-slate-900" colSpan={5}>
+        No employees
+      </td>
+    </tr>
+  );
+}
+
+
+return plantEmployees.map((e, index) => (
+  <tr key={`${id}-${e.employeeId}`}>
+
+    <td className="border text-center">{serial++}</td>
+
+    {index === 0 && (
+      <>
+        <td rowSpan={plantEmployees.length} className="border text-center font-semibold">
+          {plant.plantID}/{plant.kld}
+        </td>
+
+        <td rowSpan={plantEmployees.length} className="border text-center">
+          {plant.plantName}
+        </td>
+      </>
+    )}
+
+    <td className="border text-center">{e.designation}</td>
+    <td className="border text-center">{e.employeeId}</td>
+    <td className="border text-center">{e.employeeName}</td>
+    <td className="border text-center">{formatDate(e.dateOfJoining)}</td>
+    <td className="border text-center">{e.mobileNo}</td>
+  </tr>
+));
+
+
+})}
+</tbody>
+</table>
+
+    )}
+  </div>
+)}
+
+
+    </div>
+  );
+}

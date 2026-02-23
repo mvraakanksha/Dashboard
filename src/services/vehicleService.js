@@ -41,3 +41,20 @@ export const getVehicleOperationsByDateRange = (start, end) => {
     `/vehicle-operations/vehicle/date-range?start=${start}&end=${end}`
   );
 };
+
+
+export const getLatestVehicleFuel = (vehicleId, date) => {
+  if (!vehicleId || !date)
+    throw new Error("Vehicle ID and Date are required");
+
+  return apiFetch(
+    `/vehicle-operations/${vehicleId}/latest-fuel?date=${date}`
+  );
+};
+
+
+/* ================= VEHICLE ================= */
+export const getVehicleFuelDetails = (vehicleId) => {
+  if (!vehicleId) throw new Error("Vehicle ID is required");
+  return apiFetch(`/vehicle-operations/fuel/${vehicleId}`);
+};

@@ -71,7 +71,7 @@ doc.addImage(cachedCenterLogo, "PNG", pageWidth / 2 - 35, 6, 70, 15);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.text(
-    `Period: ${dateRange.from} to ${dateRange.to}`,
+    `Period: ${formatDisplayDate(dateRange.from)} to ${formatDisplayDate(dateRange.to)}`,
     pageWidth - 10,
     17,
     { align: "right" }
@@ -98,6 +98,16 @@ const HEADER_STYLE = {
   halign: "center"
 };
 
+const formatDisplayDate = (dateString) => {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
+};
 
 
 const CustomizedPdf = async (previewData, dateRange) => {
@@ -150,7 +160,7 @@ const colsPerDate =
   const topHeader = [
     { content: "Plant Details", colSpan: 4, styles: HEADER_STYLE },
     ...dates.map(d => ({
-      content: d,
+      content: formatDisplayDate(d),
       colSpan: colsPerDate,
       styles: HEADER_STYLE
     })),
@@ -361,7 +371,7 @@ autoTable(doc, {
 
 
 
-  doc.save(`Operational_Report_${dateRange.from}_to_${dateRange.to}.pdf`);
+  doc.save(`Operational_Report_${formatDisplayDate(dateRange.from)}_to_${formatDisplayDate(dateRange.to)}.pdf`);
 }
 
 

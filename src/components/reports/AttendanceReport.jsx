@@ -16,6 +16,60 @@ import companyLogo from './company_logo.png'
 
 import { saveAs } from "file-saver";
 
+// const formatDDMMYYYY = (dateStr) => {
+//   if (!dateStr) return "";
+//   const d = new Date(dateStr);
+//   const dd = String(d.getDate()).padStart(2, "0");
+//   const mm = String(d.getMonth() + 1).padStart(2, "0");
+//   const yyyy = d.getFullYear();
+//   return `${dd}/${mm}/${yyyy}`;
+// };
+
+const formatDDMMYYYY = (dateStr) => {
+  const d = new Date(dateStr);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+const formatMonthYear = (dateStr) => {
+  const d = new Date(dateStr);
+  return d.toLocaleString("en-IN", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const isFullMonth = (from, to) => {
+  const start = new Date(from);
+  const end = new Date(to);
+
+  const firstDay =
+    start.getDate() === 1;
+
+  const lastDay =
+    new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+
+  return (
+    firstDay &&
+    end.getDate() === lastDay &&
+    start.getMonth() === end.getMonth() &&
+    start.getFullYear() === end.getFullYear()
+  );
+};
+
+const getAttendanceTitle = (from, to) => {
+  if (from === to) {
+    return `Daily Attendance Report ( ${formatDDMMYYYY(from)} )`;
+  }
+
+  if (isFullMonth(from, to)) {
+    return `Attendance Report ( ${formatMonthYear(from)} )`;
+  }
+
+  return `Attendance Report ( ${formatDDMMYYYY(from)} to ${formatDDMMYYYY(to)} )`;
+};
 
 
 let cachedLeftLogo = null;
@@ -255,7 +309,7 @@ const downloadExcel = async () => {
     cachedLeftLogo = await imageToBase64(companyLogo);
   }
 
-  const leftLogoId = workbook.addImage({
+  const  leftLogoId = workbook.addImage({
     base64: cachedLeftLogo,
     extension: "png"
   });
@@ -324,7 +378,9 @@ sheet.getCell("A2").font = {
 };
 
 /* PERIOD */
-sheet.getCell("A3").value = `Period: ${fromDate} to ${toDate}`;
+sheet.getCell("A3").value =
+  getAttendanceTitle(fromDate, toDate);
+
 sheet.getCell("A3").font = {
   name: "Times New Roman",
   bold: true,
@@ -340,7 +396,7 @@ sheet.getCell("A3").font = {
       "Sl No",
       "NAME",
       "DESIGNATION",
-      "DOJ (MM/DD/YYYY)",
+      "DOJ (DD/MM/YYYY)",
       ...dateColumns.map(d => Number(d.split("-")[2])),
       "TOTAL WORKING DAYS"
     ];
@@ -428,7 +484,7 @@ headerRow.eachCell((cell, colNumber) => {
           emp.employeeName,
           emp.designation,
           emp.dateOfJoining
-            ? new Date(emp.dateOfJoining).toLocaleDateString("en-GB")
+            ? formatDDMMYYYY(emp.dateOfJoining)
             : "-"
         ];
 
@@ -494,13 +550,18 @@ row.eachCell((cell, colNumber) => {
   }
 
   const buffer = await workbook.xlsx.writeBuffer();
-  saveAs(
-    new Blob([buffer], {
-      type:
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    }),
-    `Attendance_Register_ZoneWise_${fromDate}_to_${toDate}.xlsx`
-  );
+const fileTitle = getAttendanceTitle(fromDate, toDate)
+  .replace(/[()]/g, "")
+  .replace(/\s+/g, "_");
+
+saveAs(
+  new Blob([buffer], {
+    type:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  }),
+  `${fileTitle}.xlsx`
+);
+
 };
 
 
@@ -666,7 +727,10 @@ return (
                           {emp.designation}
                         </td>
                         <td className="border p-2 text-center">
-                          {displayValue(emp.dateOfJoining)}
+                          {emp.dateOfJoining
+                          ? formatDDMMYYYY(emp.dateOfJoining)
+                          : "-"}
+
                         </td>
 
                         {dateColumns.map(date => {

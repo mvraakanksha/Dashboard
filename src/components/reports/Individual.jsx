@@ -71,13 +71,36 @@ useEffect(() => {
     });
 }, [plants]);
 
+/* ================= AUTO SELECT PLANTS ================= */
+useEffect(() => {
+  if (!plants.length) return; // 🔒 wait till plants load
+
+  if (zoneFilter === "All") {
+    setSelectedPlants(plants.map(p => p.plantID));
+  } else {
+    setSelectedPlants(
+      plants
+        .filter(p => String(p.zones) === String(zoneFilter))
+        .map(p => p.plantID)
+    );
+  }
+}, [plants, zoneFilter]);
 
   /* ================= FILTER PLANTS ================= */
-  const filteredPlants = useMemo(() => {
-    return plants.filter(
-      p => zoneFilter === "All" || String(p.zones) === String(zoneFilter)
-    );
-  }, [plants, zoneFilter]);
+/* ================= FILTER PLANTS ================= */
+const filteredPlants = useMemo(() => {
+  return plants.filter(
+    p => zoneFilter === "All" || String(p.zones) === String(zoneFilter)
+  );
+}, [plants, zoneFilter]);
+
+/* ================= AUTO SELECT PLANTS BY ZONE ================= */
+
+/* ================= SELECT ALL CHECK ================= */
+const allSelected =
+  filteredPlants.length > 0 &&
+  selectedPlants.length === filteredPlants.length;
+
 
   /* ================= SELECT PLANT ================= */
   const togglePlant = (id) => {
@@ -244,7 +267,8 @@ return {
     dgDiesalPercentagePm: op.dgDiesalPercentagePm ?? null,
 
     powerReadingAmExport: op.powerReadingAmExport ?? null,
-    powerReadingPmExport: op.powerReadingPmExport ?? null
+    powerReadingPmExport: op.powerReadingPmExport ?? null,
+    remarks: "-"
   },
 
   // ✅ KEEP POWER OBJECT (YOU REMOVED THIS BEFORE)
@@ -284,8 +308,8 @@ return {
                 noOfTrips:
                   ov.vehicleOp?.noOfTrips ?? 0,
 
-                remarks:
-                  ov.vehicleOp?.remarks ?? "-"
+                remarks: ov.vehicleOp?.vehicleRemark ?? "-"
+
               };
             });
           }
@@ -311,8 +335,7 @@ return {
             noOfTrips:
               v.vehicleOp?.noOfTrips ?? 0,
 
-            remarks:
-              v.vehicleOp?.remarks ?? "-"
+             remarks: v.vehicleOp?.vehicleRemark ?? "-"
           }));
         })()
       }
@@ -324,9 +347,24 @@ return {
   setLoading(false);
 };
 
+const formatDateDDMMYYYY = (dateStr) => {
+  if (!dateStr) return "-";
+  const [yyyy, mm, dd] = dateStr.split("-");
+  return `${dd}-${mm}-${yyyy}`;
+};
+
+
 
   /* ================= EXCEL DOWNLOAD ================= */
-  const downloadExcel = async () => {
+const downloadExcel = async () => {
+
+  // ✅ Ask only when Excel is clicked
+  const inchargeName = prompt("Enter Incharge Name:");
+  if (inchargeName === null) return;
+
+  const mobileNumber = prompt("Enter Mobile Number:");
+  if (mobileNumber === null) return;
+
   const attendanceAll = attendanceOps.length
     ? attendanceOps
     : await getEmployeeOperationsByDate(date);
@@ -358,30 +396,68 @@ const logoId = wb.addImage({
 // LEFT LOGO
 ws.addImage(companyLogoId, {
   tl: { col: 0, row: 0 },
-  ext: { width: 90, height: 55 },
+  ext: { width: 80, height: 40 }
 });
 
-// CENTER LOGO
-ws.addImage(logoId, {
-  tl: { col: 4, row: 0 },
-  ext: { width: 180, height: 60 },
-});
+/* ================= HEADER TEXT BESIDE LOGO ================= */
+ws.getRow(1).height = 32;
+ws.getRow(2).height = 26;
 
-// SPACE BELOW LOGOS
-for (let i = 0; i < 5; i++) ws.addRow([]);
-
-// 🔹 TITLE BELOW LOGO (NO BORDERS)
-const titleRow = ws.addRow(["PLANT OPERATION REPORT"]);
-ws.mergeCells(`A${titleRow.number}:H${titleRow.number}`);
-titleRow.getCell(1).alignment = {
-  horizontal: "center",
-  vertical: "middle"
+// MAIN TITLE
+ws.getCell("B1").value = "MVR TECHNOLOGY";
+ws.getCell("B1").font = {
+  name: "Times New Roman",
+  bold: true,
+  size: 26,
+  color: { argb: "FFB31818" }
 };
-titleRow.font = { bold: true };
+ws.getCell("B1").alignment = {
+  vertical: "middle",
+  horizontal: "left"
+};
 
-// 🔹 EMPTY ROW BELOW TITLE (NO BORDERS)
-ws.addRow([]);
+// SUB TITLE
+/* ================= SUB TITLE (RICH TEXT) ================= */
 
+ws.getCell("A2").value = {
+  richText: [
+    {
+      text: "FSTP ",
+      font: {
+        name: "Times New Roman",
+        bold: true,
+        size: 18,
+        color: { argb: "FF00B0F0" } // sky blue
+      }
+    },
+    {
+      text:
+        `RAJASTHAN - Plant Operation Report        |       ` +
+        `Zone : ${zoneFilter}           |              ` +
+        `Total Plants : ${selectedPlants.length}        |        ` + 
+        `Date : ${formatDateDDMMYYYY(date)}
+`,
+      font: {
+        name: "Times New Roman",
+        bold: true,
+        size: 18,
+        color: { argb: "FFB31818" } // red
+      }
+    }
+  ]
+};
+
+
+ws.getCell("A2").alignment = {
+  horizontal: "left",
+  vertical: "top",
+  wrapText: false
+};
+
+// ✅ MERGE TILL BIOCHAR COLUMN
+ws.mergeCells("A2:J2");
+ ws.addRow([]);
+// merge across for long text
 
 
   const border = {
@@ -392,24 +468,52 @@ ws.addRow([]);
   };
 
 const styleRow = (row, bold = false) => {
-    row.eachCell(cell => {
-      cell.border = border;
-      cell.alignment = { vertical: "middle", horizontal: "center" };
-      if (bold) cell.font = { bold: true };
-    });
-  };
+  row.eachCell(cell => {
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" }
+    };
 
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+      wrapText: true
+    };
 
+    cell.font = {
+      name: "Times New Roman",
+      bold: bold,        // ✅ ONLY headers & titles bold
+      size: 12
+    };
+  });
+};
 
 const centerTitle = (ws, title, colCount) => {
   const row = ws.addRow([title]);
-  const endCol = String.fromCharCode(64 + colCount); // A=1, B=2...
+
+  row.isHeader = true;
+  row.isTitle = true;   // 🔥 NEW FLAG
+
+  const endCol = String.fromCharCode(64 + colCount);
   ws.mergeCells(`A${row.number}:${endCol}${row.number}`);
-  row.getCell(1).alignment = {
+
+  const cell = row.getCell(1);
+
+  cell.alignment = {
     horizontal: "center",
     vertical: "middle"
   };
-  styleRow(row, true);
+
+  cell.font = {
+    name: "Times New Roman",
+    bold: true,
+    size: 14,
+    color: { argb: "FFB31818" } // 🔴 RED
+  };
+
+  row.height = 24;
 };
 
   
@@ -425,50 +529,7 @@ const {
 
 
 
-
   /* ================= HEADER INFO ================= */
-
-
-
-// 🔹 ROW 1 : REPORT TITLE + ZONE + PLANTS + DATE
-// const headerRow1 = ws.addRow([
-//   "PLANT OPERATION REPORT",
-//   "",
-//   `Zone : ${zoneFilter}`,
-//   "",
-//   `Total Plants : ${selectedPlants.length}`,
-//   "",
-//   `Date : ${date}`
-// ]);
-
-// ws.mergeCells("A1:B1"); // Title
-// ws.mergeCells("C1:D1"); // Zone
-// ws.mergeCells("E1:F1"); // Total Plants
-// ws.mergeCells("G1:H1"); // Date
-
-// styleRow(headerRow1, true);
-
-// // 🔹 ROW 2 : INCHARGE + MOBILE + STAFF PRESENT / ABSENT
-// const headerRow2 = ws.addRow([
-//   "Incharge Name : ",
-//   "",
-//   "Mobile Number : ",
-//   "",
-//   `Staff Present : ${formatNumber(present)}`,
-//   "",
-//   `Staff Absent : ${formatNumber(absent)}`
-// ]);
-
-// ws.mergeCells("A2:B2"); // Incharge
-// ws.mergeCells("C2:D2"); // Mobile
-// ws.mergeCells("E2:F2"); // Present
-// ws.mergeCells("G2:H2"); // Absent
-
-// styleRow(headerRow2, true);
-
-// // SPACE BEFORE TABLES
-// ws.addRow([]);
-
 
 
   /* =====================================================
@@ -476,28 +537,50 @@ const {
   ===================================================== */
   // 🔹 INCHARGE / MOBILE / STAFF INFO (IN PLACE OF PLANT OPERATION TITLE)
 const porInfoRow = ws.addRow([
-  "Incharge Name : ",
+  `Incharge Name : ${inchargeName}`,
   "",
-  "Mobile Number : ",
+  `Mobile Number : ${mobileNumber}`,
   "",
   `Staff Present : ${formatNumber(present)}`,
   "",
   `Staff Absent : ${formatNumber(absent)}`
 ]);
 
+// ✅ Merge columns
 ws.mergeCells(`A${porInfoRow.number}:B${porInfoRow.number}`);
 ws.mergeCells(`C${porInfoRow.number}:D${porInfoRow.number}`);
 ws.mergeCells(`E${porInfoRow.number}:F${porInfoRow.number}`);
 ws.mergeCells(`G${porInfoRow.number}:H${porInfoRow.number}`);
 
-styleRow(porInfoRow, true);
+// ✅ Style each cell
+porInfoRow.eachCell(cell => {
+  cell.font = {
+    name: "Times New Roman",
+    bold: true,
+    size: 14,
+    color: { argb: "FFB31818" } // 🔴 RED
+  };
 
+  cell.alignment = {
+    horizontal: "left",
+    vertical: "middle"
+  };
 
-  
+  cell.border = {
+    top: { style: "thin" },
+    bottom: { style: "thin" },
+    left: { style: "thin" },
+    right: { style: "thin" }
+  };
+});
+
+// Optional: row height for better look
+ws.getRow(porInfoRow.number).height = 22;
+
 
   let porHeader = ws.addRow([
     "Plant ID / KLD",
-    "Town",
+    "Plant Name",
     "Tank Level",
     "Received",
     "Processed",
@@ -509,6 +592,7 @@ styleRow(porInfoRow, true);
     
   ]);
   styleRow(porHeader, true);
+porHeader.isHeader = true;  
 
   rows.forEach(r => {
     let row1 = ws.addRow([
@@ -535,16 +619,18 @@ styleRow(porInfoRow, true);
   centerTitle(ws, "POWER & SOLAR REPORT", 7);
 
 
-  let psHeader = ws.addRow([
-    "Plant ID / KLD",
-    "Town",
-    "Load (Kw)",
-    "Consumption (Kwh)",
-    "MF * Kwh Units",
-    "Export Power (Kwh)",
-    "MF * Kwh Units"
-  ]);
-  styleRow(psHeader, true);
+let psHeader = ws.addRow([
+  "Plant ID / KLD",
+  "Plant Name",
+  "Load (Kw)",
+  "Consumption (Kwh)",
+  "MF * Kwh Units",
+  "Export Power (Kwh)",
+  "MF * Kwh Units"
+]);
+psHeader.isHeader = true;
+styleRow(psHeader, true);
+
 
 rows.forEach(r => {
   const mf = r.plant.multiplicationFactor || 1;
@@ -596,14 +682,14 @@ rows.forEach(r => {
 
   const h1 = ws.addRow([
     "Plant ID / KLD",
-    "Town",
+    "Plant Name",
     "DG READINGS",
     "Mrng (A)",
     "Evng (B)",
     "Day Running",
     "Vehicle Running Kms",
     "",
-    date,
+    formatDateDDMMYYYY(date),
     "",
     "",
     "Remarks"
@@ -634,8 +720,13 @@ rows.forEach(r => {
   ws.mergeCells(`I${h1.number}:K${h1.number}`);
   ws.mergeCells(`L${h1.number}:L${h2.number}`);
 
-  styleRow(h1, true);
-  styleRow(h2, true);
+  
+h1.isHeader = true;   // ✅ ADD
+h2.isHeader = true;   // ✅ ADD
+
+styleRow(h1, true);
+styleRow(h2, true);
+
 
   rows.forEach(r => {
   const op = r.operation || {};
@@ -646,24 +737,26 @@ rows.forEach(r => {
   const startRow = ws.rowCount + 1;
 
   /* ================= ROW 1 ================= */
-  ws.addRow([
-    `${r.plant.plantID}/${r.plant.kld}`, // A
-    r.plant.plantName,                   // B
-    "Reading",                           // C
-    show(op.dgReadingAm),                // D
-    show(op.dgReadingPm),                // E
-    kmDiff(op.dgReadingAm, op.dgReadingPm), // F
-    v1.vehicleNumber || "-",             // G
-    "Reading",                           // H
-    show(v1.vehicleReadingAm),           // I
-    show(v1.vehicleReadingPm),           // J
-    dayRunningDisplay(
-      v1.vehicleReadingAm,
-      v1.vehicleReadingPm,
-      v1.noOfTrips
-    ),                                   // K
-    v1.remarks || "-"                    // L
-  ]);
+ ws.addRow([
+  `${r.plant.plantID}/${r.plant.kld}`, // A
+  r.plant.plantName,                   // B
+  "Reading",                           // C
+  show(op.dgReadingAm),                // D
+  show(op.dgReadingPm),                // E
+  kmDiff(op.dgReadingAm, op.dgReadingPm), // F
+  v1.vehicleNumber || "-",             // G
+  "Reading",                           // H
+  show(v1.vehicleReadingAm),           // I
+  show(v1.vehicleReadingPm),           // J
+  dayRunningDisplay(
+    v1.vehicleReadingAm,
+    v1.vehicleReadingPm,
+    v1.noOfTrips
+  ),                                   // K
+v1.remarks || "-"
+                             // ✅ L (ONLY HERE)
+]);
+
 
   /* ================= ROW 2 ================= */
   ws.addRow([
@@ -694,7 +787,8 @@ rows.forEach(r => {
       v2.vehicleReadingPm,
       v2.noOfTrips
     ),
-    v2.remarks || "-"
+   v2.remarks || "-"
+
   ]);
 
   /* ================= ROW 4 ================= */
@@ -709,7 +803,6 @@ rows.forEach(r => {
 
   /* ================= MERGES (MATCH UI) ================= */
 
-  // Plant ID / Town
   ws.mergeCells(`A${startRow}:A${startRow + 3}`);
   ws.mergeCells(`B${startRow}:B${startRow + 3}`);
 
@@ -731,10 +824,17 @@ rows.forEach(r => {
   // Day Running / Trips
   ws.mergeCells(`K${startRow}:K${startRow + 1}`);
   ws.mergeCells(`K${startRow + 2}:K${startRow + 3}`);
+  
+// ✅ Vehicle 1 remark merge (row1 + row2)
+ws.mergeCells(`L${startRow}:L${startRow + 1}`);
+
+// ✅ Vehicle 2 remark merge (row3 + row4)
+ws.mergeCells(`L${startRow + 2}:L${startRow + 3}`);
 
   // Remarks
-  ws.mergeCells(`L${startRow}:L${startRow + 1}`);
-  ws.mergeCells(`L${startRow + 2}:L${startRow + 3}`);
+ // ✅ Remarks merged across all 4 rows
+// ws.mergeCells(`L${startRow}:L${startRow + 3}`);
+
 });
 
   /* =====================================================
@@ -745,17 +845,27 @@ rows.forEach(r => {
   const LOGO_END_ROW = 4;
 
 ws.eachRow((row, rowNumber) => {
-  // ❌ Skip borders only for logo rows
-  if (rowNumber > LOGO_END_ROW) {
-    styleRow(row);
+  if (rowNumber <= LOGO_END_ROW) return;
+
+  // 🔴 TITLES → already styled, DO NOTHING
+  if (row.isTitle) return;
+
+  // 🟦 HEADERS → bold
+  if (row.isHeader) {
+    styleRow(row, true);
+  } 
+  // ⚪ DATA ROWS → normal
+  else {
+    styleRow(row, false);
   }
 });
+
 
 
   const buffer = await wb.xlsx.writeBuffer();
   saveAs(
     new Blob([buffer]),
-    `Individual_Report_${date}.xlsx`
+    `Zone-${zoneFilter}_${inchargeName}_${formatDateDDMMYYYY(date)}_Report.xlsx`
   );
 };
 
@@ -789,6 +899,10 @@ const dayRunningDisplay = (am, pm, trips) => {
   if (am == null || pm == null || trips == null) return "-";
   return `${(pm - am).toFixed(2)}/${trips}`;
 };
+
+
+const matchingCount = filteredPlants.length;   // based on zone
+const selectedCount = selectedPlants.length;   // based on selection
 
   /* ================= UI ================= */
   return (
@@ -875,49 +989,76 @@ const dayRunningDisplay = (am, pm, trips) => {
 
       {/* PLANT SELECTION */}
 {/* PLANT SELECTION (ONLY BEFORE GENERATE) */}
+
+      {/* PLANT SELECTION */}
+{/* PLANT SELECTION (ONLY BEFORE GENERATE) */}
 {!showPreview && (
-  <div className="bg-white rounded-xl border">
-    <div className="px-4 py-2 font-bold flex gap-2">
-      <Factory size={18} /> Select Plants
+  <div className="bg-white rounded-xl border overflow-hidden mt-6">
+
+    {/* ===== HEADER ===== */}
+    <div className="px-5 py-3 border-b font-bold flex justify-between items-center">
+      <span>
+        Plants ({matchingCount})
+      </span>
+
+      <span className="text-sm text-slate-800">
+        Selected: {selectedCount}
+      </span>
     </div>
 
-<div className="overflow-x-auto">
-  <table className="min-w-[1200px] w-full border-collapse text-sm bg-white">
+    {/* ===== TABLE ===== */}
+    <div className="overflow-x-auto">
+      <table className="min-w-[1200px] w-full border-collapse text-sm bg-white">
 
-      <thead className="bg-slate-100">
-        <tr>
-          <th className="border p-1 sm:p-2 text-xs sm:text-sm text-center"
->Select</th>
-          <th className="border p-1 sm:p-2 text-xs sm:text-sm text-center"
->Plant ID / KLD</th>
-          <th className="border p-1 sm:p-2 text-xs sm:text-sm text-center"
->Town</th>
-        </tr>
-      </thead>
-      <tbody>
-        {filteredPlants.map(p => (
-          <tr key={p.plantID}>
-            <td className="border border-slate-300 text-center">
+        <thead className="bg-slate-100">
+          <tr>
+            <th className="border p-2 text-center w-[60px]">
               <input
                 type="checkbox"
-                checked={selectedPlants.includes(p.plantID)}
-                onChange={() => togglePlant(p.plantID)}
+                checked={allSelected}
+                onChange={() => {
+                  if (allSelected) {
+                    setSelectedPlants([]);
+                  } else {
+                    setSelectedPlants(filteredPlants.map(p => p.plantID));
+                  }
+                }}
               />
-            </td>
-            <td className="border border-slate-300 text-center font-semibold">
-              {p.plantID} / {p.kld}
-            </td>
-            <td className="border border-slate-300 text-center">
-              {p.plantName}
-            </td>
+            </th>
+            <th className="border p-2 text-center">
+              Plant ID / KLD
+            </th>
+            <th className="border p-2 text-center">
+              Plant Name
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
 
-  </div>
+        <tbody>
+          {filteredPlants.map(p => (
+            <tr key={p.plantID}>
+              <td className="border text-center h-9">
+                <input
+                  type="checkbox"
+                  checked={selectedPlants.includes(p.plantID)}
+                  onChange={() => togglePlant(p.plantID)}
+                />
+              </td>
+              <td className="border text-center font-semibold">
+                {p.plantID} / {p.kld}
+              </td>
+              <td className="border text-center">
+                {p.plantName}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+
+      </table>
+    </div>
   </div>
 )}
+
 
 
      {/* ======= ATTENDANCE PREVIEW (MATCHES EXCEL) ======= */}
@@ -944,7 +1085,7 @@ const dayRunningDisplay = (am, pm, trips) => {
     <PreviewTable
             headers={[
               "Plant ID / KLD",
-              "Town",
+              "Plant Name",
               "Tank Level",
               "Received",
               "Processed",
@@ -1056,7 +1197,7 @@ const dayRunningDisplay = (am, pm, trips) => {
   {/* HEADER ROW 1 */}
   <tr>
     <th rowSpan={2} className="border">Plant ID / KLD</th>
-    <th rowSpan={2} className="border">TOWN</th>
+    <th rowSpan={2} className="border">Plant Name</th>
     <th rowSpan={2} className="border">DG READINGS</th>
     <th rowSpan={2} className="border">Mrng (A)</th>
     <th rowSpan={2} className="border">Evng (B)</th>
@@ -1097,45 +1238,50 @@ const dayRunningDisplay = (am, pm, trips) => {
       <React.Fragment key={row.plant.plantID}>
 
         {/* ================= ROW 1 : DG READING + VEHICLE 1 READING ================= */}
-        <tr>
-          <td rowSpan={4} className="border text-center font-semibold">
-            {row.plant.plantID}/{row.plant.kld}
-          </td>
-          <td rowSpan={4} className="border text-center">
-            {row.plant.plantName}
-          </td>
+  <tr>
+  {/* Plant ID */}
+  <td rowSpan={4} className="border text-center font-semibold">
+    {row.plant.plantID}/{row.plant.kld}
+  </td>
 
-          {/* DG Reading */}
-          <td rowSpan={2} className="border text-center">Reading</td>
-          <td rowSpan={2} className="border text-center">{show(op.dgReadingAm)}</td>
-          <td rowSpan={2} className="border text-center">{show(op.dgReadingPm)}</td>
-          <td rowSpan={2} className="border text-center">
-            {kmDiff(op.dgReadingAm, op.dgReadingPm)}
-          </td>
+  {/* Plant Name */}
+  <td rowSpan={4} className="border text-center">
+    {row.plant.plantName}
+  </td>
 
-          {/* Vehicle 1 */}
-          <td rowSpan={2} className="border text-center">
-            {v1.vehicleNumber || "-"}
-          </td>
+  {/* DG Reading */}
+  <td rowSpan={2} className="border text-center">Reading</td>
+  <td rowSpan={2} className="border text-center">{show(op.dgReadingAm)}</td>
+  <td rowSpan={2} className="border text-center">{show(op.dgReadingPm)}</td>
+  <td rowSpan={2} className="border text-center">
+    {kmDiff(op.dgReadingAm, op.dgReadingPm)}
+  </td>
 
-          <td className="border text-center">Reading</td>
-          <td className="border text-center">{show(v1.vehicleReadingAm)}</td>
-          <td className="border text-center">{show(v1.vehicleReadingPm)}</td>
+  {/* Vehicle 1 */}
+  <td rowSpan={2} className="border text-center">
+    {v1.vehicleNumber || "-"}
+  </td>
 
-          {/* ✅ FIXED FORMULA */}
-          <td rowSpan={2} className="border text-center">
-  {dayRunningDisplay(
-    v1.vehicleReadingAm,
-    v1.vehicleReadingPm,
-    v1.noOfTrips
-  )}
+  <td className="border text-center">Reading</td>
+  <td className="border text-center">{show(v1.vehicleReadingAm)}</td>
+  <td className="border text-center">{show(v1.vehicleReadingPm)}</td>
+
+  <td rowSpan={2} className="border text-center">
+    {dayRunningDisplay(
+      v1.vehicleReadingAm,
+      v1.vehicleReadingPm,
+      v1.noOfTrips
+    )}
+  </td>
+
+  {/* ✅ MERGED REMARKS */}
+<td rowSpan={2} className="border text-center font-medium">
+  {v1.remarks || "-"}
 </td>
 
 
-          <td rowSpan={2} className="border text-center">
-            {v1.remarks || "-"}
-          </td>
-        </tr>
+</tr>
+
 
         {/* ================= ROW 2 : VEHICLE 1 FUEL ================= */}
         <tr>
@@ -1175,10 +1321,11 @@ const dayRunningDisplay = (am, pm, trips) => {
   )}
 </td>
 
+<td rowSpan={2} className="border text-center font-medium">
+  {v2.remarks || "-"}
+</td>
 
-          <td rowSpan={2} className="border text-center">
-            {v2.remarks || "-"}
-          </td>
+
         </tr>
 
         {/* ================= ROW 4 : VEHICLE 2 FUEL ================= */}

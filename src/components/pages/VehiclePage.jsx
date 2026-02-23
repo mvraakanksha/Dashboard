@@ -12,7 +12,7 @@ import {
 import { useParams, useNavigate } from "react-router-dom";
 import { getVehicleOperationsByDateRange } from "../../services/vehicleService";
 import { getAllPlants } from "../../services/plantService";
-
+import { getOperationsByDateRange } from "../../services/operationService";
 /* ---------------- UTILITIES ---------------- */
 const formatDate = (d) => new Date(d).toISOString().split("T")[0];
 
@@ -84,6 +84,23 @@ const DaywiseTooltip = ({ active, payload }) => {
   );
 };
 
+const DateTick = ({ x, y, payload }) => {
+  if (!payload?.value) return null;
+
+  return (
+    <text
+      x={x}
+      y={y + 10}
+      textAnchor="end"
+      fill="#003f8a"
+      fontSize={11}
+      fontWeight={600}
+      transform={`rotate(-45 ${x} ${y + 10})`}
+    >
+      {formatDateDisplay(payload.value)}
+    </text>
+  );
+};
 
 /* ================= VEHICLE PAGE ================= */
 export default function VehiclePage() {
@@ -96,6 +113,7 @@ export default function VehiclePage() {
   );
   const [toDate, setToDate] = useState(formatDate(new Date()));
   const [daywiseData, setDaywiseData] = useState([]);
+const [operationsData, setOperationsData] = useState([]);
 
   /* ---------------- FETCH PLANT DETAILS ---------------- */
 useEffect(() => {
@@ -117,11 +135,22 @@ useEffect(() => {
   /* ---------------- FETCH DAYWISE DATA ---------------- */
 const fetchDaywise = async () => {
   try {
-    const arr = await getVehicleOperationsByDateRange(fromDate, toDate);
+    const [vehicleArr, operationsArr] = await Promise.all([
+      getVehicleOperationsByDateRange(fromDate, toDate),
+      getOperationsByDateRange(fromDate, toDate),
+    ]);
 
+    /* ---------------- PRIVATE VEHICLE FILTER ---------------- */
+    const filteredOperations = operationsArr.filter(
+      (op) => String(op.plantId) === String(plantId)
+    );
+
+    setOperationsData(filteredOperations);
+
+    /* ---------------- VEHICLE DATA ---------------- */
     const map = {};
 
-    arr.forEach((item) => {
+    vehicleArr.forEach((item) => {
       const date = item.vehicleOp?.operationDate;
       if (!date || String(item.plantId) !== String(plantId)) return;
 
@@ -132,10 +161,11 @@ const fetchDaywise = async () => {
 
       map[date].push({
         vehicleNumber: item.vehicle.vehicleNumber,
-        distance: pm != null && am != null ? Math.max(pm - am, 0) : 0,
+        distance:
+          pm != null && am != null ? Math.max(pm - am, 0) : 0,
         fuel: item.vehicleOp.vehicleFuelLevel,
-        trips: item.vehicleOp?.noOfTrips,        // ✅ added
-        sludge: item.vehicleOp?.sludgeCollect,   // ✅ added
+        trips: item.vehicleOp?.noOfTrips,
+        sludge: item.vehicleOp?.sludgeCollect,
       });
     });
 
@@ -156,6 +186,7 @@ const fetchDaywise = async () => {
     setDaywiseData([]);
   }
 };
+
 
 useEffect(() => {
   fetchDaywise();
@@ -221,6 +252,20 @@ const vehicle2Sludge = daywiseData.reduce(
   0
 );
 
+const { totalPrivateTrips, totalPrivateSludge } = useMemo(() => {
+  return operationsData.reduce(
+    (acc, op) => {
+      acc.totalPrivateTrips +=
+        op.operation?.noOfTripsPrivateVehicle || 0;
+
+      acc.totalPrivateSludge +=
+        op.operation?.sludgeCollectPrivateVehicle || 0;
+
+      return acc;
+    },
+    { totalPrivateTrips: 0, totalPrivateSludge: 0 }
+  );
+}, [operationsData]);
 
   /* ---------------- SCROLL LOGIC ---------------- */
 const DAY_SCROLL_THRESHOLD = 40;   // show scrollbar after 40 days
@@ -312,7 +357,7 @@ const vehicle2Trips = daywiseData.reduce(
 
   {/* KPI CARDS */}
   <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-5 gap-4">
 
       {/* TOTAL VEHICLES */}
       <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
@@ -420,6 +465,25 @@ const vehicle2Trips = daywiseData.reduce(
     </span>
   </div>
 </div>
+{/* PRIVATE VEHICLE KPI */}
+<div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
+  <p className="text-sm font-medium">
+    Private Vehicle Trips
+  </p>
+
+  <h2 className="text-xl font-extrabold text-green-400 mt-3">
+    {formatIndianRounded(totalPrivateTrips)}
+  </h2>
+
+  <div className="mt-4 text-sm font-semibold text-blue-100">
+    <span>
+      Sludge Collected :{" "}
+      <span className="font-extrabold text-green-400">
+        {formatIndianRounded(totalPrivateSludge)} L
+      </span>
+    </span>
+  </div>
+</div>
 
 
     </div>
@@ -481,18 +545,11 @@ const vehicle2Trips = daywiseData.reduce(
 
           {/* X-AXIS (SHOW ALL DATES) */}
           <XAxis
-            dataKey="date"
-            interval={0}                 // ✅ SHOW EVERY DATE
-            tickFormatter={formatDateDisplay}
-            angle={-45}
-            height={80}
-            textAnchor="end"
-            tick={{
-              fontSize: 11,
-              fill: "#003f8a",
-              fontWeight: 600,
-            }}
-          />
+  dataKey="date"
+  interval={0}
+  height={80}
+  tick={<DateTick />}
+/>
 
           {/* Y-AXIS */}
           <YAxis

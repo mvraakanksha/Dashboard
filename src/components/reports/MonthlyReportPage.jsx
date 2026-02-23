@@ -14,6 +14,16 @@ import { getAllPlants } from "../../services/plantService";
 import { getOperationsByDateRange } from "../../services/operationService";
 /* ================= API ================= */
 
+const formatDisplayDate = (dateString) => {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
+};
 
 /* ================= HELPERS ================= */
 const formatNumber = (v) =>
@@ -28,7 +38,7 @@ const monthLabel = (ym) => {
 };
 const oldSludgeHeader = (month) => {
   const [y, m] = month.split("-");
-  return `Old Sludge (in liters)\n  ${y}-${m}-01(AM)`;
+  return `Old Sludge (in liters)\n  01-${m}-${y} (AM)`;
 };
 
 let cachedCompanyLogo = null;
@@ -53,7 +63,6 @@ const imageToBase64Compressed = (image, quality = 0.5, maxWidth = 800) => {
     };
   });
 };
-
 const formatMonthYear = (monthStr) => {
   if (!monthStr) return "";
 
@@ -66,16 +75,12 @@ const formatMonthYear = (monthStr) => {
 
   return `${monthNames[Number(month) - 1]} ${year}`;
 };
-
 export default function MonthlyReportPage() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [plantMaster, setPlantMaster] = useState({});
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  const formattedMonth = formatMonthYear(month);
-
-
+const [refreshKey, setRefreshKey] = useState(0);
 
   /* ================= LOAD PLANTS ================= */
 useEffect(() => {
@@ -93,12 +98,13 @@ useEffect(() => {
   });
 }, []);
 
+  const formattedMonth = formatMonthYear(month);
 
   const loadMonth = useCallback(async () => {
   if (!Object.keys(plantMaster).length) return;
 
   setLoading(true);
-
+  setRows([]);
   const [year, monthNum] = month.split("-");
 
   // ✅ Start = first day of month
@@ -114,28 +120,42 @@ useEffect(() => {
   try {
     const rangeData = await getOperationsByDateRange(startDate, endDate);
 
-    rangeData.forEach((r) => {
-      const pid = r.plantId;
-      const op = r.operation;
+rangeData.forEach((r) => {
+  const pid = r.plantId;
+  const op = r.operation;
 
-      if (!temp[pid]) {
-        temp[pid] = {
-          plantId: pid,
-          sludgeReceived: 0,
-          sludgeProcessed: 0,
-          oldSludge: 0,
-        };
-      }
 
-      // ✅ Old sludge = AM of 1st day only
-      if (op?.operationDate === startDate) {
-        temp[pid].oldSludge = Number(op?.sludgeTankLevelAm || 0);
-      }
+  
+  if (!temp[pid]) {
+    temp[pid] = {
+      plantId: pid,
+      sludgeReceived: 0,
+      sludgeProcessed: 0,
+      oldSludge: 0,
+      remaining: 0, // month-end PM
+      
+    };
+  }
 
-      // ✅ Includes 31st automatically
-      temp[pid].sludgeReceived += Number(op?.sludgeReceived || 0);
-      temp[pid].sludgeProcessed += Number(op?.sludgeProcessed || 0);
-    });
+  // ✅ Old sludge = AM of 1st day
+  if (op?.operationDate === startDate) {
+    temp[pid].oldSludge = Number(op?.sludgeTankLevelAm || 0);
+  }
+
+  // ✅ Month totals
+  temp[pid].sludgeReceived += Number(op?.sludgeReceived || 0);
+  temp[pid].sludgeProcessed += Number(op?.sludgeProcessed || 0);
+
+  // ✅ VERY IMPORTANT: overwrite with latest PM value
+   if (
+  op?.sludgeTankLevelPm != null &&
+  (!temp[pid].lastPmDate ||
+    op.operationDate > temp[pid].lastPmDate)
+) {
+  temp[pid].remaining = Number(op.sludgeTankLevelPm);
+  temp[pid].lastPmDate = op.operationDate;
+}
+});
 
     const finalRows = Object.values(temp).map((r) => {
       const meta = plantMaster[r.plantId] || {};
@@ -151,7 +171,8 @@ useEffect(() => {
         oldSludge: r.oldSludge,
         total,
         sludgeProcessed: r.sludgeProcessed,
-        remaining: total - r.sludgeProcessed,
+        remaining: r.remaining,
+
       };
     });
 
@@ -164,9 +185,10 @@ useEffect(() => {
 }, [month, plantMaster]);
 
 
-  useEffect(() => {
-    loadMonth();
-  }, [loadMonth]);
+useEffect(() => {
+  loadMonth();
+}, [loadMonth, refreshKey]);
+
 
   /* ================= TOTALS ================= */
   const totals = rows.reduce(
@@ -345,9 +367,10 @@ columnStyles: {
 
 footStyles: {
   fillColor: [95, 143, 228],
-  textColor: [0,0,0] ,
+   textColor: [255, 255, 255], 
   fontStyle: "bold",
   fontSize: 6,
+  minCellHeight: 5,   // ✅ increases footer row height
 },
 
   head: [[
@@ -384,6 +407,8 @@ footStyles: {
     formatNumber(totals.sludgeProcessed),
     formatNumber(totals.remaining),
   ]],
+
+
 });
 
 
@@ -391,6 +416,7 @@ footStyles: {
 };
 
 
+const INDIAN_NUMBER_FORMAT = "#,##,##0";
 
 
 const downloadExcel = async () => {
@@ -520,73 +546,73 @@ headerRow.eachCell(cell => {
   /* =====================================================
      DATA ROWS
   ===================================================== */
-  rows.forEach((r, i) => {
-    const row = sheet.addRow([
-      i + 1,
-      r.plantId,
-      r.district,
-      r.kld,
-      r.name,
-      r.sludgeReceived,
-      r.oldSludge,
-      r.total,
-      r.sludgeProcessed,
-      r.remaining,
-    ]);
+rows.forEach((r, i) => {
+  const row = sheet.addRow([
+    i + 1,
+    r.plantId,
+    r.district,
+    r.kld,
+    r.name,
+    r.sludgeReceived,
+    r.oldSludge,
+    r.total,
+    r.sludgeProcessed,
+    r.remaining,
+  ]);
 
-row.eachCell((cell, colNumber) => {
-  cell.alignment = {
-    horizontal: colNumber <= 5 ? "center" : "right",
-    vertical: "middle",
-  };
-
-  cell.font = { size: 10 };
-
-  cell.border = {
-    top: { style: "thin" },
-    bottom: { style: "thin" },
-    left: { style: "thin" },
-    right: { style: "thin" },
-  };
-
-  // ✅ ONLY SITE NAME CELL → GREY if permanent power NOT completed
-  if (colNumber === 5 && r.permanentPower === false) {
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFE5E7EB" }, // grey
+  row.eachCell((cell, colNumber) => {
+    cell.alignment = {
+      horizontal: colNumber <= 5 ? "center" : "right",
+      vertical: "middle",
     };
 
-    cell.font = {
-      size: 10,
-      color: { argb: "00000000" }, // dark grey text
-    };
-  }
+    cell.font = { size: 10 };
 
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" },
+    };
+
+    // ✅ APPLY INDIAN NUMBER FORMAT (columns 6–10)
+    if (colNumber >= 6) {
+      cell.numFmt = "#,##,##0";
+    }
+
+    // Grey site name if permanent power false
+    if (colNumber === 5 && r.permanentPower === false) {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE5E7EB" },
+      };
+    }
+  });
 });
 
-  });
 
   /* =====================================================
      TOTAL ROW
   ===================================================== */
-  const totalRow = sheet.addRow([
-    "TOTAL",
-    "",
-    "",
-    "",
-    "",
-    totals.sludgeReceived,
-    totals.oldSludge,
-    totals.total,
-    totals.sludgeProcessed,
-    totals.remaining,
-  ]);
+const totalRow = sheet.addRow([
+  "TOTAL",
+  "",
+  "",
+  "",
+  "",
+  totals.sludgeReceived,
+  totals.oldSludge,
+  totals.total,
+  totals.sludgeProcessed,
+  totals.remaining,
+]);
 
-totalRow.eachCell(cell => {
+totalRow.eachCell((cell, colNumber) => {
   cell.font = {
     bold: true,
     size: 11,
+    color: { argb: "FFFFFFFF" },
   };
 
   cell.alignment = {
@@ -597,7 +623,7 @@ totalRow.eachCell(cell => {
   cell.fill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: "FF5F8FE4" }, // same blue footer
+    fgColor: { argb: "FF5F8FE4" },
   };
 
   cell.border = {
@@ -606,6 +632,11 @@ totalRow.eachCell(cell => {
     left: { style: "thin" },
     right: { style: "thin" },
   };
+
+  // ✅ Indian commas in totals also
+  if (colNumber >= 6) {
+    cell.numFmt = "#,##,##0";
+  }
 });
 
 
@@ -645,92 +676,77 @@ sheet.columns = [
   );
 };
 
+const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
 
   /* ================= UI ================= */
-  return (
-   
-     <div className="max-w-7xl mx-auto font-serif overflow-x-hidden">
+return (
+  <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen">
+    
+    {/* REPORT CONTAINER */}
+    <div className="bg-white p-3 sm:p-4 min-h-screen font-serif">
 
-      {/* ===== HEADER (SCREEN) ===== */}
-{/* ===== HEADER (SCREEN) ===== */}
-<div className="
-  flex flex-col gap-4 mb-4
-  lg:flex-row lg:items-center lg:justify-between
-">
+      {/* ===== HEADER ===== */}
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3 mb-4">
+        
+        <div className="flex items-center gap-4">
+          <img
+            className="w-24 sm:w-28"
+            src="https://mvr-attendance.web.app/MVR_Company_Logo%20copy.png"
+            alt="MVR"
+          />
+        </div>
 
-  {/* LEFT: LOGO + TITLE */}
-  <div className="flex flex-col sm:flex-row items-center gap-4 flex-1 text-center sm:text-left">
+        <div className="text-center flex-1">
+          <h1 className="text-xl sm:text-2xl md:text-3xl text-[#b31818] font-extrabold">
+            MVR TECHNOLOGY
+          </h1>
 
-    <img
-      className="w-20 sm:w-28 shrink-0"
-      src="https://mvr-attendance.web.app/MVR_Company_Logo%20copy.png"
-      alt="MVR"
-    />
-<div className="flex-1 flex flex-col items-center text-center">
-  <h1 className="text-xl sm:text-3xl text-[#b31818] font-extrabold">
-    MVR TECHNOLOGY
-  </h1>
+          <div className="text-[10px] sm:text-xs">
+            <div>#207, Gowra Fountainhead, Madhapur, Hyderabad</div>
+            <div className="font-semibold">
+              email: mvrhydoffice@mvrtech.org
+            </div>
+            <div className="font-bold">FSTP RAJASTHAN</div>
+          </div>
+        </div>
+      </div>
 
-  <div className="text-xs mt-1">
-    <div>#207, Gowra Fountainhead, Madhapur, Hyderabad</div>
-    <div className="font-semibold">
-      email: mvrhydoffice@mvrtech.org
-    </div>
-    <div className="font-bold">FSTP RAJASTHAN</div>
-  </div>
-</div>
+      {/* ===== CONTROLS ===== */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        <input
+          type="month"
+          value={month}
+          max={currentMonth}
+          onChange={(e) => setMonth(e.target.value)}
+          className="border p-2 text-sm"
+        />
 
-  </div>
+        <button
+          onClick={() => setRefreshKey(prev => prev + 1)}
+          className="bg-red-700 text-white px-4 py-2 rounded text-sm"
+        >
+          Load Data
+        </button>
 
-</div>
+        <button
+          onClick={downloadPdf}
+          className="bg-blue-700 text-white px-4 py-2 rounded text-sm"
+        >
+          Download PDF
+        </button>
 
-      {/* CONTROLS */}
-{/* CONTROLS */}
-<div className="
-  flex flex-col gap-3 mb-4
-  lg:flex-row lg:items-end lg:flex-nowrap
-">
-
-  <input
-    type="month"
-    value={month}
-    onChange={(e) => setMonth(e.target.value)}
-    className="border p-2 w-full lg:w-auto"
-  />
-
-  <button
-    onClick={loadMonth}
-    className="bg-red-700 text-white px-6 py-2 rounded
-               w-full lg:w-auto"
-  >
-    Load Data
-  </button>
-
-  <button
-    onClick={downloadPdf}
-    className="bg-blue-700 text-white px-6 py-2 rounded
-               w-full lg:w-auto"
-  >
-    Download PDF
-  </button>
-
-  <button
-    onClick={downloadExcel}
-    className="bg-green-700 text-white px-6 py-2 rounded
-               w-full lg:w-auto"
-  >
-    Download Excel
-  </button>
-
-</div>
-
-
-<div className="w-full overflow-x-auto">
-  <table
-    className="min-w-[900px] border-collapse text-xs"
-    style={{ border: "1.5px solid #000" }}
-  >
-
+        <button
+          onClick={downloadExcel}
+          className="bg-green-700 text-white px-4 py-2 rounded text-sm"
+        >
+          Download Excel
+        </button>
+      </div>
+         <div className="overflow-x-auto">
+    <table
+          className="w-full border-collapse text-xs min-w-[900px]"
+          style={{ border: "1.5px solid #000" }}
+        >
         <thead style={{ background: "#D3EAC8", fontWeight: "bold" }}>
     <tr>
       {[
@@ -831,8 +847,11 @@ sheet.columns = [
     </tr>
   </tfoot>
 </table>
-</div>
-      {loading && <p className="mt-4">Loading...</p>}
     </div>
+
+      {loading && <p className="mt-4">Loading...</p>}
+     </div>
+    </div>
+
   );
 }

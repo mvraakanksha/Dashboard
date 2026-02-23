@@ -125,6 +125,14 @@ const TopBarLabel = ({ x, y, width, value, mode }) => {
     </text>
   );
 };
+const formatIndianNumber = (value, decimals = 2) => {
+  if (value === null || value === undefined) return "0.00";
+  return new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(Number(value));
+};
+
 
 /* ================= TOOLTIP ================= */
 const DaywiseTooltip = ({ active, payload, mode }) => {
@@ -135,7 +143,12 @@ const DaywiseTooltip = ({ active, payload, mode }) => {
     <div className="bg-white border shadow-md rounded p-3 text-xs">
       <p className="font-bold text-blue-900">{displayDate(d.date)}</p>
 
-      {mode === "flow" && <p>Cumulative Flow: <b>{d.cumulativeFlow}</b> L</p>}
+      {mode === "flow" && (
+        <p>
+          Cumulative Flow:{" "}
+          <b>{formatIndianNumber(d.cumulativeFlow, 2)}</b> L
+        </p>
+      )}
 
       {mode === "cod_bod" && (
         <>
@@ -169,6 +182,18 @@ const KPI = ({ label, value }) => (
   </div>
 );
 
+const formatDisplayDate = (dateString) => {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
+};
+
+
 const getYAxisConfig = (mode) => {
   switch (mode) {
     case "flow":
@@ -183,6 +208,25 @@ const getYAxisConfig = (mode) => {
       return { label: "" };
   }
 };
+
+const DateTick = ({ x, y, payload }) => {
+  if (!payload?.value) return null;
+
+  return (
+    <text
+      x={x}
+      y={y + 10}
+      textAnchor="end"
+      fill="#003f8a"
+      fontSize={11}
+      fontWeight={600}
+      transform={`rotate(-45 ${x} ${y + 10})`}
+    >
+      {formatDisplayDate(payload.value)}
+    </text>
+  );
+};
+
 
 /* ================= PAGE ================= */
 export default function LabView() {
@@ -374,16 +418,14 @@ useEffect(() => {
                 margin={{ top: 40, right: 30, left: 70, bottom: 90 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
+<XAxis
+  dataKey="date"
+  interval={0}
+  height={90}
+  tick={<DateTick />}
+/>
 
-                <XAxis
-                  dataKey="date"
-                  interval={0}
-                  angle={-45}
-                  height={80}
-                  textAnchor="end"
-                  tickFormatter={displayDate}
-                  tick={{ fontSize: 11, fill: "#003f8a", fontWeight: 600 }}
-                />
+
 
                 <YAxis
                   label={{

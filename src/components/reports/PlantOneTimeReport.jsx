@@ -19,6 +19,18 @@ const InfoRow = ({ label, value }) => (
 );
 /* ================= SAFE VALUE HELPER ================= */
 
+const formatDate = (dateString) => {
+  if (!dateString) return "";
+
+  const date = new Date(dateString);
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}/${month}/${year}`;
+};
+
 
 export default function PlantOneTimeReport() {
   const { id } = useParams();
@@ -72,7 +84,13 @@ const licenceVal = (isDriver, v) =>
 const downloadPdf = () => {
   if (!plant) return;
 
-  const doc = new jsPDF("portrait", "mm", "a4");
+ const doc = new jsPDF({
+  orientation: "portrait",
+  unit: "mm",
+  format: "a4",
+  compress: true   // ⭐ important
+});
+doc.setFont("times", "normal");
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
@@ -102,7 +120,7 @@ const downloadPdf = () => {
   autoTable(doc, {
     startY: 25,
     theme: "grid",
-    styles: { fontSize: 9 },
+    styles: { fontSize: 8 ,  font: "times"},
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 85 } },
     body: [
       ["Plant ID", plant.plantID],
@@ -115,35 +133,35 @@ const downloadPdf = () => {
       ["Pin Code", dashVal(plant.pinCode)],
 
       ["MNIT", plant.mnit ? "YES" : "NO"],
-      ["MNIT Completion Date", dashVal(plant.mnitDateOfCompletion)],
+      ["MNIT Completion Date", dashVal(formatDate(plant.mnitDateOfCompletion))],
 
       ["Permanent Power", plant.permanentPower ? "YES" : "NO"],
-      ["PP Completion Date", dashVal(plant.permanentPowerDateOfCompletion)],
+      ["PP Completion Date", dashVal(formatDate(plant.permanentPowerDateOfCompletion))],
       ["PP Meter Serial No", dashVal(plant.ppMeterSerialNo)],
 
       ["Solar", plant.solar ? "YES" : "NO"],
-      ["Solar Completion Date", dashVal(plant.solarDateOfCompletion)],
+      ["Solar Completion Date", dashVal(formatDate(plant.solarDateOfCompletion))],
       ["Solar Capacity", dashVal(plant.solarPlantCapacity)],
       ["Solar Meter Serial No", dashVal(plant.solarMeterSerialNo)],
 
       ["Internet", plant.internet ? "YES" : "NO"],
-      ["Internet Completion Date", dashVal(plant.internetDateOfCompletion)],
+      ["Internet Completion Date", dashVal(formatDate(plant.internetDateOfCompletion))],
 
-      ["Construction Start Date", dashVal(plant.constructionStartedDate)],
-      ["Civil Work Completed Date", dashVal(plant.civilWorkCompletedDate)],
-      ["Machinery Assemble Date", dashVal(plant.machinaryAssembleDate)],
+      ["Construction Start Date", dashVal(formatDate(plant.constructionStartedDate))],
+      ["Civil Work Completed Date", dashVal(formatDate(plant.civilWorkCompletedDate))],
+      ["Machinery Assemble Date", dashVal(formatDate(plant.machinaryAssembleDate))],
 
-      ["COD/BOD Sensor Date", dashVal(plant.codAndBodSenserDate)],
-      ["IP Phone Date", dashVal(plant.ipPhoneDate)],
-      ["Camera Configuration Date", dashVal(plant.cameraConfigurationDate)],
+      ["COD/BOD Sensor Date", dashVal(formatDate(plant.codAndBodSenserDate))],
+      ["IP Phone Date", dashVal(formatDate(plant.ipPhoneDate))],
+      ["Camera Configuration Date", dashVal(formatDate(plant.cameraConfigurationDate))],
 
       ["Tabs Received", plant.tabs ? "YES" : "NO"],
-      ["Tabs Received Date", dashVal(plant.tabsReceivedDate)],
+      ["Tabs Received Date", dashVal(formatDate(plant.tabsReceivedDate))],
 
       ["CTO Certified", plant.ctoCertified ? "YES" : "NO"],
-      ["CTO Issued Date", dashVal(plant.ctoIssuedDate)],
+      ["CTO Issued Date", dashVal(formatDate(plant.ctoIssuedDate))],
       ["CTE Certified", plant.cteCertified ? "YES" : "NO"],
-      ["CTE Issued Date", dashVal(plant.cteIssuedDate)],
+      ["CTE Issued Date", dashVal(formatDate(plant.cteIssuedDate))],
 
       ["Total Vehicles", vehicles.length],
       ["Total Employees", employees.length],
@@ -165,7 +183,7 @@ const downloadPdf = () => {
   autoTable(doc, {
     startY: 28,
     theme: "grid",
-    styles: { fontSize: 9, cellPadding: 3 },
+    styles: { fontSize: 9, cellPadding: 3,  font: "times" },
     headStyles: { fillColor: [0, 0, 128], textColor: 255 },
     columnStyles: {
       0: { fontStyle: "bold", cellWidth: 70 },
@@ -178,16 +196,16 @@ const downloadPdf = () => {
       ["Model Name", dashVal(v1.vehicleModelName), dashVal(v2.vehicleModelName)],
       ["Chassis No", dashVal(v1.vehicleChassisNo), dashVal(v2.vehicleChassisNo)],
       ["Engine No", dashVal(v1.vehicleEngineNumber), dashVal(v2.vehicleEngineNumber)],
-      ["Registration Date", dashVal(v1.dateOfRegistration), dashVal(v2.dateOfRegistration)],
-      ["Insurance Date", dashVal(v1.insuranceDate), dashVal(v2.insuranceDate)],
-      ["Insurance Expiry", dashVal(v1.insuranceExpiryDate), dashVal(v2.insuranceExpiryDate)],
+      ["Registration Date", dashVal(formatDate(v1.dateOfRegistration)), dashVal(formatDate(v2.dateOfRegistration))],
+      ["Insurance Date", dashVal(formatDate(v1.insuranceDate)), dashVal(formatDate(v2.insuranceDate))],
+      ["Insurance Expiry", dashVal(formatDate(v1.insuranceExpiryDate)), dashVal(formatDate(v2.insuranceExpiryDate))],
       ["GPS Installed", v1.gpsStatus ? "YES" : "-", v2.gpsStatus ? "YES" : "-"],
-      ["GPS Installation Date", dashVal(v1.gpsInstallationDate), dashVal(v2.gpsInstallationDate)],
+      ["GPS Installation Date", dashVal(formatDate(v1.gpsInstallationDate)), dashVal(formatDate(v2.gpsInstallationDate))],
 
       ["Battery Make", dashVal(v1.vehicleBatteryMake), dashVal(v2.vehicleBatteryMake)],
       ["Battery Number", dashVal(v1.vehicleBatteryNumber), dashVal(v2.vehicleBatteryNumber)],
-      ["Battery Purchase Date", dashVal(v1.vehicleBatteryPurchaseDate), dashVal(v2.vehicleBatteryPurchaseDate)],
-      ["Battery Expiry Date", dashVal(v1.vehicleBatteryExpiryDate), dashVal(v2.vehicleBatteryExpiryDate)],
+      ["Battery Purchase Date", dashVal(formatDate(v1.vehicleBatteryPurchaseDate)), dashVal(formatDate(v2.vehicleBatteryPurchaseDate))],
+      ["Battery Expiry Date", dashVal(formatDate(v1.vehicleBatteryExpiryDate)), dashVal(formatDate(v2.vehicleBatteryExpiryDate))],
 
       ["Front Right Tyre Make", dashVal(v1.vehicleTyreFrontRightMake), dashVal(v2.vehicleTyreFrontRightMake)],
       ["Front Right Tyre Serial No", dashVal(v1.vehicleTyreFrontRightSerialNo), dashVal(v2.vehicleTyreFrontRightSerialNo)],
@@ -219,14 +237,14 @@ const downloadPdf = () => {
   autoTable(doc, {
     startY: empStartY,
     theme: "grid",
-    styles: { fontSize: 9, cellPadding: 3 },
+    styles: { fontSize: 9, cellPadding: 3,  font: "times" },
     headStyles: { fillColor: [0, 0, 128], textColor: 255 },
     head: [[
       "Emp ID",
       "Name",
       "Designation",
-      "Mobile",
-      "Joining Date",
+      "Mobile No",
+      "Date of Joining",
       "Licence Type",
       "Licence No",
       "Licence Expiry",
@@ -238,10 +256,10 @@ const downloadPdf = () => {
         dashVal(e.employeeName),
         dashVal(e.designation),
         dashVal(e.mobileNo),
-        dashVal(e.dateOfJoining),
+        dashVal(formatDate(e.dateOfJoining)),
         licenceVal(isDriver, e.licenceType),
         licenceVal(isDriver, e.licenceNumber),
-        licenceVal(isDriver, e.licenceExpiryDate),
+        licenceVal(formatDate(isDriver, e.licenceExpiryDate)),
       ];
     }),
   });
@@ -344,7 +362,7 @@ const downloadPdf = () => {
     <InfoRow label="Pin Code" value={plant.pinCode} />
 
     <InfoRow label="MNIT" value={plant.mnit ? "YES" : "NO"} />
-    <InfoRow label="MNIT Completion Date" value={plant.mnitDateOfCompletion} />
+    <InfoRow label="MNIT Completion Date" value={formatDate(plant.mnitDateOfCompletion)} />
 
     <InfoRow
       label="Permanent Power"
@@ -352,7 +370,7 @@ const downloadPdf = () => {
     />
     <InfoRow
       label="Permanent Power Completion Date"
-      value={plant.permanentPowerDateOfCompletion}
+      value={formatDate(plant.permanentPowerDateOfCompletion)}
     />
     <InfoRow
       label="Permanent Power Meter Serial Number"
@@ -362,7 +380,7 @@ const downloadPdf = () => {
     <InfoRow label="Solar Plant" value={plant.solar ? "YES" : "NO"} />
     <InfoRow
       label="Solar Completion Date"
-      value={plant.solarDateOfCompletion}
+      value={formatDate(plant.solarDateOfCompletion)}
     />
     <InfoRow
       label="Solar Capacity (KLD)"
@@ -376,7 +394,7 @@ const downloadPdf = () => {
     <InfoRow label="Internet" value={plant.internet ? "YES" : "NO"} />
     <InfoRow
       label="Internet Completion Date"
-      value={plant.internetDateOfCompletion}
+      value={formatDate(plant.internetDateOfCompletion)}
     />
 
     <InfoRow label="Number of Vehicles" value={plant.noOfVehicle} />
@@ -384,41 +402,41 @@ const downloadPdf = () => {
 
     <InfoRow
       label="Construction Started Date"
-      value={plant.constructionStartedDate}
+      value={formatDate(plant.constructionStartedDate)}
     />
     <InfoRow
       label="Civil Work Completed Date"
-      value={plant.civilWorkCompletedDate}
+      value={formatDate(plant.civilWorkCompletedDate)}
     />
     <InfoRow
       label="Machinery Assemble Date"
-      value={plant.machinaryAssembleDate}
+      value={formatDate(plant.machinaryAssembleDate)}
     />
 
     <InfoRow
       label="COD/BOD Sensor Date"
-      value={plant.codAndBodSenserDate}
+      value={formatDate(plant.codAndBodSenserDate)}
     />
     <InfoRow
       label="IP Phone Reached Date"
-      value={plant.ipPhoneDate}
+      value={formatDate(plant.ipPhoneDate)}
     />
     <InfoRow
       label="Camera Configuration Date"
-      value={plant.cameraConfigurationDate}
+      value={formatDate(plant.cameraConfigurationDate)}
     />
 
     <InfoRow label="Tabs Received" value={plant.tabs ? "YES" : "NO"} />
     <InfoRow
       label="Tabs Received Date"
-      value={plant.tabsReceivedDate}
+      value={formatDate(plant.tabsReceivedDate)}
     />
 
     <InfoRow label="CTO Certified" value={plant.ctoCertified ? "YES" : "NO"} />
-    <InfoRow label="CTO Issued Date" value={plant.ctoIssuedDate} />
+    <InfoRow label="CTO Issued Date" value={formatDate(plant.ctoIssuedDate)} />
 
     <InfoRow label="CTE Certified" value={plant.cteCertified ? "YES" : "NO"} />
-    <InfoRow label="CTE Issued Date" value={plant.cteIssuedDate} />
+    <InfoRow label="CTE Issued Date" value={formatDate(plant.cteIssuedDate)} />
 </div>
   </div>
 </div>
@@ -451,9 +469,9 @@ const downloadPdf = () => {
     <InfoRow label="Engine No" value={v.vehicleEngineNumber} />
 
     {/* REGISTRATION & INSURANCE */}
-    <InfoRow label="Registration Date" value={v.dateOfRegistration} />
-    <InfoRow label="Insurance Date" value={v.insuranceDate} />
-    <InfoRow label="Insurance Expiry Date" value={v.insuranceExpiryDate} />
+    <InfoRow label="Registration Date" value={formatDate(v.dateOfRegistration)} />
+    <InfoRow label="Insurance Date" value={formatDate(v.insuranceDate)} />
+    <InfoRow label="Insurance Expiry Date" value={formatDate(v.insuranceExpiryDate)} />
 
     {/* GPS */}
     <InfoRow label="GPS Installed" value={v.gpsStatus ? "YES" : "NO"} />
@@ -462,8 +480,8 @@ const downloadPdf = () => {
     {/* BATTERY */}
     <InfoRow label="Battery Make" value={v.vehicleBatteryMake} />
     <InfoRow label="Battery Number" value={v.vehicleBatteryNumber} />
-    <InfoRow label="Battery Purchase Date" value={v.vehicleBatteryPurchaseDate} />
-    <InfoRow label="Battery Expiry Date" value={v.vehicleBatteryExpiryDate} />
+    <InfoRow label="Battery Purchase Date" value={formatDate(v.vehicleBatteryPurchaseDate)} />
+    <InfoRow label="Battery Expiry Date" value={formatDate(v.vehicleBatteryExpiryDate)} />
 
     {/* TYRES */}
     <div className="pt-2 mt-2 border-t text-xs font-bold text-slate-600">
@@ -570,16 +588,16 @@ const downloadPdf = () => {
     <InfoRow label="Mobile No" value={e.mobileNo} />
     <InfoRow label="Alternate Mobile" value={e.alternateMobNo} />
     <InfoRow label="Address" value={e.address} />
-    <InfoRow label="Date of Birth" value={e.dateOfBirth} />
-    <InfoRow label="Date of Joining" value={e.dateOfJoining} />
+    <InfoRow label="Date of Birth" value={formatDate(e.dateOfBirth)} />
+    <InfoRow label="Date of Joining" value={formatDate(e.dateOfJoining)} />
 
     {/* ✅ SHOW ONLY FOR DRIVER */}
     {String(e.designation).toLowerCase() === "driver" && (
       <>
         <InfoRow label="Licence Type" value={e.licenceType} />
         <InfoRow label="Licence Number" value={e.licenceNumber} />
-        <InfoRow label="Licence Issue Date" value={e.licenceIssueDate} />
-        <InfoRow label="Licence Expiry Date" value={e.licenceExpiryDate} />
+        <InfoRow label="Licence Issue Date" value={formatDate(e.licenceIssueDate)} />
+        <InfoRow label="Licence Expiry Date" value={formatDate(e.licenceExpiryDate)} />
       </>
     )}
   </div>
