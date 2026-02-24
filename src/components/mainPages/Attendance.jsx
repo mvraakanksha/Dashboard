@@ -112,6 +112,15 @@ const [attendanceSortMode, setAttendanceSortMode] =
 
   const abortRef = useRef(null);
 
+  
+const DESIGNATION_ORDER = [
+  "Supervisor",
+  "Operator",
+  "Driver",
+  "Helper",
+  "Security Guard"
+];
+
   /* ---------- LOAD PLANTS ---------- */
   useEffect(() => {
     getAllPlants().then(setPlants).catch(console.error);
@@ -182,6 +191,17 @@ const attendanceByPlant = useMemo(() => {
 }, [attendanceOps]);
 
 
+/* ---------- ATTENDANCE MAP ---------- */
+const attendanceMap = useMemo(() => {
+  const map = {};
+  attendanceOps.forEach(o => {
+    map[o.employeeId] = o;
+  });
+  return map;
+}, [attendanceOps]);
+
+
+
 const calculatePlant = useCallback(
   (plantId) => {
     const emps = employeesByPlant[plantId] || [];
@@ -245,14 +265,111 @@ const allPlantsData = useMemo(() => {
 }, [allPlantsData, attendanceSortMode]);
 
 
-
   /* ---------- KPIs ---------- */
-  const totalEmployees = allPlantsData.reduce((s, p) => s + p.totalEmployees, 0);
-  const totalPresent = allPlantsData.reduce((s, p) => s + p.presentUnits, 0);
-  const totalAbsent = totalEmployees - totalPresent;
-  const avgAttendance = allPlantsData.length
-    ? (totalPresent / allPlantsData.length).toFixed(1)
-    : 0;
+/* ---------- KPIs (CORRECT LOGIC) ---------- */
+
+const zonePlantIds = useMemo(() => {
+  return plants
+    .filter(p => zone === "All" || String(p.zones) === String(zone))
+    .map(p => p.plantID);
+}, [plants, zone]);
+
+const zoneEmployees = useMemo(() => {
+  return employees.filter(e =>
+    zonePlantIds.includes(e.plantId)
+  );
+}, [employees, zonePlantIds]);
+
+
+/* ---------- DESIGNATION SUMMARY ---------- */
+/* ---------- DESIGNATION SUMMARY (CORRECT HALF DAY LOGIC) ---------- */
+const designationSummary = useMemo(() => {
+  const summary = {};
+
+  const zonePlantIds = plants
+    .filter(p => zone === "All" || String(p.zones) === String(zone))
+    .map(p => p.plantID);
+
+  const zoneEmployees = employees.filter(e =>
+    zonePlantIds.includes(e.plantId)
+  );
+
+  zoneEmployees.forEach(emp => {
+    const rec = attendanceMap[emp.employeeId];
+
+    if (!summary[emp.designation]) {
+      summary[emp.designation] = { present: 0, absent: 0 };
+    }
+
+    let presentValue = 0;
+
+    // FULL DAY
+    if (
+      rec?.plantOp?.attendanceAm === true &&
+      (rec?.plantOp?.attendancePm === null ||
+       rec?.plantOp?.attendancePm === true)
+    ) {
+      presentValue = 1;
+    }
+    // HALF DAY
+    else if (
+      rec?.plantOp?.attendanceAm === true ||
+      rec?.plantOp?.attendancePm === true
+    ) {
+      presentValue = 0.5;
+    }
+
+    summary[emp.designation].present += presentValue;
+    summary[emp.designation].absent += (1 - presentValue);
+  });
+
+  return summary;
+}, [employees, attendanceMap, plants, zone]);
+
+const strengthSummary = useMemo(() => {
+  const summary = {};
+
+  DESIGNATION_ORDER.forEach(d => {
+    summary[d] = 0;
+  });
+
+  zoneEmployees.forEach(emp => {
+    if (summary.hasOwnProperty(emp.designation)) {
+      summary[emp.designation] += 1;
+    }
+  });
+
+  return summary;
+}, [zoneEmployees]);
+
+const totalEmployees = zoneEmployees.length;
+
+const totalPresent = zoneEmployees.reduce((sum, emp) => {
+  const rec = attendanceMap[emp.employeeId];
+
+  if (
+    rec?.plantOp?.attendanceAm === true &&
+    (rec?.plantOp?.attendancePm === null ||
+     rec?.plantOp?.attendancePm === true)
+  ) {
+    return sum + 1;
+  }
+
+  if (
+    rec?.plantOp?.attendanceAm === true ||
+    rec?.plantOp?.attendancePm === true
+  ) {
+    return sum + 0.5;
+  }
+
+  return sum;
+}, 0);
+
+const totalAbsent = totalEmployees - totalPresent;
+
+const avgAttendance = zonePlantIds.length
+  ? (totalPresent / zonePlantIds.length).toFixed(1)
+  : 0;
 
 const plantMap = useMemo(() => {
   return Object.fromEntries(
@@ -293,45 +410,76 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
             </div>
 
             {/* KPI ROW WITH DYNAMIC COLORS AND DOWN BAR */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {[
-  { label: "Total Strength", value: totalEmployees, icon: <Users />, themeKey: "blue" },
-  { label: "Total Present", value: totalPresent, icon: <UserCheck />, themeKey: "emerald" },
-  { label: "Total Absent", value: totalAbsent, icon: <UserMinus />, themeKey: "rose" },
-  { label: "Avg Per Plant", value: avgAttendance, icon: <Activity />, themeKey: "amber" }
-].map((c, i) => {
-  const theme = METRIC_THEMES(isDark)[c.themeKey];
+{/* ================= PREMIUM KPI CARDS ================= */}
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
 
-  return (
-    <div
-      key={i}
-      className={`group relative overflow-hidden p-5 rounded-2xl transition-all ${theme.staticBg}`}
-    >
-      {/* Bottom Bar */}
+  {[
+    { label: "Total Strength", value: totalEmployees, icon: <Users />, themeKey: "blue", type: "strength" },
+    { label: "Total Present", value: totalPresent, icon: <UserCheck />, themeKey: "emerald", type: "present" },
+    { label: "Total Absent", value: totalAbsent, icon: <UserMinus />, themeKey: "rose", type: "absent" },
+    { label: "Avg Per Plant", value: avgAttendance, icon: <Activity />, themeKey: "amber" }
+  ].map((c, i) => {
+    const theme = METRIC_THEMES(isDark)[c.themeKey];
+
+    return (
       <div
-        className={`absolute bottom-0 left-0 h-1 w-full ${theme.bar}
-          scale-x-0 origin-left transition-transform duration-500 ease-out
+        key={i}
+        className={`group relative rounded-2xl p-4 shadow-md hover:shadow-xl transition-all border ${theme.staticBg}`}
+      >
+        {/* Bottom Animated Bar */}
+        <div
+          className={`absolute bottom-0 left-0 h-1 w-full ${theme.bar}
+          scale-x-0 origin-left transition-transform duration-500
           group-hover:scale-x-100`}
-      />
+        />
 
-      {/* ICON */}
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${theme.iconHoverBg} ${theme.text}`}>
-        {c.icon}
+        {/* ICON */}
+        <div className={`absolute top-4 right-4 w-9 h-9 rounded-lg flex items-center justify-center ${theme.iconHoverBg} ${theme.text}`}>
+          {c.icon}
+        </div>
+
+        {/* LABEL */}
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          {c.label}
+        </p>
+
+        {/* VALUE */}
+        <p className={`text-3xl font-extrabold mt-2 ${theme.text}`}>
+          {c.value}
+        </p>
+
+        {/* DESIGNATION BREAKDOWN */}
+        {(c.type === "present" || c.type === "absent" || c.type === "strength") && (
+          <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
+            {DESIGNATION_ORDER.map((desig) => {
+              const present = designationSummary[desig]?.present || 0;
+              const absent = designationSummary[desig]?.absent || 0;
+              const strength = strengthSummary[desig] || 0;
+
+              let value = 0;
+
+              if (c.type === "present") value = present;
+              if (c.type === "absent") value = absent;
+              if (c.type === "strength") value = strength;
+
+              return (
+                <div
+                  key={desig}
+                  className="flex justify-between text-xs font-medium text-slate-600"
+                >
+                  <span>{desig}</span>
+                  <span className="font-bold text-slate-800">
+                    {typeof value === "number" ? value.toFixed(1) : value}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-
-      {/* LABEL */}
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-        {c.label}
-      </p>
-
-      {/* VALUE */}
-      <p className={`text-xl font-black mt-1 ${theme.text}`}>
-        {c.value}
-      </p>
-    </div>
-  );
-})}
-            </div>
+    );
+  })}
+</div>
 
             {/* GRAPH SECTION WITH LABELS */}
             <div className={`p-6 rounded-[2rem] border bg-white border-slate-100 shadow-xl"}`}>

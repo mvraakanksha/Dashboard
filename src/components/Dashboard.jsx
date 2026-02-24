@@ -179,10 +179,25 @@ try {
     throw new Error("Invalid plants response");
   }
 
-        // Filter locally by zone
-        const filteredPlants = zone === "All" 
-          ? allPlants 
-          : allPlants.filter(p => String(p.zones) === String(zone));
+      const filteredByZone =
+  zone === "All"
+    ? allPlants
+    : allPlants.filter(p => String(p.zones) === String(zone));
+
+// 🔥 Apply Permanent Power Date Logic
+const filteredPlants = filteredByZone.filter((p) => {
+  if (!p.permanentPower) return false;
+
+  const completionDate = p.permanentPowerDateOfCompletion;
+  if (!completionDate) return false;
+
+  const selectedISO = new Date(date).toISOString().split("T")[0];
+  const completedISO = new Date(completionDate).toISOString().split("T")[0];
+
+  return selectedISO >= completedISO;
+});
+
+          
 
           const permanentPowerCount =
           filteredPlants.filter(p => p.permanentPower === true).length;

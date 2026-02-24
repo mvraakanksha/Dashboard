@@ -13,14 +13,15 @@ import {
   Navigation,
   Milestone,
   Activity,
-  Fuel
+  Fuel,
+  Layers
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
 import { getAllPlants } from "../../services/plantService";
 import { getVehicleOperationsByDate} from "../../services/vehicleService";
 import { getOperationsByDate,getOperationsByDateRange} from "../../services/operationService";
-
+import { getEmployeesByPlant } from "../../services/employeeService";
 /* ---------------- CLICKABLE X-TICK ---------------- */
 const ClickableTick = ({ x, y, payload, plantMap, navigate }) => {
   const label = payload?.value;
@@ -124,29 +125,8 @@ export default function Vehicle({ date, zone })
 
   const [vehicleSortMode, setVehicleSortMode] = useState("distance");
 const [operationsData, setOperationsData] = useState([]);
+const [employeesMap, setEmployeesMap] = useState({});
 
-//   const kpiTheme = {
-//   blue: {
-//     bg: isDark ? "bg-blue-900/20" : "bg-blue-50",
-//     border: "border-blue-100",
-//   },
-//   emerald: {
-//     bg: isDark ? "bg-emerald-900/20" : "bg-emerald-50",
-//     border: "border-emerald-100",
-//   },
-//   indigo: {
-//     bg: isDark ? "bg-indigo-900/20" : "bg-indigo-50",
-//     border: "border-indigo-100",
-//   },
-//   rose: {
-//     bg: isDark ? "bg-rose-900/20" : "bg-rose-50",
-//     border: "border-rose-100",
-//   },
-//   amber: {
-//     bg: isDark ? "bg-amber-900/20" : "bg-amber-50",
-//     border: "border-amber-100",
-//   },
-// };
 
 
   /* ---------------- FETCH PLANTS ---------------- */
@@ -205,6 +185,24 @@ const filteredPlants = useMemo(() => {
   );
 }, [plants, zone]);
 
+useEffect(() => {
+  if (!filteredPlants.length) return;
+
+  const loadEmployees = async () => {
+    const map = {};
+
+    for (const plant of filteredPlants) {
+      const list = await getEmployeesByPlant(plant.plantID);
+      map[plant.plantID] = Array.isArray(list) ? list : [];
+    }
+
+    setEmployeesMap(map);
+  };
+
+  loadEmployees();
+}, [filteredPlants]);
+
+const totalPlants = filteredPlants.length;
 
   const filteredVehicleOps = useMemo(() => {
     const plantIds = new Set(filteredPlants.map((p) => p.plantID));
@@ -271,6 +269,19 @@ const filteredPlants = useMemo(() => {
     0
   );
 
+  const totalDrivers = useMemo(() => {
+  let total = 0;
+
+  Object.values(employeesMap).forEach(list => {
+    list.forEach(emp => {
+      if (emp.designation === "Driver") {
+        total++;
+      }
+    });
+  });
+
+  return total;
+}, [employeesMap]);
   const movedVehicles = useMemo(() => {
     const set = new Set();
     filteredVehicleOps.forEach((v) => {
@@ -374,10 +385,11 @@ return (
 
     {/* ================= KPI CARDS ================= */}
     <div className="rounded-2xl p-6 bg-white shadow-lg mb-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
 
         {[
-          { label: "Total Vehicles", value: totalVehicles, icon: <Truck size={18} />, bg: "#DBEAFE", bar: "#2563EB" },
+          {label: "Total Plants",value: totalPlants,icon: <Layers size={18} />,bg: "#eedbbf",bar: "#995c00"},
+          { label: "Total Vehicles", value: totalVehicles, subValue: `Total Drivers : ${totalDrivers}`, icon: <Truck size={18} />, bg: "#DBEAFE", bar: "#2563EB" },
           { label: "Moved Vehicles", value: movedVehicles, icon: <Navigation size={18} />, bg: "#D1FAE5", bar: "#059669" },
           { label: "Own Vehicle Trips", value: totalTrips, subValue: `Sludge collected : ${totalOwnSludge.toLocaleString()} L`, icon: <Milestone size={18} />, bg: "#E0E7FF", bar: "#4F46E5" },
           { label: "Total Distance", value: Math.round(totalDistance), icon: <Activity size={18} />, bg: "#FFE4E6", bar: "#E11D48" },

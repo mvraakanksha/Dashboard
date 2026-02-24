@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -79,7 +79,8 @@ const DailyReportPage = () => {
     const [plantMaster, setPlantMaster] = useState({});
     const [notice, setNotice] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-
+const [zoneFilter, setZoneFilter] = useState("All");
+const [plants, setPlants] = useState([]);
 const formattedDate = formatDateDDMMYYYY(selectedDate);
     // --- Data Processing Logic ---
     const extractRow = useCallback((item) => {
@@ -138,26 +139,26 @@ const formattedDate = formatDateDDMMYYYY(selectedDate);
   return map;
 }, [reportData]);
 
-
 const processedData = Object.entries(plantMaster)
+  .filter(([plantId, meta]) =>
+    zoneFilter === "All" ||
+    String(meta.zone) === String(zoneFilter)
+  )
   .map(([plantId, meta]) => {
     const operationItem = operationsByPlantId[plantId];
 
-    // If operation exists → extract real data
     if (operationItem) {
       const r = extractRow(operationItem);
       r.numericPlantId = Number(plantId);
       return r;
     }
 
-    // ❗ No operation → create EMPTY row for plant
     return {
       plantId,
       numericPlantId: Number(plantId),
       district: meta.district || "-",
       plantName: meta.name || "-",
       kld: meta.kld || "-",
-
       beforeSTL: null,
       sludgeReceived: null,
       sludgeProcessed: null,
@@ -196,16 +197,17 @@ const processedData = Object.entries(plantMaster)
     // --- Fetching Logic ---
 
     // 1. Fetch Plant Master Data on mount
-  useEffect(() => {
+useEffect(() => {
   const fetchPlantMaster = async () => {
     try {
       const list = await getAllPlants();
       if (!Array.isArray(list)) return;
 
+      setPlants(list); // ✅ store full list for zones
+
       const newPlantMap = {};
 
       list.forEach(item => {
-        // keep original permanent power check
         const permanent =
           item.permanentPower !== undefined
             ? item.permanentPower
@@ -222,37 +224,18 @@ const processedData = Object.entries(plantMaster)
           item.plant_id
         );
 
-        if (id === null || id === undefined) return;
+        if (id == null) return;
 
-        const idStr = String(id);
-
-        newPlantMap[idStr] = {
-          name: String(
-            getBest(
-              item.plantName,
-              item.name,
-              item.plant_name,
-              item.plant
-            ) || ""
-          ),
-          district: String(
-            getBest(
-              item.district,
-              item.stateCode,
-              item.District
-            ) || ""
-          ),
-          kld: String(
-            getBest(
-              item.kld,
-              item.KLD
-            ) || ""
-          )
+        newPlantMap[String(id)] = {
+          name: String(getBest(item.plantName, item.name) || ""),
+          district: String(getBest(item.district) || ""),
+          kld: String(getBest(item.kld) || ""),
+          zone: item.zones // ✅ IMPORTANT
         };
       });
 
       setPlantMaster(newPlantMap);
-     
+
     } catch (err) {
       console.warn("Plant master fetch failed:", err);
       setNotice("Warning: could not fetch plant master.");
@@ -262,6 +245,11 @@ const processedData = Object.entries(plantMaster)
 
   fetchPlantMaster();
 }, []);
+
+const zones = useMemo(() => {
+  return [...new Set(plants.map(p => p.zones).filter(Boolean))]
+    .sort((a, b) => Number(a) - Number(b));
+}, [plants]);
 
 // 2. Fetch Report Data (SERVICE LAYER BASED)
 const fetchReport = useCallback(async () => {
@@ -982,7 +970,18 @@ Power<br />(Kwh)</th>
                 {/* Card and Controls */}
                 <div className="bg-white p-3 shadow">
                    <div className="flex flex-wrap gap-2 mb-2 print:hidden no-print">
-
+                        <select
+  value={zoneFilter}
+  onChange={(e) => setZoneFilter(e.target.value)}
+  className="p-2 border border-gray-300 rounded-md"
+>
+  <option value="All">All Zones</option>
+  {zones.map(z => (
+    <option key={z} value={z}>
+      Zone {z}
+    </option>
+  ))}
+</select>
                         <input
                             id="dateInput"
                             type="date"
