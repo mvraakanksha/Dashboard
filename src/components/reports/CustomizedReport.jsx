@@ -1607,6 +1607,40 @@ return dates.reduce(
 
 }, [dates, singlePlantRow]);
 
+const overviewTotals = useMemo(() => {
+  if (!metrics?.length) return [];
+
+  const list = [];
+
+  metrics.forEach(m => {
+    const isVehicle = m.module === "vehicle";
+
+    // 🚫 same exclusion as footer
+    const shouldExclude =
+      (m.module === "lab" && m.metric !== "cumulativeFlow") ||
+      m.metric === "tankLevel" ||
+      m.metric?.toLowerCase()?.includes("stock") ||
+      (isVehicle && m.metric === "odometer");
+
+    if (shouldExclude) return;
+
+    let value = 0;
+
+    if (isVehicle) {
+      value = sumVehicleMetricOverall(rows, dates, m.metric);
+    } else {
+      value = sumMetricOverall(rows, dates, m.metric);
+    }
+
+    list.push({
+      label: m.label,
+      value
+    });
+  });
+
+  return list;
+}, [metrics, rows, dates]);
+
 
   return (
     <div className="bg-white rounded-xl border shadow-sm p-4 space-y-4">
@@ -1641,6 +1675,26 @@ return dates.reduce(
           </button>
         </div>
       </div>
+
+{/* Totals Label */}
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
+
+  {overviewTotals.map(t => (
+    <div
+      key={t.label}
+      className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm"
+    >
+      <p className="text-[11px] text-slate-900 font-semibold">
+         Total {t.label}
+      </p>
+
+      <p className="text-xl font-bold text-indigo-700">
+        {formatIndian(t.value)}
+      </p>
+    </div>
+  ))}
+
+</div>
 
       {/* TABLE */}
       <div className="overflow-x-auto">

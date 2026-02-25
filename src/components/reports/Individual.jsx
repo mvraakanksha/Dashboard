@@ -1254,7 +1254,7 @@ const selectedCount = selectedPlants.length;   // based on selection
   <td rowSpan={2} className="border text-center">{show(op.dgReadingAm)}</td>
   <td rowSpan={2} className="border text-center">{show(op.dgReadingPm)}</td>
   <td rowSpan={2} className="border text-center">
-    {kmDiff(op.dgReadingAm, op.dgReadingPm)}
+    {kmDiff(op.dgReadingAm, op.dgReadingPm).toFixed(1)}
   </td>
 
   {/* Vehicle 1 */}
@@ -1300,7 +1300,7 @@ const selectedCount = selectedPlants.length;   // based on selection
             {show(op.dgDiesalPercentagePm)}
           </td>
           <td rowSpan={2} className="border text-center">
-            {diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm)}
+            {diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm).toFixed(1)}
           </td>
 
           {/* Vehicle 2 */}

@@ -19,13 +19,23 @@ import {
 
 import { useNavigate } from "react-router-dom";
 import { getAllPlants } from "../../services/plantService";
-import { getVehicleOperationsByDate} from "../../services/vehicleService";
+import { getVehicleOperationsByDate, getVehiclesByPlant} from "../../services/vehicleService";
 import { getOperationsByDate,getOperationsByDateRange} from "../../services/operationService";
 import { getEmployeesByPlant } from "../../services/employeeService";
+
 /* ---------------- CLICKABLE X-TICK ---------------- */
-const ClickableTick = ({ x, y, payload, plantMap, navigate }) => {
+const ClickableTick = ({
+  x,
+  y,
+  payload,
+  plantMap,
+  navigate,
+  insuranceAlertMap
+}) => {
   const label = payload?.value;
   const plant = plantMap[label];
+const alerts = insuranceAlertMap?.[label];
+const firstAlert = alerts?.[0];
 
   return (
     <text
@@ -36,18 +46,36 @@ const ClickableTick = ({ x, y, payload, plantMap, navigate }) => {
       fontSize={11}
       fontWeight={600}
       transform={`rotate(-45 ${x} ${y + 10})`}
-      style={{
-        cursor: plant ? "pointer" : "default",
-        whiteSpace: "nowrap",
-        textDecoration: "underline",
-      }}
+      style={{ cursor: plant ? "pointer" : "default" }}
       onClick={() => {
         if (plant) {
           navigate(`/vehicle-view/${plant.plantId}/${plant.label}`);
         }
       }}
     >
-      {label}
+      {/* hover tooltip */}
+      {alert && (
+       <title>
+{alerts
+  ?.map(a =>
+    `${a.vehicleNumber} — expires on ${new Date(a.expiry).toLocaleDateString("en-IN")} ${a.type === "red" ? "(Expired)" : "(Expiring soon)"}`
+  )
+  .join("\n")}
+</title>
+      )}
+
+      {/* icon */}
+ {firstAlert && (
+  <tspan
+    fill={firstAlert.type === "red" ? "#dc2626" : "#f59e0b"}
+    fontSize={16}
+    fontWeight="bold"
+  >
+    ⚠
+  </tspan>
+)}
+
+      <tspan>{label}</tspan>
     </text>
   );
 };
@@ -113,6 +141,39 @@ const TopBarLabel = React.memo(({ x, y, width, value }) => {
   );
 });
 
+const EXPIRY_DAYS = 30;
+
+const checkInsuranceStatus = (expiryDate, selectedDate) => {
+  if (!expiryDate || !selectedDate) return null;
+
+  const exp = new Date(expiryDate);
+  const sel = new Date(selectedDate);
+
+  const diffDays = Math.ceil((exp - sel) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return "expired";
+  if (diffDays <= 30) return "soon";
+
+  return "valid";
+};
+
+
+const getInsuranceAlert = (expiryDate, selectedDate) => {
+  if (!expiryDate || !selectedDate) return null;
+
+  const exp = new Date(expiryDate);
+  const sel = new Date(selectedDate);
+
+  const diffDays = Math.ceil((exp - sel) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return "red";       // expired
+  if (diffDays <= 30) return "yellow";  // expiring soon
+
+  return null;
+};
+
+
+
 /* ================================================= */
 /* VEHICLE COMPONENT */
 /* ================================================= */
@@ -122,7 +183,7 @@ export default function Vehicle({ date, zone })
 
   const [plants, setPlants] = useState([]);
   const [vehicleOps, setVehicleOps] = useState([]);
-
+const [vehiclesMap, setVehiclesMap] = useState({});
   const [vehicleSortMode, setVehicleSortMode] = useState("distance");
 const [operationsData, setOperationsData] = useState([]);
 const [employeesMap, setEmployeesMap] = useState({});
@@ -202,6 +263,27 @@ useEffect(() => {
   loadEmployees();
 }, [filteredPlants]);
 
+useEffect(() => {
+  if (!filteredPlants.length) return;
+
+  const loadVehicles = async () => {
+    const map = {};
+
+    for (const plant of filteredPlants) {
+      try {
+        const list = await getVehiclesByPlant(plant.plantID);
+        map[plant.plantID] = Array.isArray(list) ? list : [];
+      } catch (e) {
+        map[plant.plantID] = [];
+      }
+    }
+
+    setVehiclesMap(map);
+  };
+
+  loadVehicles();
+}, [filteredPlants]);
+
 const totalPlants = filteredPlants.length;
 
   const filteredVehicleOps = useMemo(() => {
@@ -216,6 +298,55 @@ const totalPlants = filteredPlants.length;
     plantIds.has(op.plantId)
   );
 }, [operationsData, filteredPlants]);
+
+  /* ---------------- Insurance---------------- */
+
+const expiringVehicles = useMemo(() => {
+  return filteredVehicleOps
+    .map(v => {
+      const expiry = v.vehicle?.insuranceExpiryDate;
+
+      const status = checkInsuranceStatus(expiry, date);
+
+      if (status === "expired" || status === "soon") {
+        return {
+          vehicleNumber: v.vehicle?.vehicleNumber,
+          plantId: v.plantId,
+          expiry,
+          status
+        };
+      }
+
+      return null;
+    })
+    .filter(Boolean);
+}, [filteredVehicleOps, date]);
+
+const insuranceAlertMap = useMemo(() => {
+  const map = {};
+
+  Object.entries(vehiclesMap).forEach(([plantId, vehicles]) => {
+    const plant = plants.find(p => p.plantID === Number(plantId));
+    if (!plant) return;
+
+    vehicles.forEach(v => {
+      const expiry = v.insuranceExpiryDate;
+      const alert = getInsuranceAlert(expiry, date);
+
+      if (!alert) return;
+
+      if (!map[plant.plantName]) map[plant.plantName] = [];
+
+      map[plant.plantName].push({
+        type: alert,
+        vehicleNumber: v.vehicleNumber,
+        expiry
+      });
+    });
+  });
+
+  return map;
+}, [vehiclesMap, plants, date]);
 
   /* ---------------- BUILD CHART DATA ---------------- */
   const chartData = useMemo(() => {
@@ -263,6 +394,7 @@ const totalPlants = filteredPlants.length;
     (sum, p) => sum + p.bar1 + p.bar2,
     0
   );
+
 
   const totalVehicles = filteredPlants.reduce(
     (sum, p) => sum + (p.noOfVehicle || 0),
@@ -383,6 +515,21 @@ return (
       </div>
     </div>
 
+{/* {expiringVehicles.length > 0 && (
+  <div className="mb-4 p-4 rounded-xl bg-red-50 border border-red-300 shadow">
+    <p className="font-bold text-red-700 mb-2">
+      ⚠ Vehicle Insurance Alert
+    </p>
+
+    {expiringVehicles.map((v, i) => (
+      <p key={i} className="text-sm text-red-800">
+        {v.vehicleNumber} — expires on {v.expiry}
+        {v.status === "expired" ? " (Expired)" : " (Expiring soon)"}
+      </p>
+    ))}
+  </div>
+)} */}
+
     {/* ================= KPI CARDS ================= */}
     <div className="rounded-2xl p-6 bg-white shadow-lg mb-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
@@ -469,17 +616,18 @@ return (
               <CartesianGrid strokeDasharray="3 3" />
 
               <XAxis
-                dataKey="label"
-                interval={0}
-                height={90}
-                tick={(props) => (
-                  <ClickableTick
-                    {...props}
-                    plantMap={plantMap}
-                    navigate={navigate}
-                  />
-                )}
-              />
+  dataKey="label"
+  interval={0}
+  height={90}
+  tick={(props) => (
+    <ClickableTick
+      {...props}
+      plantMap={plantMap}
+      navigate={navigate}
+      insuranceAlertMap={insuranceAlertMap}   // ⭐ add
+    />
+  )}
+/>
 
               <YAxis
                 label={{
