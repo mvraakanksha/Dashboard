@@ -23,6 +23,7 @@ export default function Report() {
        { to: "utility", label: "Utility" },
         { to: "discom", label: "Discom" },
            { to: "employee", label: "Employees" },
+           { to: "stockreport", label: "StockReport" },
     ].map(({ to, label, end }) => (
       <NavLink
         key={to}

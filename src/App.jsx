@@ -52,6 +52,7 @@ import PlantOneTimeReport from "./components/reports/PlantOneTimeReport";
 import DaterangeView from "./components/DaterangeView";
 import PowerbillReport from "./components/reports/PowerbillReport";
 import Discom from "./components/reports/Discom";
+import StockReport from "./components/reports/StockReport";
 
 
 const TODAY = new Date().toISOString().split("T")[0];
@@ -343,6 +344,7 @@ useEffect(() => {
                       <Route path="utility" element={<Utility/>} />
                       <Route path="discom" element={<Discom />} />
                         <Route path="employee" element={<EmployeeDetails/>} />
+                        <Route path="stockreport" element={<StockReport/>} />
             </Route>
 <Route
   path="/plants"

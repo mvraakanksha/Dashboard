@@ -8,6 +8,8 @@ import {
   ResponsiveContainer
 } from "recharts";
 import WaveCircle from "./WaveCircle";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useNavigate } from "react-router-dom";
 import { 
   Droplets, 
@@ -97,10 +99,8 @@ export default function SludgeReports({ date, zone, setZones }) {
   const [processedMode, setProcessedMode] = useState("processed");
 
   // ⭐ Sort states
-const [receivedSortBy, setReceivedSortBy] = useState("metric"); // metric | plantId
-const [processedSortBy, setProcessedSortBy] = useState("metric"); // metric | plantId
-
-
+const [receivedSort, setReceivedSort] = useState("desc"); 
+const [processedSort, setProcessedSort] = useState("desc");
   // ⭐ Routing helper to sludge report view
 const handlePlantClick = (plant, mode) => {
 navigate(
@@ -237,33 +237,33 @@ const chartData = useMemo(() => {
  const receivedSorted = useMemo(() => {
   const sorted = [...chartData];
 
-  if (receivedSortBy === "plantId") {
-    return sorted.sort((a, b) => a.plantID - b.plantID); // ASC
+  if (receivedSort === "plantId") {
+    return sorted.sort((a, b) => a.plantID - b.plantID);
   }
 
-  // metric DESC
+  const key = receivedMode === "received" ? "received" : "tankLevel";
+
   return sorted.sort((a, b) =>
-    receivedMode === "received"
-      ? b.received - a.received
-      : b.tankLevel - a.tankLevel
+    receivedSort === "asc"
+      ? a[key] - b[key]
+      : b[key] - a[key]
   );
-}, [chartData, receivedMode, receivedSortBy]);
-
-
+}, [chartData, receivedMode, receivedSort]);
 const processedSorted = useMemo(() => {
   const sorted = [...chartData];
 
-  if (processedSortBy === "plantId") {
-    return sorted.sort((a, b) => a.plantID - b.plantID); // ASC
+  if (processedSort === "plantId") {
+    return sorted.sort((a, b) => a.plantID - b.plantID);
   }
 
-  // metric DESC
+  const key = processedMode === "processed" ? "processed" : "biochar";
+
   return sorted.sort((a, b) =>
-    processedMode === "processed"
-      ? b.processed - a.processed
-      : b.biochar - a.biochar
+    processedSort === "asc"
+      ? a[key] - b[key]
+      : b[key] - a[key]
   );
-}, [chartData, processedMode, processedSortBy]);
+}, [chartData, processedMode, processedSort]);
 
   // const processedSorted = useMemo(() => [...chartData].sort((a, b) => processedMode === "processed" ? b.processed - a.processed : b.biochar - a.biochar), [chartData, processedMode]);
 
@@ -278,6 +278,68 @@ const avgProcessed =
     : 0;
 
   const chartWidth = Math.max(zonePlants.length * 80, 1000);
+
+const downloadReceivedPDF = () => {
+  const doc = new jsPDF();
+
+  const selectedKey =
+    receivedMode === "received" ? "received" : "tankLevel";
+
+  const selectedLabel =
+    receivedMode === "received"
+      ? "Sludge Received (L)"
+      : "Tank Level (L)";
+
+  const tableData = receivedSorted.map((item, index) => [
+    index + 1,
+    item.plantID,
+    item.name,
+    item.kld,
+    item[selectedKey],
+  ]);
+
+  doc.text("Sludge Report - Received Section", 14, 15);
+
+  autoTable(doc, {
+    startY: 20,
+    head: [["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel]],
+    body: tableData,
+  });
+
+  doc.save("Received_Sludge_Report.pdf");
+};
+
+
+const downloadProcessedPDF = () => {
+  const doc = new jsPDF();
+
+  const selectedKey =
+    processedMode === "processed" ? "processed" : "biochar";
+
+  const selectedLabel =
+    processedMode === "processed"
+      ? "Sludge Processed (L)"
+      : "Biochar Produced (Kg)";
+
+  const tableData = processedSorted.map((item, index) => [
+    index + 1,
+    item.plantID,
+    item.name,
+    item.kld,
+    item[selectedKey],
+  ]);
+
+  doc.text("Sludge Report - Processed Section", 14, 15);
+
+  autoTable(doc, {
+    startY: 20,
+    head: [["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel]],
+    body: tableData,
+  });
+
+  doc.save("Processed_Sludge_Report.pdf");
+};
+
 
   // UI ----------------
  return (
@@ -350,16 +412,24 @@ const avgProcessed =
     </div>
 
     {/* SORT BY */}
-    <select
-      value={receivedSortBy}
-      onChange={(e) => setReceivedSortBy(e.target.value)}
-      className="border rounded-md px-2 py-1 text-xs font-bold bg-white text-slate-700"
-    >
-      <option value="metric">
-        Sort by {receivedMode === "received" ? "Received ↓" : "Tank ↓"}
-      </option>
-      <option value="plantId">Sort by Plant ID ↑</option>
-    </select>
+   <div className="flex items-center gap-3">
+  <select
+    value={receivedSort}
+    onChange={(e) => setReceivedSort(e.target.value)}
+    className="border rounded-md px-2 py-1 text-xs font-bold bg-white text-slate-700"
+  >
+    <option value="desc">Descending ↓</option>
+    <option value="asc">Ascending ↑</option>
+    <option value="plantId">Plant ID</option>
+  </select>
+
+  <button
+    onClick={() => downloadReceivedPDF()}
+    className="bg-blue-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-blue-700"
+  >
+    Download PDF
+  </button>
+</div>
   </div>
 </div>
 
@@ -493,16 +563,24 @@ const avgProcessed =
     </div>
 
     {/* SORT BY */}
-    <select
-      value={processedSortBy}
-      onChange={(e) => setProcessedSortBy(e.target.value)}
-      className="border rounded-md px-2 py-1 text-xs font-bold bg-white text-slate-700"
-    >
-      <option value="metric">
-        Sort by {processedMode === "processed" ? "Processed ↓" : "Biochar ↓"}
-      </option>
-      <option value="plantId">Sort by Plant ID ↑</option>
-    </select>
+    <div className="flex items-center gap-3">
+  <select
+    value={processedSort}
+    onChange={(e) => setProcessedSort(e.target.value)}
+    className="border rounded-md px-2 py-1 text-xs font-bold bg-white text-slate-700"
+  >
+    <option value="desc">Descending ↓</option>
+    <option value="asc">Ascending ↑</option>
+    <option value="plantId">Plant ID</option>
+  </select>
+
+  <button
+    onClick={() => downloadProcessedPDF()}
+    className="bg-blue-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-blue-700"
+  >
+    Download PDF
+  </button>
+</div>
   </div>
 </div>
 
