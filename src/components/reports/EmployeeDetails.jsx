@@ -166,6 +166,14 @@ const backToSelection = () => {
   return counts;
 }, [employeesMap, selectedPlants, selectedDesignations]);
 
+const totalVehiclesCount = useMemo(() => {
+  return plants
+    .filter(
+      p => zoneFilter === "All" || String(p.zones) === String(zoneFilter)
+    )
+    .reduce((sum, p) => sum + (p.noOfVehicle || 0), 0);
+}, [plants, zoneFilter]);
+
 const totalEmployees = useMemo(() => {
   let total = 0;
 
@@ -302,11 +310,16 @@ doc.addImage(logo, "PNG", 14, 8, 35, 20);
     { align: "center" }
   );
 
-  const roleStats = selectedDesignations
-    .map(d => `${d}: ${roleCounts[d] || 0}`)
-    .join(" | ");
+let roleStats = selectedDesignations
+  .map(d => `${d}: ${roleCounts[d] || 0}`)
+  .join(" | ");
 
-  doc.text(roleStats, 148, 42, { align: "center" });
+// ✅ Add Total Vehicles if Driver selected
+if (selectedDesignations.includes("Driver")) {
+  roleStats += ` | Total Vehicles: ${totalVehiclesCount}`;
+}
+
+doc.text(roleStats, 148, 42, { align: "center" });
 
   /* ===== HEADERS ===== */
   const headers = ["S.No", "Plant ID / KLD", "Plant Name"];
@@ -508,9 +521,14 @@ sheet.getCell("A4").value =
 setHeaderStyle("A4", 11);
 
 /* ROLE COUNTS */
-const roleSummary = selectedDesignations
+let roleSummary = selectedDesignations
   .map(d => `${d}: ${roleCounts[d] || 0}`)
   .join(" | ");
+
+// ✅ Add Total Vehicles if Driver selected
+if (selectedDesignations.includes("Driver")) {
+  roleSummary += ` | Total Vehicles: ${totalVehiclesCount}`;
+}
 
 sheet.getCell("A5").value = roleSummary;
 setHeaderStyle("A5", 11);
@@ -822,10 +840,18 @@ sheet.columns = [
     <div>Total Employees : {totalEmployees}</div>
 
     {selectedDesignations.map(d => (
-      <div key={d}>
-        {d}: {roleCounts[d] || 0}
+  <React.Fragment key={d}>
+    <div>
+      {d}: {roleCounts[d] || 0}
+    </div>
+
+    {d === "Driver" && (
+      <div>
+        Total Vehicles: {totalVehiclesCount}
       </div>
-    ))}
+    )}
+  </React.Fragment>
+))}
   </div>
 )}
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -81,23 +81,34 @@ export default function MonthlyReportPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 const [refreshKey, setRefreshKey] = useState(0);
+const [zoneFilter, setZoneFilter] = useState("All");
 
   /* ================= LOAD PLANTS ================= */
+const [plants, setPlants] = useState([]);
+
 useEffect(() => {
   getAllPlants().then((list) => {
+    setPlants(list || []);
+
     const map = {};
     (list || []).forEach((p) => {
       map[p.plantID] = {
         name: p.plantName,
         district: p.district,
         kld: p.kld,
-        permanentPower: p.permanentPower, // ✅ ADD THIS
+        permanentPower: p.permanentPower,
+        zone: p.zones, // ✅ IMPORTANT
       };
     });
+
     setPlantMaster(map);
   });
 }, []);
 
+const zones = useMemo(() => {
+  return [...new Set(plants.map(p => p.zones).filter(Boolean))]
+    .sort((a, b) => Number(a) - Number(b));
+}, [plants]);
   const formattedMonth = formatMonthYear(month);
 
   const loadMonth = useCallback(async () => {
@@ -115,6 +126,13 @@ useEffect(() => {
     .toISOString()
     .split("T")[0];
 
+    // ✅ Get plant IDs based on zone
+const zonePlantIds =
+  zoneFilter === "All"
+    ? plants.map(p => p.plantID)
+    : plants
+        .filter(p => String(p.zones) === String(zoneFilter))
+        .map(p => p.plantID);
   const temp = {};
 
   try {
@@ -157,32 +175,35 @@ rangeData.forEach((r) => {
 }
 });
 
-    const finalRows = Object.values(temp).map((r) => {
-      const meta = plantMaster[r.plantId] || {};
-      const total = r.oldSludge + r.sludgeReceived;
+const finalRows = Object.values(temp)
+  .filter(r => zonePlantIds.includes(r.plantId)) // ✅ FILTER HERE
+  .map((r) => {
+    const meta = plantMaster[r.plantId] || {};
+    const total = r.oldSludge + r.sludgeReceived;
 
-      return {
-        plantId: r.plantId,
-        district: meta.district,
-        name: meta.name,
-        kld: meta.kld,
-         permanentPower: meta.permanentPower, // ✅ ADD THIS
-        sludgeReceived: r.sludgeReceived,
-        oldSludge: r.oldSludge,
-        total,
-        sludgeProcessed: r.sludgeProcessed,
-        remaining: r.remaining,
+    return {
+      plantId: r.plantId,
+      district: meta.district,
+      name: meta.name,
+      kld: meta.kld,
+      permanentPower: meta.permanentPower,
+      sludgeReceived: r.sludgeReceived,
+      oldSludge: r.oldSludge,
+      total,
+      sludgeProcessed: r.sludgeProcessed,
+      remaining: r.remaining,
+    };
+  });
+ 
 
-      };
-    });
+setRows(finalRows);
 
-    setRows(finalRows);
-  } catch (e) {
-    console.error(e);
-  }
+} catch (e) {
+  console.error(e);
+}
 
-  setLoading(false);
-}, [month, plantMaster]);
+setLoading(false);
+}, [month, plantMaster, plants, zoneFilter]); // ✅ zone added here
 
 
 useEffect(() => {
@@ -713,6 +734,16 @@ return (
 
       {/* ===== CONTROLS ===== */}
       <div className="flex flex-wrap gap-3 mb-4">
+<select
+  value={zoneFilter}
+  onChange={(e) => setZoneFilter(e.target.value)}
+  className="border p-2 text-sm"
+>
+  <option value="All">All Zones</option>
+  {zones.map(z => (
+    <option key={z} value={z}>Zone {z}</option>
+  ))}
+</select>
         <input
           type="month"
           value={month}
