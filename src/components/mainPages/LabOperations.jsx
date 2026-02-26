@@ -151,6 +151,9 @@ export default function LabOperations({ date, zone }) {
   const navigate = useNavigate();
   const [plants, setPlants] = useState([]);
   const [labOps, setLabOps] = useState([]);
+const [sortBy, setSortBy] = useState("flow"); 
+const [labSortBy, setLabSortBy] = useState("metric"); 
+// metric | plantId
 
   const [secondGraph, setSecondGraph] = useState("cod_bod");
 const theme = {
@@ -280,8 +283,46 @@ const openPlantDetail = (plant, mode) => {
   );
 };
 
+const sortedChartData = useMemo(() => {
+  const arr = [...chartData];
 
+  if (sortBy === "plantId") {
+    return arr.sort((a, b) => Number(a.plantId) - Number(b.plantId));
+  }
 
+  // default → cumulative flow desc
+  return arr.sort(
+    (a, b) => Number(b.cumulativeFlow || 0) - Number(a.cumulativeFlow || 0)
+  );
+}, [chartData, sortBy]);
+
+const currentMetricKey = useMemo(() => {
+  if (secondGraph === "cod_bod") return "cod";      // default first bar
+  if (secondGraph === "tn_tss") return "tn";
+  if (secondGraph === "temp_ph") return "temperature";
+  return "cod";
+}, [secondGraph]);
+const sortedLabChartData = useMemo(() => {
+  const arr = [...chartData];
+
+  if (labSortBy === "plantId") {
+    return arr.sort((a, b) => Number(a.plantId) - Number(b.plantId));
+  }
+
+  return arr.sort(
+    (a, b) =>
+      Number(b[currentMetricKey] || 0) -
+      Number(a[currentMetricKey] || 0)
+  );
+}, [chartData, labSortBy, currentMetricKey]);
+
+const sortLabelMap = {
+  cod_bod: "COD & BOD",
+  tn_tss: "TN & TSS",
+  temp_ph: "Temp & pH"
+};
+
+const dynamicSortLabel = sortLabelMap[secondGraph] || "Metric";
 
   /* ================================================= */
   return (
@@ -331,14 +372,34 @@ const openPlantDetail = (plant, mode) => {
 
     {/* FLOW GRAPH */}
     <div className="bg-white rounded-xl shadow-lg p-3 mb-6">
-      <h3 className="font-bold text-blue-900 mb-3 text-lg">
-        Cumulative Flow (L)
-      </h3>
+   <div className="flex items-center justify-between mb-3">
+
+  <h3 className="font-bold text-blue-900 text-lg">
+    Cumulative Flow (L)
+  </h3>
+
+  {/* SORT */}
+  <div className="flex items-center gap-2">
+    <span className="text-xs font-bold text-slate-700">
+      Sort By
+    </span>
+
+    <select
+      value={sortBy}
+      onChange={(e) => setSortBy(e.target.value)}
+      className="border rounded-md px-2 py-1 text-xs font-semibold bg-white shadow-sm"
+    >
+      <option value="flow">Cumulative Flow</option>
+      <option value="plantId">Plant ID</option>
+    </select>
+  </div>
+
+</div>
 
       <div className="overflow-x-auto">
-        <div style={{ width: chartWidth, height: 270 }}>
+        <div style={{ width: chartWidth, height: 340 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 20, right: 20, left: 40, bottom: 30 }}>
+            <BarChart data={sortedChartData} margin={{ top: 20, right: 20, left: 40, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" />
 
               <XAxis
@@ -390,50 +451,75 @@ const openPlantDetail = (plant, mode) => {
 
     {/* SECOND GRAPH */}
     <div className="bg-white rounded-xl shadow-lg p-4">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="font-bold text-blue-900">Lab Parameters</h3>
-        {/* GRAPH MODE TOGGLE */}
-<div className="flex p-1 rounded-lg bg-slate-100">
-  <button
-    onClick={() => setSecondGraph("cod_bod")}
-    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-      secondGraph === "cod_bod"
-        ? "bg-white text-emerald-600 shadow-sm"
-        : "text-slate-500 hover:text-slate-700"
-    }`}
-  >
-    COD & BOD
-  </button>
+  <div className="flex items-center justify-between mb-2">
 
-  <button
-    onClick={() => setSecondGraph("tn_tss")}
-    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-      secondGraph === "tn_tss"
-        ? "bg-white text-emerald-600 shadow-sm"
-        : "text-slate-500 hover:text-slate-700"
-    }`}
-  >
-    TN & TSS
-  </button>
+  {/* LEFT TITLE */}
+  <h3 className="font-bold text-blue-900">
+    Lab Parameters
+  </h3>
 
-  <button
-    onClick={() => setSecondGraph("temp_ph")}
-    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-      secondGraph === "temp_ph"
-        ? "bg-white text-emerald-600 shadow-sm"
-        : "text-slate-500 hover:text-slate-700"
-    }`}
-  >
-    Temp & pH
-  </button>
+  {/* RIGHT SIDE */}
+  <div className="flex items-center gap-4">
+
+    {/* SORT */}
+    <div className="flex items-center gap-2">
+      <span className="text-xs font-bold text-slate-700">
+        Sort
+      </span>
+
+<select
+  value={labSortBy}
+  onChange={(e) => setLabSortBy(e.target.value)}
+  className="border rounded-md px-2 py-1 text-xs font-semibold bg-white shadow-sm"
+>
+  <option value="metric">{dynamicSortLabel}</option>
+  <option value="plantId">Plant ID</option>
+</select>
+    </div>
+
+    {/* GRAPH MODE BUTTONS */}
+    <div className="flex p-1 rounded-lg bg-slate-100">
+      <button
+        onClick={() => setSecondGraph("cod_bod")}
+        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+          secondGraph === "cod_bod"
+            ? "bg-white text-emerald-600 shadow-sm"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+      >
+        COD & BOD
+      </button>
+
+      <button
+        onClick={() => setSecondGraph("tn_tss")}
+        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+          secondGraph === "tn_tss"
+            ? "bg-white text-emerald-600 shadow-sm"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+      >
+        TN & TSS
+      </button>
+
+      <button
+        onClick={() => setSecondGraph("temp_ph")}
+        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+          secondGraph === "temp_ph"
+            ? "bg-white text-emerald-600 shadow-sm"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+      >
+        Temp & pH
+      </button>
+    </div>
+
+  </div>
 </div>
 
-      </div>
-
       <div className="overflow-x-auto">
-        <div style={{ width: chartWidth, height: 300 }}>
+        <div style={{ width: chartWidth, height: 340 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ left: 60, bottom: 70 }}>
+           <BarChart data={sortedLabChartData} margin={{ top: 20, right: 20, left: 40, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" />
 
               

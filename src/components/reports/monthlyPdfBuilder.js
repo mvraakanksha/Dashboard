@@ -34,7 +34,7 @@ export const addMonthlyReportToPdf = async ({
       name: p.plantName,
       district: p.district,
       kld: p.kld,
-      permanentPower: p.permanentPower,
+      permanentPowerDate: p.permanentPowerDateOfCompletion,
     };
   });
 
@@ -44,6 +44,9 @@ export const addMonthlyReportToPdf = async ({
   const endDate = new Date(year, Number(monthNum), 1)
     .toISOString()
     .split("T")[0];
+
+const [y, m] = month.split("-");
+const monthEnd = new Date(y, m, 0);
 
   const ops = await getOperationsByDateRange(startDate, endDate);
 
@@ -87,23 +90,31 @@ export const addMonthlyReportToPdf = async ({
 
   });
 
-  const rows = Object.values(temp).map((r) => {
-    const meta = plantMaster[r.plantId] || {};
-    const total = r.oldSludge + r.sludgeReceived;
+const rows = Object.values(temp).map((r) => {
+  const meta = plantMaster[r.plantId] || {};
+  const total = r.oldSludge + r.sludgeReceived;
 
-    return {
-      plantId: r.plantId,
-      district: meta.district,
-      name: meta.name,
-      kld: meta.kld,
-      permanentPower: meta.permanentPower,
-      sludgeReceived: r.sludgeReceived,
-      oldSludge: r.oldSludge,
-      total,
-      sludgeProcessed: r.sludgeProcessed,
-      remaining: r.remaining,
-    };
-  });
+  const completion = meta.permanentPowerDate;
+  const [y, m] = month.split("-");
+  const monthEnd = new Date(y, m, 0);
+
+  const noPower =
+    !completion ||
+    new Date(completion).getTime() > monthEnd.getTime();
+
+  return {
+    plantId: r.plantId,
+    district: meta.district,
+    name: meta.name,
+    kld: meta.kld,
+    noPower,   // ⭐ used for grey
+    sludgeReceived: r.sludgeReceived,
+    oldSludge: r.oldSludge,
+    total,
+    sludgeProcessed: r.sludgeProcessed,
+    remaining: r.remaining,
+  };
+});
 
   const totals = rows.reduce(
     (a, r) => {
@@ -204,7 +215,7 @@ export const addMonthlyReportToPdf = async ({
     didParseCell(data) {
       if (data.section === "body" && data.column.index === 4) {
         const rowData = rows[data.row.index];
-        if (rowData?.permanentPower === false) {
+     if (rowData?.noPower) {
           data.cell.styles.fillColor = [229, 231, 235];
           data.cell.styles.textColor = [0, 0, 0];
         }

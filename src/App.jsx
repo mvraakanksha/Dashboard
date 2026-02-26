@@ -41,7 +41,7 @@ const EmployeeDetails =  lazy(() => import("./components/reports/EmployeeDetails
 
 const Performance = lazy(() => import("./components/reports/Performance"));
 const powerbillReport = lazy(() => import("./components/reports/PowerbillReport"));
-const Utility = lazy(() => import('./components/reports/Utility'));
+const Utility = lazy(() => import('./components/reports/utility/Utility'));
 
 // Shared UI
 import FilterBar from "./components/FilterBar";
@@ -192,9 +192,8 @@ const [dashboardDark, setDashboardDark] = useState(false);
 
   const [zones, setZones] = useState([]);
 
-  const [date, setDate] = useState(
-    () => localStorage.getItem("selectedDate") || TODAY
-  );
+const [date, setDate] = useState(TODAY);
+
   const [zone, setZone] = useState(
     () => localStorage.getItem("selectedZone") || "All"
   );
@@ -206,10 +205,9 @@ const isDashboard = location.pathname === "/";
 const isDark = isDashboard && dashboardDark;
 
 
-  useEffect(() => {
-    localStorage.setItem("selectedDate", date);
-    localStorage.setItem("selectedZone", zone);
-  }, [date, zone]);
+useEffect(() => {
+  localStorage.setItem("selectedZone", zone);
+}, [zone]);
 
 
   const hideFilterBar =
