@@ -6,45 +6,97 @@ import { getEmployeesByPlant } from "../../../services/employeeService";
 import PlantPdf from "./PlantPdf";
 import PlantExcel from "./PlantExcel";
 
-/* FIELD CONFIG */
-const PLANT_FIELDS = [
-  { id:"stateCode", label:"State" },
-  { id:"district", label:"District" },
-  { id:"mnit", label:"MNIT Status" },
-  { id:"mnitDateOfCompletion", label:"MNIT Completed" },
+const PLANT_GROUPS = [
+{
+id:"plant",
+title:"Plant Info",
+fields:[
+{ id:"stateCode", label:"State" },
+{ id:"district", label:"District" },
+{ id:"waterType", label:"Water Type" },
+{ id:"headquarterName", label:"Headquarter" },
+{ id:"wardNo", label:"Ward No" },
+{ id:"pinCode", label:"PinCode" },
+{ id:"mnit", label:"MNIT Status" },
+{ id:"mnitDateOfCompletion", label:"MNIT Completed" },
+{ id:"noOfVehicle", label:"No Of Vehicles" },
+{ id:"noOfEmployees", label:"No Of Employees" }
 
-  { id:"permanentPower", label:"Permanent Power" },
-  { id:"permanentPowerDateOfCompletion", label:"Power Completed" },
-  { id:"ppMeterSerialNo", label:"PP Meter No" },
+]
+},
 
-  { id:"solar", label:"Solar Status" },
-  { id:"solarDateOfCompletion", label:"Solar Completed" },
-  { id:"solarPlantCapacity", label:"Solar Capacity" },
+{
+id:"power",
+title:"Power Info",
+fields:[
+{ id:"discomName", label:"DISCOM" },
+{ id:"permanentPower", label:"Permanent Power" },
 
-  { id:"internet", label:"Internet Status" },
-  { id:"internetDateOfCompletion", label:"Internet Completed" },
+{ id:"permanentPowerDateOfCompletion", label:"Power Completed" },
+{ id:"ppMeterSerialNo", label:"Power Meter Serial No" },
+{ id:"category", label:"Meter Category" },
+{ id:"sanctionLoad", label:"Sanction Load" },
+{ id:"multiplicationFactor", label:"MF" }
+]
+},
 
-  { id:"discomName", label:"DISCOM" },
-  { id:"headquarterName", label:"Headquarter" },
+{
+id:"solar",
+title:"Solar Info",
+fields:[
+{ id:"solar", label:"Solar Status" },
+{ id:"solarDateOfCompletion", label:"Solar Completed" },
 
-  { id:"sanctionLoad", label:"Sanction Load" },
-  { id:"multiplicationFactor", label:"MF" },
+{ id:"solarMultiplicationFactor", label:"Solar MF" },
+{ id:"solarMeterSerialNo", label:"Solar Meter Serial No" },
+{ id:"solarPlantCapacity", label:"Solar Capacity" },
+{ id:"isSolarFencingDone", label:"Solar Fencing Status" },
+{ id:"solarFencingDoneDate", label:"Solar Fencing Date" }
+]
+},
 
-  { id:"waterType", label:"Water Type" },
+{
+id:"internet",
+title:"Internet",
+fields:[
+{ id:"internet", label:"Internet Status" },
+{ id:"internetDateOfCompletion", label:"Internet Completed" },
+{ id:"tabs", label:"Tabs Available" },
+{ id:"tabsReceivedDate", label:"Tabs Received Date" },
+{ id:"ipPhoneDate", label:"Ip Phone Received Date" },
+{ id:"cameraConfigurationDate", label:"Camera Configuration Date" },
+]
+},
 
-  { id:"codAndBodSenserDate", label:"COD/BOD Sensor Date" },
+{
+id:"infra",
+title:"Infra & Compliance",
+fields:[
+{ id:"codAndBodSenserDate", label:"COD/BOD Sensor Date" },
+{ id:"isGuardRoomPrepared", label:"GuardRoom Status" },
+{ id:"guardRoomPreparedDate", label:"GuardRoom Prepared Date" },
 
-  { id:"tabs", label:"Tabs Available" },
-  { id:"tabsReceivedDate", label:"Tabs Received Date" },
+{ id:"isSludgeScreenInstall", label:"Sludge Screen Install" },
 
-  { id:"ctoCertified", label:"CTO Certified" },
-  { id:"ctoIssuedDate", label:"CTO Issued Date" },
-  { id:"cteCertified", label:"CTE Certified" },
-  { id:"cteIssuedDate", label:"CTE Issued Date" },
+{ id:"constructionStartedDate", label:"Construction Start Date" },
 
-  { id:"noOfVehicle", label:"No Of Vehicles" },
-  { id:"noOfEmployees", label:"No Of Employees" }
+{ id:"civilWorkCompletedDate", label:"Civil Work Completed Date" },
+
+{ id:"machinaryAssembleDate", label:"Machinery Assembled Date" },
+{ id:"ctoCertified", label:"CTO Certified" },
+{ id:"ctoIssuedDate", label:"CTO Issued Date" },
+{ id:"cteCertified", label:"CTE Certified" },
+{ id:"cteIssuedDate", label:"CTE Issued Date" }
+
+
+]
+},
+
+
+
 ];
+
+
 
 const VEHICLE_FIELDS = [
   { id:"vehicleModelName", label:"Model Name" },
@@ -66,25 +118,29 @@ const VEHICLE_FIELDS = [
   { id:"vehicleBatteryExpiryDate", label:"Battery Expiry" }
 ];
 
-const EMPLOYEE_FIELDS = [
-  // BASIC
-  { id:"employeeId", label:"Employee ID" },
-  { id:"employeeName", label:"Name" },
-  { id:"designation", label:"Designation" },
-  { id:"mobileNo", label:"Mobile" },
-  { id:"alternateMobNo", label:"Alternate Mobile" },
-  { id:"address", label:"Address" },
-
-  // DATES
-  { id:"dateOfBirth", label:"DOB" },
-  { id:"dateOfJoining", label:"Joining Date" },
-
-  // DRIVER ONLY
-  { id:"licenceType", label:"Licence Type", driverOnly:true },
-  { id:"licenceNumber", label:"Licence Number", driverOnly:true },
-  { id:"licenceIssueDate", label:"Licence Issued Date", driverOnly:true },
-  { id:"licenceExpiryDate", label:"Licence Expiry", driverOnly:true }
+const DESIGNATIONS = [
+"Supervisor",
+"Operator",
+"Driver",
+"Helper",
+"Security Guard"
 ];
+
+const EMPLOYEE_FIELDS = [
+{ id:"employeeId", label:"Employee ID" },
+{ id:"employeeName", label:"Name" },
+{ id:"mobileNo", label:"Mobile" },
+{ id:"alternateMobNo", label:"Alternate Mobile" },
+{ id:"address", label:"Address" },
+{ id:"dateOfBirth", label:"DOB" },
+{id:"designation", label:"Designation"},
+{ id:"dateOfJoining", label:"Joining Date" },
+{ id:"licenceType", label:"Licence Type", driverOnly:true },
+{ id:"licenceNumber", label:"Licence Number", driverOnly:true },
+{ id:"licenceIssueDate", label:"Licence Issued Date", driverOnly:true },
+{ id:"licenceExpiryDate", label:"Licence Expiry", driverOnly:true }
+];
+
 /* FIELD SELECTOR */
 const FieldSelector = ({ title, icon: Icon, fields, selected, onToggle }) => (
   <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
@@ -117,11 +173,11 @@ const [selectedPlants,setSelectedPlants]=useState([]);
 const [zoneFilter,setZoneFilter]=useState("All");
 
 const [modules,setModules]=useState({plant:true,vehicle:false,employee:false});
-
+const [enabledGroups,setEnabledGroups] = useState({plant:true});
 const [selPlantFields,setSelPlantFields]=useState(["stateCode","district"]);
 const [selVehicleFields,setSelVehicleFields]=useState(["vehicleNumber"]);
 const [selEmployeeFields,setSelEmployeeFields]=useState(["employeeName"]);
-
+const [selectedRoles,setSelectedRoles] = useState([]);
 const [vehiclesMap,setVehiclesMap]=useState({});
 const [employeesMap,setEmployeesMap]=useState({});
 
@@ -186,25 +242,18 @@ setEmployeesMap(map);
 })();
 },[modules.employee,selectedPlants]);
 
-const generate=()=>{
+const toggleGroup = (id)=>{
+setEnabledGroups(prev=>{
+const next = !prev[id];
 
+if(!next){
+const group = PLANT_GROUPS.find(g=>g.id===id);
+setSelPlantFields(p=>p.filter(f=>!group.fields.some(x=>x.id===f)));
+}
 
-const filteredPlants = plants
-.filter(p => selectedPlants.includes(p.plantID))
-.filter(p => zoneFilter === "All" || String(p.zones) === zoneFilter);
-
-onGenerate({
-plants: filteredPlants,
-modules,
-selPlantFields,
-selVehicleFields,
-selEmployeeFields,
-vehiclesMap,
-employeesMap
+return {...prev,[id]:next};
 });
 };
-
-
 const formatDate = (v) => {
   if (!v) return "-";
 
@@ -223,6 +272,7 @@ const formatDate = (v) => {
   }
 };
 
+const ALL_PLANT_FIELDS = PLANT_GROUPS.flatMap(g=>g.fields);
 
 const formatValue = (v) => {
   if (v === true) return "YES";
@@ -234,6 +284,24 @@ const formatValue = (v) => {
   }
 
   return v ?? "-";
+};
+
+
+const generate = () => {
+  const filteredPlants = plants
+    .filter(p => selectedPlants.includes(p.plantID))
+    .filter(p => zoneFilter === "All" || String(p.zones) === zoneFilter);
+
+  onGenerate({
+    plants: filteredPlants,
+    modules,
+    selPlantFields,
+    selVehicleFields,
+    selEmployeeFields,
+    selectedRoles,
+    vehiclesMap,
+    employeesMap
+  });
 };
 
 
@@ -270,9 +338,120 @@ ${modules[m.id]?"bg-white border-indigo-600 text-indigo-600":"bg-slate-100 text-
 
 {/* FIELD SELECT */}
 <div className="mt-5 grid lg:grid-cols-3 gap-6">
-{modules.plant&&<FieldSelector title="Plant Details" icon={FileText} fields={PLANT_FIELDS} selected={selPlantFields} onToggle={id=>toggle(selPlantFields,setSelPlantFields,id)}/>}
-{modules.vehicle&&<FieldSelector title="Vehicle" icon={Truck} fields={VEHICLE_FIELDS} selected={selVehicleFields} onToggle={id=>toggle(selVehicleFields,setSelVehicleFields,id)}/>}
-{modules.employee&&<FieldSelector title="Staff Info" icon={Users} fields={EMPLOYEE_FIELDS} selected={selEmployeeFields} onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}/>}
+
+{/* PLANT CARD */}
+{modules.plant && (
+<div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
+
+<h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+<FileText size={18}/> Plant Details
+</h3>
+
+{/* GROUPS INSIDE */}
+<div className="space-y-4">
+
+{PLANT_GROUPS.map(group=>{
+
+const open = enabledGroups[group.id];
+
+return(
+<div key={group.id} className="border border-slate-400 rounded-xl p-3">
+
+{/* GROUP HEADER */}
+<label className="flex items-center gap-2 font-semibold cursor-pointer">
+
+<input
+type="checkbox"
+checked={!!open}
+onChange={()=>toggleGroup(group.id)}
+className="w-4 h-4"
+/>
+
+<span className="text-xs uppercase text-slate-600">
+{group.title}
+</span>
+
+</label>
+
+{/* FIELDS — only when enabled */}
+{open && (
+<div className="grid grid-cols-2 gap-2 mt-3">
+
+{group.fields.map(f=>(
+<button
+key={f.id}
+onClick={()=>toggle(selPlantFields,setSelPlantFields,f.id)}
+className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs border
+${selPlantFields.includes(f.id)
+?"bg-blue-600 text-white border-blue-600"
+:"bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+>
+{f.label}
+
+{selPlantFields.includes(f.id)
+?<CheckSquare size={14}/>
+:<Square size={14} className="opacity-40"/>}
+
+</button>
+))}
+
+</div>
+)}
+
+</div>
+);
+})}
+
+</div>
+</div>
+)}
+
+{/* VEHICLE */}
+{modules.vehicle &&
+<FieldSelector
+title="Vehicle"
+icon={Truck}
+fields={VEHICLE_FIELDS}
+selected={selVehicleFields}
+onToggle={id=>toggle(selVehicleFields,setSelVehicleFields,id)}
+/>}
+
+{/* EMPLOYEE */}
+{modules.employee && (
+<div className="bg-white p-5 rounded-2xl border shadow-sm">
+
+<h3 className="font-bold text-slate-800 mb-3">Designation Based</h3>
+
+{/* ROLE CHECKBOXES */}
+<div className="grid grid-cols-2 gap-2 mb-4">
+{DESIGNATIONS.map(role=>(
+<label key={role} className="flex items-center gap-2 text-sm">
+<input
+type="checkbox"
+checked={selectedRoles.includes(role)}
+onChange={()=>setSelectedRoles(p=>
+p.includes(role)
+? p.filter(x=>x!==role)
+: [...p,role]
+)}
+className="w-4 h-4"
+/>
+{role}
+</label>
+))}
+</div>
+
+<FieldSelector
+title="Employee Fields"
+icon={Users}
+fields={EMPLOYEE_FIELDS}
+selected={selEmployeeFields}
+onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
+/>
+
+</div>
+)}
+
 </div>
 
 {/* TABLE AREA */}
@@ -408,7 +587,7 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
     <thead className="bg-slate-900 text-white sticky top-0 z-20">
       {/* Category Row (Optional but helpful for visual grouping) */}
       <tr className="text-[10px] uppercase tracking-widest bg-slate-950 divide-x divide-slate-800">
-        <th colSpan={5} className="px-4 py-2 text-center text-slate-400">Basic Information</th>
+        <th colSpan={5} className="px-4 py-2 text-center text-slate-200">Basic Information</th>
         {config.modules.plant && <th colSpan={config.selPlantFields.length} className="px-4 py-2 text-center text-blue-400">Plant Metadata</th>}
         {config.modules.vehicle && <th colSpan={config.selVehicleFields.length} className="px-4 py-2 text-center text-indigo-400">Vehicle</th>}
         {config.modules.employee && <th colSpan={config.selEmployeeFields.length} className="px-4 py-2 text-center text-emerald-400">Employee</th>}
@@ -425,7 +604,7 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
         {/* DYNAMIC PLANT */}
         {config.modules.plant && config.selPlantFields.map(f => (
           <th key={f} className="px-4 py-4 whitespace-nowrap font-semibold">
-            {PLANT_FIELDS.find(x => x.id === f)?.label || f}
+           {ALL_PLANT_FIELDS.find(x => x.id === f)?.label}
           </th>
         ))}
 
@@ -482,7 +661,12 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
             <td key={f} className="px-4 py-3 min-w-[150px]">
               <div className="flex flex-col gap-1">
                 {(config.employeesMap[p.plantID] || []).length > 0 ? (
-                  (config.employeesMap[p.plantID] || []).map((e, i) => (
+                 (config.employeesMap[p.plantID] || [])
+                  .filter(e => config.selectedRoles?.length
+                    ? config.selectedRoles.includes(e.designation)
+                    : true
+                  )
+                  .map((e,i)=>(
                     <span key={i} className="text-xs text-slate-700 flex items-center gap-1">
                       <div className="w-1 h-1 rounded-full bg-emerald-500" /> {formatValue(e[f])}
                     </span>
@@ -503,5 +687,4 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
 </div>
 );
 }
-
 

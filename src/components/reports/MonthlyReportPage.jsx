@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -63,6 +64,7 @@ const imageToBase64Compressed = (image, quality = 0.5, maxWidth = 800) => {
     };
   });
 };
+
 const formatMonthYear = (monthStr) => {
   if (!monthStr) return "";
 
@@ -75,6 +77,15 @@ const formatMonthYear = (monthStr) => {
 
   return `${monthNames[Number(month) - 1]} ${year}`;
 };
+
+const toYMD = (date) => {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const da = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${da}`;
+};
+
 export default function MonthlyReportPage() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [plantMaster, setPlantMaster] = useState({});
@@ -82,10 +93,13 @@ export default function MonthlyReportPage() {
   const [loading, setLoading] = useState(false);
 const [refreshKey, setRefreshKey] = useState(0);
 const [plants, setPlants] = useState([]);
+const [plants, setPlants] = useState([]);
 const [zoneFilter, setZoneFilter] = useState("All");
 
   /* ================= LOAD PLANTS ================= */
 useEffect(() => {
+getAllPlants().then((list) => {
+  setPlants(list || []);
 getAllPlants().then((list) => {
   setPlants(list || []);
 
@@ -99,7 +113,19 @@ getAllPlants().then((list) => {
       zone: p.zones, // ⭐ ADD THIS
     };
   });
+  const map = {};
+  (list || []).forEach((p) => {
+    map[p.plantID] = {
+      name: p.plantName,
+      district: p.district,
+      kld: p.kld,
+      permanentPowerDate: p.permanentPowerDateOfCompletion,
+      zone: p.zones, // ⭐ ADD THIS
+    };
+  });
 
+  setPlantMaster(map);
+});
   setPlantMaster(map);
 });
 }, []);
@@ -116,6 +142,11 @@ getAllPlants().then((list) => {
   // ✅ Start = first day of month
   const startDate = `${year}-${monthNum}-01`;
 
+const monthStart = new Date(year, monthNum - 1, 1);
+const monthEndDate = new Date(year, monthNum, 0); // ⭐ last day (Google logic)
+const endDate = toYMD(new Date(year, monthNum, 1)); // first day next month
+
+
   // ✅ End = first day of NEXT month (API exclusive end)
   const endDate = new Date(year, Number(monthNum), 1)
     .toISOString()
@@ -130,44 +161,165 @@ rangeData.forEach((r) => {
   const pid = r.plantId;
   const op = r.operation;
 
-
-  
-  if (!temp[pid]) {
-    temp[pid] = {
-      plantId: pid,
-      sludgeReceived: 0,
-      sludgeProcessed: 0,
-      oldSludge: 0,
-      remaining: 0, // month-end PM
-      
-    };
-  }
-
-  // ✅ Old sludge = AM of 1st day
-  if (op?.operationDate === startDate) {
-    temp[pid].oldSludge = Number(op?.sludgeTankLevelAm || 0);
-  }
-
-  // ✅ Month totals
-  temp[pid].sludgeReceived += Number(op?.sludgeReceived || 0);
-  temp[pid].sludgeProcessed += Number(op?.sludgeProcessed || 0);
-
-  // ✅ VERY IMPORTANT: overwrite with latest PM value
-   if (
-  op?.sludgeTankLevelPm != null &&
-  (!temp[pid].lastPmDate ||
-    op.operationDate > temp[pid].lastPmDate)
-) {
-  temp[pid].remaining = Number(op.sludgeTankLevelPm);
-  temp[pid].lastPmDate = op.operationDate;
+if (!temp[pid]) {
+  temp[pid] = {
+    plantId: pid,
+    ops: [],                 // ⭐ STORE ALL OPS
+    sludgeReceived: 0,
+    sludgeProcessed: 0,
+  };
 }
+
+temp[pid].ops.push({
+  ...op,
+  _date: op._date
 });
 
+temp[pid].sludgeReceived += Number(op?.sludgeReceived || 0);
+temp[pid].sludgeProcessed += Number(op?.sludgeProcessed || 0);
+
+
+  // ✅ VERY IMPORTANT: overwrite with latest PM value
+//    if (
+//   op?.sludgeTankLevelPm != null &&
+//   (!temp[pid].lastPmDate ||
+//     op.operationDate > temp[pid].lastPmDate)
+// ) {
+//   temp[pid].remaining = Number(op.sludgeTankLevelPm);
+//   temp[pid].lastPmDate = op.operationDate;
+// }
+});
+
+const getOpeningSludge = (ops, startDate) => {
+  const sorted = [...ops].sort(
+    (a, b) => new Date(b.operationDate) - new Date(a.operationDate)
+  );
+
+  for (const op of sorted) {
+    const d = op.operationDate;
+
+    // ⭐ only dates BEFORE month start OR equal start
+    if (d > startDate) continue;
+
+    // ⭐ first preference → start day AM
+    if (d === startDate && op.sludgeTankLevelAm != null) {
+      return Number(op.sludgeTankLevelAm);
+    }
+
+    // ⭐ then previous PM
+    if (op.sludgeTankLevelPm != null) {
+      return Number(op.sludgeTankLevelPm);
+    }
+
+    // ⭐ then previous AM
+    if (op.sludgeTankLevelAm != null) {
+      return Number(op.sludgeTankLevelAm);
+    }
+  }
+
+  return 0;
+};
+
+const getClosingSludge = (ops, startDate, endDate) => {
+  if (!ops?.length) return 0;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // ⭐ last day of selected month
+  const monthEnd = new Date(end.getFullYear(), end.getMonth(), 0);
+
+  // ⭐ Build date map
+  const map = {};
+
+  ops.forEach(op => {
+    if (!op.operationDate) return;
+
+    const d = op.operationDate;
+
+    const time = new Date(d);
+    if (time < start || time >= end) return;
+
+    if (!map[d]) {
+      map[d] = { am: null, pm: null };
+    }
+
+    if (op.sludgeTankLevelAm != null) {
+      map[d].am = Number(op.sludgeTankLevelAm);
+    }
+
+    if (op.sludgeTankLevelPm != null) {
+      map[d].pm = Number(op.sludgeTankLevelPm);
+    }
+  });
+
+  // ⭐ walk backward from month end
+  let cursor = new Date(monthEnd);
+
+  while (cursor >= start) {
+    const key = toYMD(cursor); // ⭐ NO ISO STRING
+
+    const day = map[key];
+
+    if (day) {
+      if (day.pm != null) return day.pm; // PM first
+      if (day.am != null) return day.am; // then AM
+    }
+
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return 0;
+};
+
+const finalRows = Object.values(temp).map((r) => {
+  const meta = plantMaster[r.plantId] || {};
+
+const oldSludge = getOpeningSludge(r.ops, startDate);
+const remaining = getClosingSludge(r.ops, startDate, endDate);
+  const total = oldSludge + r.sludgeReceived;
 const finalRows = Object.values(temp)
   .map((r) => {
     const meta = plantMaster[r.plantId] || {};
     const total = r.oldSludge + r.sludgeReceived;
 
+  return {
+    plantId: r.plantId,
+    district: meta.district,
+    name: meta.name,
+    kld: meta.kld,
+    zone: meta.zone,
+    permanentPowerDate: meta.permanentPowerDate,
+
+    sludgeReceived: r.sludgeReceived,
+    sludgeProcessed: r.sludgeProcessed,
+    oldSludge,
+    total,
+    remaining,
+  };
+})
+  .filter(r =>
+    zoneFilter === "All" ||
+    String(r.zone) === String(zoneFilter)
+  );
+
+    const [y, m] = month.split("-");
+const monthEnd = new Date(y, m, 0);
+
+const withStatus = finalRows.map(r => {
+  const completion = r.permanentPowerDate;
+
+  const noPower =
+    !completion ||
+    new Date(completion) > monthEnd;
+
+  return {
+    ...r,
+    noPower
+  };
+});
+
+setRows(withStatus);
     return {
       plantId: r.plantId,
       district: meta.district,
@@ -208,7 +360,12 @@ setRows(withStatus);
   } catch (e) {
     console.error(e);
   }
+  } catch (e) {
+    console.error(e);
+  }
 
+  setLoading(false);
+}, [month, plantMaster, zoneFilter]);
   setLoading(false);
 }, [month, plantMaster, zoneFilter]);
 
@@ -366,6 +523,7 @@ didParseCell: function (data) {
     if (colIndex === 4) {
       const rowData = rows[rowIndex];
 
+      if (rowData?.noPower) {
       if (rowData?.noPower) {
         data.cell.styles.fillColor = [229, 231, 235]; // grey
         data.cell.styles.textColor = [0, 0, 0]; // dark black text
@@ -609,6 +767,7 @@ rows.forEach((r, i) => {
 
     // Grey site name if permanent power false
    if (colNumber === 5 && r.noPower) {
+   if (colNumber === 5 && r.noPower) {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
@@ -741,6 +900,7 @@ return (
       {/* ===== CONTROLS ===== */}
       <div className="flex flex-wrap gap-3 mb-4">
         <select
+        <select
   value={zoneFilter}
   onChange={(e) => setZoneFilter(e.target.value)}
   className="border p-2 text-sm"
@@ -751,7 +911,13 @@ return (
     .map(z => (
       <option key={z} value={z}>Zone {z}</option>
     ))}
+  {[...new Set(plants.map(p => p.zones).filter(Boolean))]
+    .sort((a,b)=>Number(a)-Number(b))
+    .map(z => (
+      <option key={z} value={z}>Zone {z}</option>
+    ))}
 </select>
+
 
         <input
           type="month"
@@ -839,10 +1005,12 @@ return (
               // ✅ ONLY SITE NAME CELL
              backgroundColor:
             idx === 4 && r.noPower
+            idx === 4 && r.noPower
              ? "#E5E7EB" // grey
              : "transparent",
 
             color:
+          idx === 4 && r.noPower
           idx === 4 && r.noPower
            ? "#000000"
           : "#000",

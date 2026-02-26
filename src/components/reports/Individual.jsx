@@ -20,6 +20,9 @@ import {
 /* ================= HELPERS ================= */
 const todayStr = new Date().toISOString().split("T")[0];
 
+const formatIN = (val) =>
+  val != null && !isNaN(val) ? Number(val).toLocaleString("en-IN") : "";
+
 export default function Individual() {
   const [plants, setPlants] = useState([]);
   const [zoneFilter, setZoneFilter] = useState("All");
@@ -598,15 +601,15 @@ porHeader.isHeader = true;
     let row1 = ws.addRow([
       `${r.plant.plantID} / ${r.plant.kld}`,
       r.plant.plantName,
-      r.operation.tankLevel,
-      r.operation.received,
-      r.operation.processed,
-      r.operation.polymer,
-      r.operation.pellets,
-        formatNumber(r.operation.filterfeedTreatedWater),
-       r.operation.runningHours,
-      r.operation.biochar
-    
+      formatIN(r.operation.tankLevel),
+      formatIN(r.operation.received),
+      formatIN(r.operation.processed),
+      formatIN(r.operation.polymer),
+      formatIN(r.operation.pellets),
+      formatIN(r.operation.filterfeedTreatedWater),
+      formatIN(r.operation.runningHours),
+      formatIN(r.operation.biochar)
+        
     ]);
     styleRow(row1);
   });
@@ -1297,14 +1300,14 @@ const downloadZoneSummaryExcel = async () => {
             rows={rows.map(r => [
               `${r.plant.plantID} / ${r.plant.kld}`,
               r.plant.plantName,
-              r.operation.tankLevel,
-              r.operation.received,
-              r.operation.processed,
-              r.operation.polymer,
-              r.operation.pellets,
-                formatNumber(r.operation.filterfeedTreatedWater),
-              r.operation.runningHours,
-              r.operation.biochar
+              formatIN(r.operation.tankLevel),
+              formatIN(r.operation.received),
+              formatIN(r.operation.processed),
+              formatIN(r.operation.polymer),
+              formatIN(r.operation.pellets),
+              formatIN(r.operation.filterfeedTreatedWater),
+              formatIN(r.operation.runningHours),
+              formatIN(r.operation.biochar)
             ])}
           />
   </div>
@@ -1452,9 +1455,11 @@ const downloadZoneSummaryExcel = async () => {
   <td rowSpan={2} className="border text-center">Reading</td>
   <td rowSpan={2} className="border text-center">{show(op.dgReadingAm)}</td>
   <td rowSpan={2} className="border text-center">{show(op.dgReadingPm)}</td>
-  <td rowSpan={2} className="border text-center">
-    {kmDiff(op.dgReadingAm, op.dgReadingPm).toFixed(1)}
-  </td>
+<td rowSpan={2} className="border text-center">
+  {kmDiff(op.dgReadingAm, op.dgReadingPm) != null
+    ? Number(kmDiff(op.dgReadingAm, op.dgReadingPm)).toFixed(1)
+    : "0.0"}
+</td>
 
   {/* Vehicle 1 */}
   <td rowSpan={2} className="border text-center">
@@ -1498,9 +1503,11 @@ const downloadZoneSummaryExcel = async () => {
           <td rowSpan={2} className="border text-center">
             {show(op.dgDiesalPercentagePm)}
           </td>
-          <td rowSpan={2} className="border text-center">
-            {diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm).toFixed(1)}
-          </td>
+       <td rowSpan={2} className="border text-center">
+  {diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm) != null
+    ? Number(diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm)).toFixed(1)
+    : "0.0"}
+</td>
 
           {/* Vehicle 2 */}
           <td rowSpan={2} className="border text-center">

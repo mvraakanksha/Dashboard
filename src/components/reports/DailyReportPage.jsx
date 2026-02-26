@@ -63,6 +63,7 @@ const getOpField = (op, ...keys) => {
 };
 let cachedCompanyLogo = null;
 let cachedMainLogo = null;
+
 const formatDateDDMMYYYY = (dateStr) => {
   if (!dateStr) return "";
 
@@ -191,51 +192,44 @@ const processedData = Object.entries(plantMaster)
         totalRunHrs: 0,
         totalBiochar: 0,
     });
-
-
-    
+   
     // --- Fetching Logic ---
-
     // 1. Fetch Plant Master Data on mount
-useEffect(() => {
+  useEffect(() => {
   const fetchPlantMaster = async () => {
     try {
       const list = await getAllPlants();
       if (!Array.isArray(list)) return;
 
-      setPlants(list); // ✅ store full list for zones
-
       const newPlantMap = {};
 
-      list.forEach(item => {
-        const permanent =
-          item.permanentPower !== undefined
-            ? item.permanentPower
-            : item.permanent_power !== undefined
-            ? item.permanent_power
-            : null;
+list.forEach(item => {
 
-        if (permanent !== true) return;
+  // ✅ permanent power logic (same as first file)
+  if (!item.permanentPower) return;
 
-        const id = getBest(
-          item.plantID,
-          item.plantId,
-          item.id,
-          item.plant_id
-        );
+  const completionDate = item.permanentPowerDateOfCompletion;
+  if (!completionDate) return;
 
-        if (id == null) return;
+  if (new Date(selectedDate) < new Date(completionDate)) return;
 
-        newPlantMap[String(id)] = {
-          name: String(getBest(item.plantName, item.name) || ""),
-          district: String(getBest(item.district) || ""),
-          kld: String(getBest(item.kld) || ""),
-          zone: item.zones // ✅ IMPORTANT
-        };
-      });
+  const id = getBest(item.plantID, item.plantId, item.id, item.plant_id);
+  if (id == null) return;
+
+  const idStr = String(id);
+
+  newPlantMap[idStr] = {
+    name: String(getBest(item.plantName, item.name, item.plant_name, item.plant) || ""),
+    district: String(getBest(item.district, item.stateCode, item.District) || ""),
+    kld: String(getBest(item.kld, item.KLD) || ""),
+
+    // ⭐ IMPORTANT — store zone
+    zone: String(getBest(item.zone, item.zones, item.Zone) || "")
+  };
+});
 
       setPlantMaster(newPlantMap);
-
+     
     } catch (err) {
       console.warn("Plant master fetch failed:", err);
       setNotice("Warning: could not fetch plant master.");
@@ -244,12 +238,12 @@ useEffect(() => {
   };
 
   fetchPlantMaster();
-}, []);
+}, [selectedDate]);
 
 const zones = useMemo(() => {
-  return [...new Set(plants.map(p => p.zones).filter(Boolean))]
+  return [...new Set(Object.values(plantMaster).map(p => p.zone).filter(Boolean))]
     .sort((a, b) => Number(a) - Number(b));
-}, [plants]);
+}, [plantMaster]);
 
 // 2. Fetch Report Data (SERVICE LAYER BASED)
 const fetchReport = useCallback(async () => {
