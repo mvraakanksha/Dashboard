@@ -415,37 +415,43 @@ if (!kpis) return null;
     label: "TOTAL PLANTS",
     value: kpis.totalPlants,
     theme: "blue",
-    icon: <Layers />
+    icon: <Layers />,
+    card: "ALL"
   },
   {
     label: "MNIT PLANTS",
     value: kpis.mnitCount,
     theme: "emerald",
-    icon: <CheckCircle />
+    icon: <CheckCircle />,
+    card: "MNIT"
   },
   {
     label: "PERMANENT POWER",
     value: kpis.permanentPowerCount,
     theme: "indigo",
-    icon: <Zap />
+    icon: <Zap />,
+    card: "POWER"
   },
   {
     label: "SOLAR COMPLETED",
     value: kpis.solarCount,
     theme: "amber",
-    icon: <Sun />
+    icon: <Sun />,
+    card: "SOLAR"
   },
   {
     label: "INTERNET ACTIVE",
     value: kpis.internetCount,
     theme: "blue",
-    icon: <Wifi />
+    icon: <Wifi />,
+    card: "INTERNET"
   },
   {
     label: "COD / BOD INSTALLED",
     value: kpis.codbodCount,
     theme: "rose",
-    icon: <Activity />
+    icon: <Activity />,
+    card: "CODBOD"
   }
 ]
 .map((k, i) => {
@@ -453,53 +459,55 @@ if (!kpis) return null;
 
 
     return (
-      <div
-        key={i}
-        className={`group relative p-5 rounded-[2rem] border transition-all ${theme.staticBg} ${cardClass}`}
-      >
-        {/* Bottom hover bar */}
-        <div
-          className={`absolute bottom-0 left-4 h-1 rounded-[15rem] w-full ${theme.bar}
-          scale-x-0 origin-left transition-transform duration-500
-          group-hover:scale-x-87 `}
-        />
+  <div
+    key={i}
+    className={`group relative p-5 rounded-[2rem] border transition-all ${theme.staticBg} ${cardClass}`}
+  >
+    {/* Bottom hover bar */}
+    <div
+      className={`absolute bottom-0 left-4 h-1 rounded-[15rem] w-full ${theme.bar}
+      scale-x-0 origin-left transition-transform duration-500
+      group-hover:scale-x-87`}
+    />
 
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-2">
-          <span className={`p-1.5 rounded-lg ${theme.iconHoverBg}`}>
-            {React.cloneElement(k.icon, {
-              className: `w-3.5 h-3.5 ${theme.text}`
-            })}
-          </span>
-          <p className="text-[10px] font-black text-slate-400 tracking-widest">
-            {k.label}
-          </p>
-        </div>
+    {/* Header */}
+    <div className="flex items-center gap-2 mb-2">
+      <span className={`p-1.5 rounded-lg ${theme.iconHoverBg}`}>
+        {React.cloneElement(k.icon, {
+          className: `w-3.5 h-3.5 ${theme.text}`
+        })}
+      </span>
+      <p className="text-[10px] font-black text-slate-400 tracking-widest">
+        {k.label}
+      </p>
+    </div>
 
-        {/* Value */}
-        <p className={`text-2xl font-black ${theme.text}`}>
-          {formatValue(k.value)}
-        </p>
+    {/* Value */}
+    <p className={`text-2xl font-black ${theme.text}`}>
+      {formatValue(k.value)}
+    </p>
 
-        {/* ✅ ACTION BUTTON (ONLY FOR TOTAL PLANTS) */}
-        {k.label === "TOTAL PLANTS" && (
-          <button
-            onClick={() => navigate("/plants")}
-            className={`
-              absolute top-4 right-4
-              p-2 rounded-xl transition-all duration-300
-              hover:scale-105 active:scale-95
-              ${isDark
-                ? "bg-slate-800/60 text-slate-400 hover:text-blue-400"
-                : "bg-slate-100 text-slate-500 hover:text-blue-600"}
-            `}
-            title="View Plants"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-    );
+    {/* 🔥 Navigation Button */}
+    <button
+      onClick={() =>
+        navigate("/plants", {
+          state: { selectedCard: k.card }
+        })
+      }
+      className={`
+        absolute top-4 right-4
+        p-2 rounded-xl transition-all duration-300
+        hover:scale-105 active:scale-95
+        ${isDark
+          ? "bg-slate-800/60 text-slate-400 hover:text-blue-400"
+          : "bg-slate-100 text-slate-500 hover:text-blue-600"}
+      `}
+      title="View details"
+    >
+      <ExternalLink className="w-4 h-4" />
+    </button>
+  </div>
+);
   })}
 </div>
 

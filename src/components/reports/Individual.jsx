@@ -29,8 +29,8 @@ export default function Individual() {
   const [loading, setLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [attendanceOps, setAttendanceOps] = useState([]);
-
-
+const [showZonesTable, setShowZonesTable] = useState(false);
+const [zoneSummaryFilter, setZoneSummaryFilter] = useState("All");
  /* ================= RESET ================= */
   const resetPage = () => {
     setZoneFilter("All");
@@ -903,7 +903,109 @@ const dayRunningDisplay = (am, pm, trips) => {
 
 const matchingCount = filteredPlants.length;   // based on zone
 const selectedCount = selectedPlants.length;   // based on selection
+const sortedZonePlants = useMemo(() => {
+  if (!plants.length) return [];
 
+  let filtered =
+    zoneSummaryFilter === "All"
+      ? plants
+      : plants.filter(p => String(p.zones) === String(zoneSummaryFilter));
+
+  return [...filtered].sort((a, b) => {
+    const za = Number(a.zones);
+    const zb = Number(b.zones);
+
+    if (za === 1 && zb !== 1) return -1;
+    if (zb === 1 && za !== 1) return 1;
+
+    return za - zb;
+  });
+}, [plants, zoneSummaryFilter]);
+
+const downloadZoneSummaryExcel = async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Zone Summary");
+
+  // HEADER
+  const header = ws.addRow([
+    "S.No",
+    "Plant ID",
+    "Plant KLD",
+    "Plant Name",
+    "Zone"
+  ]);
+
+  header.eachCell(cell => {
+    cell.font = { bold: true };
+    cell.alignment = { vertical: "middle", horizontal: "center" };
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+
+  let serial = 1;
+  let currentRowNumber = 2; // because header is row 1
+
+  const zoneGroups = {};
+
+  sortedZonePlants.forEach(p => {
+    const zone = p.zones || "Unknown";
+    if (!zoneGroups[zone]) zoneGroups[zone] = [];
+    zoneGroups[zone].push(p);
+  });
+
+  Object.keys(zoneGroups)
+    .sort((a, b) => Number(a) - Number(b))
+    .forEach(zone => {
+
+      const plantsInZone = zoneGroups[zone];
+      const startRow = currentRowNumber;
+
+      plantsInZone.forEach(p => {
+        const row = ws.addRow([
+          serial++,
+          p.plantID,
+          p.kld,
+          p.plantName,
+          `Zone-${zone}`
+        ]);
+
+        row.eachCell(cell => {
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: "center"
+          };
+          cell.border = {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" }
+          };
+        });
+
+        currentRowNumber++;
+      });
+
+      const endRow = currentRowNumber - 1;
+
+      // ✅ Merge Zone column (Column 5 = E)
+      if (plantsInZone.length > 1) {
+        ws.mergeCells(`E${startRow}:E${endRow}`);
+      }
+    });
+
+  // Column width
+  ws.columns.forEach(col => (col.width = 20));
+
+  const buffer = await wb.xlsx.writeBuffer();
+  saveAs(
+    new Blob([buffer]),
+    `Zone_Summary_${zoneSummaryFilter}.xlsx`
+  );
+};
   /* ================= UI ================= */
   return (
    <div className="max-w-7xl mx-auto p-6 space-y-6 bg-slate-50 min-h-screen overflow-x-hidden">
@@ -960,7 +1062,13 @@ const selectedCount = selectedPlants.length;   // based on selection
   >
     {loading ? "Generating..." : "Generate"}
   </button>
-
+<button
+  onClick={() => setShowZonesTable(prev => !prev)}
+  className="px-6 py-2 bg-blue-600 text-white rounded
+             w-full lg:w-auto text-sm font-semibold"
+>
+  {showZonesTable ? "Hide Zones" : "View Zones"}
+</button>
   {/* EXCEL + RESET */}
   {showPreview && (
     <div className="flex flex-col lg:flex-row gap-3 w-full lg:w-auto lg:mt-[18px]">
@@ -985,10 +1093,101 @@ const selectedCount = selectedPlants.length;   // based on selection
   )}
 
 </div>
+{showZonesTable && (
+  <div className="bg-white rounded-xl border overflow-hidden mt-6">
 
+    {/* HEADER */}
+    <div className="px-5 py-3 border-b font-bold flex justify-between items-center">
 
-      {/* PLANT SELECTION */}
-{/* PLANT SELECTION (ONLY BEFORE GENERATE) */}
+      <div className="flex items-center gap-4">
+
+        <span>Zones Summary</span>
+
+        {/* ZONE FILTER */}
+        <select
+          value={zoneSummaryFilter}
+          onChange={(e) => setZoneSummaryFilter(e.target.value)}
+          className="border p-1 rounded text-xs"
+        >
+          <option value="All">All Zones</option>
+          {zones.map(z => (
+            <option key={z} value={z}>
+              Zone {z}
+            </option>
+          ))}
+        </select>
+
+      </div>
+
+      {/* DOWNLOAD BUTTON */}
+      <button
+        onClick={downloadZoneSummaryExcel}
+        className="px-4 py-1 bg-emerald-600 text-white rounded text-xs flex items-center gap-1"
+      >
+        <Download size={14} /> Excel
+      </button>
+
+    </div>
+
+    <div className="overflow-x-auto">
+      <table className="min-w-full border-collapse text-sm bg-white">
+        <thead className="bg-slate-100">
+          <tr>
+            <th className="border p-2 text-center">S.No</th>
+            <th className="border p-2 text-center">Plant ID</th>
+            <th className="border p-2 text-center">Plant KLD</th>
+            <th className="border p-2 text-center">Plant Name</th>
+            <th className="border p-2 text-center">Zone</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {(() => {
+            let serial = 1;
+            const zoneGroups = {};
+
+            sortedZonePlants.forEach(p => {
+              const zone = p.zones || "Unknown";
+              if (!zoneGroups[zone]) zoneGroups[zone] = [];
+              zoneGroups[zone].push(p);
+            });
+
+            return Object.keys(zoneGroups)
+              .sort((a, b) => Number(a) - Number(b))
+              .map(zone =>
+                zoneGroups[zone].map((plant, index) => (
+                  <tr key={plant.plantID}>
+                    <td className="border text-center">
+                      {serial++}
+                    </td>
+                    <td className="border text-center">
+                      {plant.plantID}
+                    </td>
+                    <td className="border text-center">
+                      {plant.kld}
+                    </td>
+                    <td className="border text-center">
+                      {plant.plantName}
+                    </td>
+
+                    {index === 0 && (
+                      <td
+                        rowSpan={zoneGroups[zone].length}
+                        className="border text-center font-semibold"
+                      >
+                        Zone-{zone}
+                      </td>
+                    )}
+                  </tr>
+                ))
+              );
+          })()}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
+
 
       {/* PLANT SELECTION */}
 {/* PLANT SELECTION (ONLY BEFORE GENERATE) */}

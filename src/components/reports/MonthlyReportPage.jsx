@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -81,34 +81,29 @@ export default function MonthlyReportPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 const [refreshKey, setRefreshKey] = useState(0);
+const [plants, setPlants] = useState([]);
 const [zoneFilter, setZoneFilter] = useState("All");
 
   /* ================= LOAD PLANTS ================= */
-const [plants, setPlants] = useState([]);
-
 useEffect(() => {
-  getAllPlants().then((list) => {
-    setPlants(list || []);
+getAllPlants().then((list) => {
+  setPlants(list || []);
 
-    const map = {};
-    (list || []).forEach((p) => {
-      map[p.plantID] = {
-        name: p.plantName,
-        district: p.district,
-        kld: p.kld,
-        permanentPower: p.permanentPower,
-        zone: p.zones, // ✅ IMPORTANT
-      };
-    });
-
-    setPlantMaster(map);
+  const map = {};
+  (list || []).forEach((p) => {
+    map[p.plantID] = {
+      name: p.plantName,
+      district: p.district,
+      kld: p.kld,
+      permanentPowerDate: p.permanentPowerDateOfCompletion,
+      zone: p.zones, // ⭐ ADD THIS
+    };
   });
+
+  setPlantMaster(map);
+});
 }, []);
 
-const zones = useMemo(() => {
-  return [...new Set(plants.map(p => p.zones).filter(Boolean))]
-    .sort((a, b) => Number(a) - Number(b));
-}, [plants]);
   const formattedMonth = formatMonthYear(month);
 
   const loadMonth = useCallback(async () => {
@@ -126,13 +121,6 @@ const zones = useMemo(() => {
     .toISOString()
     .split("T")[0];
 
-    // ✅ Get plant IDs based on zone
-const zonePlantIds =
-  zoneFilter === "All"
-    ? plants.map(p => p.plantID)
-    : plants
-        .filter(p => String(p.zones) === String(zoneFilter))
-        .map(p => p.plantID);
   const temp = {};
 
   try {
@@ -176,7 +164,6 @@ rangeData.forEach((r) => {
 });
 
 const finalRows = Object.values(temp)
-  .filter(r => zonePlantIds.includes(r.plantId)) // ✅ FILTER HERE
   .map((r) => {
     const meta = plantMaster[r.plantId] || {};
     const total = r.oldSludge + r.sludgeReceived;
@@ -186,24 +173,44 @@ const finalRows = Object.values(temp)
       district: meta.district,
       name: meta.name,
       kld: meta.kld,
-      permanentPower: meta.permanentPower,
+      zone: meta.zone, // ⭐ IMPORTANT
+      permanentPowerDate: meta.permanentPowerDate,
       sludgeReceived: r.sludgeReceived,
       oldSludge: r.oldSludge,
       total,
       sludgeProcessed: r.sludgeProcessed,
       remaining: r.remaining,
     };
-  });
- 
+  })
+  .filter(r =>
+    zoneFilter === "All" ||
+    String(r.zone) === String(zoneFilter)
+  );
 
-setRows(finalRows);
+    const [y, m] = month.split("-");
+const monthEnd = new Date(y, m, 0);
 
-} catch (e) {
-  console.error(e);
-}
+const withStatus = finalRows.map(r => {
+  const completion = r.permanentPowerDate;
 
-setLoading(false);
-}, [month, plantMaster, plants, zoneFilter]); // ✅ zone added here
+  const noPower =
+    !completion ||
+    new Date(completion) > monthEnd;
+
+  return {
+    ...r,
+    noPower
+  };
+});
+
+setRows(withStatus);
+
+  } catch (e) {
+    console.error(e);
+  }
+
+  setLoading(false);
+}, [month, plantMaster, zoneFilter]);
 
 
 useEffect(() => {
@@ -229,7 +236,6 @@ useEffect(() => {
       remaining: 0,
     }
   );
-
 
 
   const imageToBase64 = async (imageUrl) => {
@@ -360,7 +366,7 @@ didParseCell: function (data) {
     if (colIndex === 4) {
       const rowData = rows[rowIndex];
 
-      if (rowData?.permanentPower === false) {
+      if (rowData?.noPower) {
         data.cell.styles.fillColor = [229, 231, 235]; // grey
         data.cell.styles.textColor = [0, 0, 0]; // dark black text
       }
@@ -602,7 +608,7 @@ rows.forEach((r, i) => {
     }
 
     // Grey site name if permanent power false
-    if (colNumber === 5 && r.permanentPower === false) {
+   if (colNumber === 5 && r.noPower) {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
@@ -734,16 +740,19 @@ return (
 
       {/* ===== CONTROLS ===== */}
       <div className="flex flex-wrap gap-3 mb-4">
-<select
+        <select
   value={zoneFilter}
   onChange={(e) => setZoneFilter(e.target.value)}
   className="border p-2 text-sm"
 >
   <option value="All">All Zones</option>
-  {zones.map(z => (
-    <option key={z} value={z}>Zone {z}</option>
-  ))}
+  {[...new Set(plants.map(p => p.zones).filter(Boolean))]
+    .sort((a,b)=>Number(a)-Number(b))
+    .map(z => (
+      <option key={z} value={z}>Zone {z}</option>
+    ))}
 </select>
+
         <input
           type="month"
           value={month}
@@ -829,12 +838,12 @@ return (
               textAlign: "center",
               // ✅ ONLY SITE NAME CELL
              backgroundColor:
-             idx === 4 && r.permanentPower === false
+            idx === 4 && r.noPower
              ? "#E5E7EB" // grey
              : "transparent",
 
             color:
-           idx === 4 && r.permanentPower === false
+          idx === 4 && r.noPower
            ? "#000000"
           : "#000",
             }}

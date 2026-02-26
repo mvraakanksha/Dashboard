@@ -9,6 +9,16 @@ import {
 
   CartesianGrid
 } from "recharts";
+import {
+  Truck,
+  Navigation,
+  Milestone,
+  Activity,
+  Fuel,
+  Layers,
+  Rose
+} from "lucide-react";
+
 import { useParams, useNavigate } from "react-router-dom";
 import { getVehicleOperationsByDateRange } from "../../services/vehicleService";
 import { getAllPlants } from "../../services/plantService";
@@ -101,7 +111,67 @@ const DateTick = ({ x, y, payload }) => {
     </text>
   );
 };
+/* ---------------- THEME ---------------- */
+const theme = {
+  blue: {
+    bg: "bg-blue-50",
+    border: "border-blue-100",
+    barColor: "bg-blue-600",
+    iconColor: "text-blue-600",
+  },
+  rose: {
+    bg: "bg-rose-50",
+    border: "border-rose-100",
+    barColor: "bg-rose-600",
+    iconColor: "text-rose-600",
+  },
+  emerald: {
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
+    barColor: "bg-emerald-600",
+    iconColor: "text-emerald-600",
+  },
+  amber: {
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    barColor: "bg-amber-600",
+    iconColor: "text-amber-600",
+  },
+  violet: {
+  bg: "bg-violet-50",
+  border: "border-violet-100",
+  barColor: "bg-violet-600",
+  iconColor: "text-violet-600",
+}
+};
 
+/* ---------------- KPI CARD ---------------- */
+const KPICard = ({ label, value, theme, icon, children }) => (
+  <div className={`group relative overflow-hidden p-6 min-h-[190px] rounded-xl border ${theme.bg} ${theme.border} shadow-sm hover:shadow-md flex flex-col justify-between`}>
+
+    <div className={`absolute bottom-0 left-0 h-1.5 w-full ${theme.barColor} origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
+
+    <div>
+      <div className={`p-2 w-fit rounded-lg bg-white shadow-sm ${theme.iconColor}`}>
+        {icon}
+      </div>
+
+      <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 mt-3">
+        {label}
+      </p>
+
+      <p className="text-2xl font-black text-slate-900 mt-1">
+        {value}
+      </p>
+    </div>
+
+    {children && (
+      <div className="mt-4 text-sm font-semibold text-slate-600">
+        {children}
+      </div>
+    )}
+  </div>
+);
 /* ================= VEHICLE PAGE ================= */
 export default function VehiclePage() {
   const navigate = useNavigate();
@@ -352,139 +422,67 @@ const vehicle2Trips = daywiseData.reduce(
         </span>
       </h2>
 
-      {/* KPI + FILTERS */}
-     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+{/* KPI + FILTERS */}
+<div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
 
   {/* KPI CARDS */}
   <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-    <div className="grid grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
 
       {/* TOTAL VEHICLES */}
-      <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
-        <p className="text-sm font-medium">Total Vehicles</p>
-        <h2 className="text-xl font-extrabold text-green-400 mt-3">
-          {formatIndianRounded(totalVehicles)}
-        </h2>
-      </div>
+      <KPICard
+        label="Total Vehicles"
+        value={formatIndianRounded(totalVehicles)}
+        theme={theme.blue}
+        icon={<Truck size={18} />}
+      />
 
       {/* TOTAL DISTANCE */}
- <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
-  <p className="text-sm font-medium">
-    Total Distance Covered (Km)
-  </p>
-
-  <h2 className="text-xl font-extrabold text-green-400 mt-3">
-    {formatIndianRounded(totalDistance)}
-  </h2>
-
-  {/* 👇 Vehicle-wise breakdown */}
-  <div className="mt-4 space-y-1 text-sm font-semibold text-blue-100">
-    <span className="block">
-  Vehicle 1 :{" "}
-  <span className="font-extrabold text-green-400">
-    {formatIndianRounded(vehicle1Distance)} Km
-  </span>
-  <span className="text-white text-xs ml-1">
-    (Trips:{" "}
-    <span className="font-extrabold text-green-400">
-      {vehicle1Trips}
-    </span>
-    )
-  </span>
-</span>
-
-<span className="block">
-  Vehicle 2 :{" "}
-  <span className="font-extrabold text-green-400">
-    {formatIndianRounded(vehicle2Distance)} Km
-  </span>
-  <span className="text-white text-xs ml-1">
-    (Trips:{" "}
-    <span className="font-extrabold text-green-400">
-      {vehicle2Trips}
-    </span>
-    )
-  </span>
-</span>
-
-  </div>
-</div>
-
+      <KPICard
+        label="Total Distance Covered (Km)"
+        value={formatIndianRounded(totalDistance)}
+        theme={theme.rose}
+        icon={<Navigation size={18} />}
+      >
+        <div>
+          Vehicle 1: {formatIndianRounded(vehicle1Distance)} Km (Trips: {vehicle1Trips})
+        </div>
+        <div>
+          Vehicle 2: {formatIndianRounded(vehicle2Distance)} Km (Trips: {vehicle2Trips})
+        </div>
+      </KPICard>
 
       {/* AVERAGE DISTANCE */}
-  <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
-  <p className="text-sm font-medium">
-    Average Distance Covered (Km)
-  </p>
+      <KPICard
+        label="Average Distance (Km)"
+        value={formatIndianRounded(avgDistance)}
+        theme={theme.emerald}
+        icon={<Activity size={18} />}
+      >
+        <div>Vehicle 1: {formatIndianRounded(avgVehicle1Distance)} Km</div>
+        <div>Vehicle 2: {formatIndianRounded(avgVehicle2Distance)} Km</div>
+      </KPICard>
 
-  <h2 className="text-xl font-extrabold text-green-400 mt-3">
-    {formatIndianRounded(avgDistance)}
-  </h2>
+      {/* TOTAL SLUDGE */}
+      <KPICard
+        label="Total Sludge Collected (L)"
+        value={formatIndianRounded(totalSludge)}
+        theme={theme.amber}
+        icon={<Layers size={18} />}
+      >
+        <div>Vehicle 1: {formatIndianRounded(vehicle1Sludge)} L</div>
+        <div>Vehicle 2: {formatIndianRounded(vehicle2Sludge)} L</div>
+      </KPICard>
 
-  {/* 👇 Vehicle-wise average breakdown */}
-  <div className="mt-4 space-y-1 text-sm font-semibold text-blue-100">
-    <span className="block">
-      Vehicle 1 :{" "}
-      <span className="text-10m font-extrabold text-green-400 mt-3">
-        {formatIndianRounded(avgVehicle1Distance)} Km
-      </span>
-    </span>
-
-    <span className="block">
-      Vehicle 2 :{" "}
-      <span className="text-10m font-extrabold text-green-400 mt-3">
-        {formatIndianRounded(avgVehicle2Distance)} Km
-      </span>
-    </span>
-  </div>
-</div>
-{/* TOTAL SLUDGE COLLECTED */}
-<div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
-  <p className="text-sm font-medium">
-    Total Sludge Collected (L)
-  </p>
-
-  <h2 className="text-xl font-extrabold text-green-400 mt-3">
-    {formatIndianRounded(totalSludge)}
-  </h2>
-
-  {/* 👇 Vehicle-wise breakdown */}
-  <div className="mt-4 space-y-1 text-sm font-semibold text-blue-100">
-    <span className="block">
-      Vehicle 1 :{" "}
-      <span className="font-extrabold text-green-400">
-        {formatIndianRounded(vehicle1Sludge)} L
-      </span>
-    </span>
-
-    <span className="block">
-      Vehicle 2 :{" "}
-      <span className="font-extrabold text-green-400">
-        {formatIndianRounded(vehicle2Sludge)} L
-      </span>
-    </span>
-  </div>
-</div>
-{/* PRIVATE VEHICLE KPI */}
-<div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
-  <p className="text-sm font-medium">
-    Private Vehicle Trips
-  </p>
-
-  <h2 className="text-xl font-extrabold text-green-400 mt-3">
-    {formatIndianRounded(totalPrivateTrips)}
-  </h2>
-
-  <div className="mt-4 text-sm font-semibold text-blue-100">
-    <span>
-      Sludge Collected :{" "}
-      <span className="font-extrabold text-green-400">
-        {formatIndianRounded(totalPrivateSludge)} L
-      </span>
-    </span>
-  </div>
-</div>
-
+      {/* PRIVATE VEHICLE */}
+      <KPICard
+        label="Private Vehicle Trips"
+        value={formatIndianRounded(totalPrivateTrips)}
+        theme={theme.violet}
+        icon={<Milestone size={18} />}
+      >
+        Sludge: {formatIndianRounded(totalPrivateSludge)} L
+      </KPICard>
 
     </div>
   </div>
@@ -513,7 +511,7 @@ const vehicle2Trips = daywiseData.reduce(
 
     <button
       onClick={fetchDaywise}
-      className="bg-blue-700 text-white py-2 rounded-lg font-semibold"
+      className="bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800 transition"
     >
       GET
     </button>

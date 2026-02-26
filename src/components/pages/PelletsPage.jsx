@@ -9,6 +9,7 @@ import {
   Legend,
   CartesianGrid
 } from "recharts";
+import { Box } from "lucide-react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { getAllPlants } from "../../services/plantService";
 import { getOperationsByDateRange } from "../../services/operationService";
@@ -94,7 +95,61 @@ const DateTick = ({ x, y, payload }) => {
     </text>
   );
 };
+/* ---------------- THEME ---------------- */
+const theme = {
+  blue: {
+    bg: "bg-blue-50",
+    border: "border-blue-100",
+    barColor: "bg-blue-600",
+    iconColor: "text-blue-600",
+  },
+  indigo: {
+    bg: "bg-indigo-50",
+    border: "border-indigo-100",
+    barColor: "bg-indigo-600",
+    iconColor: "text-indigo-600",
+  },
+  emerald: {
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
+    barColor: "bg-emerald-600",
+    iconColor: "text-emerald-600",
+  },
+  amber: {
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    barColor: "bg-amber-600",
+    iconColor: "text-amber-600",
+  },
+};
 
+/* ---------------- KPI CARD ---------------- */
+const KPICard = ({ label, value, theme }) => (
+  <div
+    className={`group relative overflow-hidden p-6 min-h-[180px] rounded-xl border ${theme.bg} ${theme.border} shadow-sm hover:shadow-md flex flex-col justify-center`}
+  >
+    <div
+      className={`absolute bottom-0 left-0 h-1.5 w-full ${theme.barColor} origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500`}
+    />
+
+    <div className="flex flex-col gap-3">
+      <div
+        className={`p-2 w-fit rounded-lg bg-white shadow-sm ${theme.iconColor}`}
+      >
+        <Box size={18} />
+      </div>
+
+      <div>
+        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+          {label}
+        </p>
+        <p className="text-2xl font-black text-slate-900 mt-1">
+          {value}
+        </p>
+      </div>
+    </div>
+  </div>
+);
 // ---------------- MAIN COMPONENT ----------------
 export default function PelletsPage() {
   const navigate = useNavigate();
@@ -256,83 +311,77 @@ const chartWidth = needsScroll
       )}
     </h2>
 
-    {/* KPI + FILTERS */}
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+   {/* KPI + FILTERS */}
+<div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
 
-      {/* KPI CARDS */}
-      <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  {/* KPI CARDS */}
+  <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-          {/* TOTAL USED */}
-          <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
-            <p className="text-sm font-medium">
-              {materialType === "pellets"
-                ? "Total Pellets Used (Kg)"
-                : "Total Polymer Used (grms)"}
-            </p>
-            <h2 className="text-xl font-extrabold text-green-400 mt-3">
-              {formatIN(totalUsage.toFixed(1))}
-            </h2>
-          </div>
+      <KPICard
+        label={
+          materialType === "pellets"
+            ? "Total Pellets Used (Kg)"
+            : "Total Polymer Used (grms)"
+        }
+        value={formatIN(totalUsage.toFixed(1))}
+        theme={theme.blue}
+      />
 
-          {/* TOTAL STOCK */}
-          <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
-            <p className="text-sm font-medium">
-              {materialType === "pellets"
-                ? "Total Pellets Stock (Kg)"
-                : "Total Polymer Stock (Kg)"}
-            </p>
-            <h2 className="text-xl font-extrabold text-green-400 mt-3">
-              {formatIN(totalStock.toFixed(1))}
-            </h2>
-          </div>
+      <KPICard
+        label={
+          materialType === "pellets"
+            ? "Total Pellets Stock (Kg)"
+            : "Total Polymer Stock (Kg)"
+        }
+        value={formatIN(totalStock.toFixed(1))}
+        theme={theme.indigo}
+      />
 
-          {/* AVERAGE USED */}
-          <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[170px] flex flex-col justify-center">
-            <p className="text-sm font-medium">
-              {materialType === "pellets"
-                ? "Average Pellets Used (Kg)"
-                : "Average Polymer Used (Kg)"}
-            </p>
-            <h2 className="text-xl font-extrabold text-green-400 mt-3">
-              {formatIN(avgUsage.toFixed(1))}
-            </h2>
-          </div>
-
-        </div>
-      </div>
-
-      {/* FILTERS */}
-      <div className="lg:col-span-1 bg-white rounded-xl shadow-md p-4 flex flex-col gap-3 justify-center">
-        <div>
-          <label className="text-xs font-semibold text-gray-700">From</label>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="border p-2 rounded-md w-full"
-          />
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-gray-700">To</label>
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="border p-2 rounded-md w-full"
-          />
-        </div>
-
-        <button
-          onClick={() => fetchDaywise(fromDate, toDate)}
-          className="bg-blue-700 text-white py-2 rounded-lg font-semibold"
-        >
-          GET
-        </button>
-      </div>
+      <KPICard
+        label={
+          materialType === "pellets"
+            ? "Average Pellets Used (Kg)"
+            : "Average Polymer Used (Kg)"
+        }
+        value={formatIN(avgUsage.toFixed(1))}
+        theme={theme.emerald}
+      />
 
     </div>
+  </div>
+
+  {/* FILTERS */}
+  <div className="lg:col-span-1 bg-white rounded-xl shadow-md p-4 flex flex-col gap-3 justify-center">
+    <div>
+      <label className="text-xs font-semibold text-gray-700">From</label>
+      <input
+        type="date"
+        value={fromDate}
+        onChange={(e) => setFromDate(e.target.value)}
+        className="border p-2 rounded-md w-full"
+      />
+    </div>
+
+    <div>
+      <label className="text-xs font-semibold text-gray-700">To</label>
+      <input
+        type="date"
+        value={toDate}
+        onChange={(e) => setToDate(e.target.value)}
+        className="border p-2 rounded-md w-full"
+      />
+    </div>
+
+    <button
+      onClick={() => fetchDaywise(fromDate, toDate)}
+      className="bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800 transition"
+    >
+      GET
+    </button>
+  </div>
+
+</div>
 
     {/* BAR GRAPH */}
     <div className="bg-white rounded-xl shadow-xl p-6 w-full">

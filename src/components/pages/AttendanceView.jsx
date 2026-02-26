@@ -10,16 +10,65 @@ import {
   CartesianGrid
 } from "recharts";
 import { useParams, useNavigate } from "react-router-dom";
+import { Users, UserCheck, UserMinus, Activity } from "lucide-react";
 import { getPlantById } from "../../services/plantService";
 import { getEmployeeOperationsByDateRange } from "../../services/employeeService";
 import { getEmployeesByPlant } from "../../services/employeeService";
 
+const theme = {
+  blue: {
+    bg: "bg-blue-50",
+    border: "border-blue-100",
+    barColor: "bg-blue-600",
+    iconColor: "text-blue-600",
+  },
+  rose: {
+    bg: "bg-rose-50",
+    border: "border-rose-100",
+    barColor: "bg-rose-600",
+    iconColor: "text-rose-600",
+  },
+  emerald: {
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
+    barColor: "bg-emerald-600",
+    iconColor: "text-emerald-600",
+  },
+  amber: {
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    barColor: "bg-amber-600",
+    iconColor: "text-amber-600",
+  },
+};
 
+const KPICard = ({ label, value, theme, icon }) => (
+  <div className={`group relative overflow-hidden p-6 min-h-[170px] rounded-xl border ${theme.bg} ${theme.border} shadow-sm hover:shadow-md flex flex-col justify-center`}>
+    
+    <div className={`absolute bottom-0 left-0 h-1.5 w-full ${theme.barColor} origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
+
+    <div className="flex flex-col gap-3">
+      <div className={`p-2 w-fit rounded-lg bg-white shadow-sm ${theme.iconColor}`}>
+        {icon}
+      </div>
+
+      <div>
+        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+          {label}
+        </p>
+        <p className="text-2xl font-black text-slate-900 mt-1">
+          {value}
+        </p>
+      </div>
+    </div>
+  </div>
+);
 // ---------------- TOOLTIP ----------------
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
 
   const row = payload[0].payload;
+
 
   return (
     <div className="bg-white text-xs border p-2 rounded shadow-md max-w-xs">
@@ -236,49 +285,70 @@ useEffect(() => {
 
 
       {/* KPI + FILTERS */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-        <div className="lg:col-span-3 bg-white rounded-2xl p-6 shadow grid grid-cols-4 gap-4">
-          {[
-            { label: "Total Employees", value: totalEmployees },
-            { label: "Total Present Employees", value: totalPresent },
-            { label: "Total Absent Employees", value: totalAbsent },
-            { label: "Average Attendance", value: avgAttendance }
-          ].map((c, i) => (
-            <div
-              key={i}
-              className="bg-[#013B88] rounded-xl py-6 text-center text-white"
-            >
-              <p className="text-sm">{c.label}</p>
-              <p className="text-2xl font-extrabold text-green-400 mt-2">
-                {c.value}
-              </p>
-            </div>
-          ))}
-        </div>
+<div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
 
-        <div className="bg-white rounded-xl shadow p-4 space-y-3">
-          <label className="text-xs font-semibold">From</label>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="border p-2 rounded w-full"
-          />
-          <label className="text-xs font-semibold">To</label>
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="border p-2 rounded w-full"
-          />
-          <button
-            onClick={fetchDaywise}
-            className="bg-blue-700 text-white py-2 rounded font-semibold w-full"
-          >
-            GET
-          </button>
-        </div>
-      </div>
+  {/* KPI CARDS */}
+  <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      <KPICard
+        label="Total Employees"
+        value={totalEmployees}
+        theme={theme.blue}
+        icon={<Users size={18} />}
+      />
+
+      <KPICard
+        label="Total Present Employees"
+        value={totalPresent}
+        theme={theme.emerald}
+        icon={<UserCheck size={18} />}
+      />
+
+      <KPICard
+        label="Total Absent Employees"
+        value={totalAbsent}
+        theme={theme.rose}
+        icon={<UserMinus size={18} />}
+      />
+
+      <KPICard
+        label="Average Attendance"
+        value={avgAttendance}
+        theme={theme.amber}
+        icon={<Activity size={18} />}
+      />
+
+    </div>
+  </div>
+
+  {/* DATE FILTER */}
+  <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
+    <label className="text-xs font-semibold text-gray-700">From</label>
+    <input
+      type="date"
+      value={fromDate}
+      onChange={(e) => setFromDate(e.target.value)}
+      className="border p-2 rounded w-full"
+    />
+
+    <label className="text-xs font-semibold text-gray-700">To</label>
+    <input
+      type="date"
+      value={toDate}
+      onChange={(e) => setToDate(e.target.value)}
+      className="border p-2 rounded w-full"
+    />
+
+    <button
+      onClick={fetchDaywise}
+      className="bg-blue-700 text-white py-2 rounded-lg font-semibold w-full hover:bg-blue-800 transition"
+    >
+      GET
+    </button>
+  </div>
+
+</div>
 
       {/* ================= CHART ================= */}
       <div className="bg-white rounded-xl shadow p-6">

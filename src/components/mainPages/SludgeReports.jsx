@@ -282,13 +282,19 @@ const avgProcessed =
 const downloadReceivedPDF = () => {
   const doc = new jsPDF();
 
-  const selectedKey =
-    receivedMode === "received" ? "received" : "tankLevel";
+  let selectedKey;
+  let selectedLabel;
+  let reportTitle;
 
-  const selectedLabel =
-    receivedMode === "received"
-      ? "Sludge Received (L)"
-      : "Tank Level (L)";
+  if (receivedMode === "received") {
+    selectedKey = "received";
+    selectedLabel = "Sludge Received (L)";
+    reportTitle = "Sludge Received Report";
+  } else {
+    selectedKey = "tankLevel";
+    selectedLabel = "Tank Level (L)";
+    reportTitle = "Sludge Tanklevel Report";
+  }
 
   const tableData = receivedSorted.map((item, index) => [
     index + 1,
@@ -298,28 +304,34 @@ const downloadReceivedPDF = () => {
     item[selectedKey],
   ]);
 
-  doc.text("Sludge Report - Received Section", 14, 15);
+  doc.setFontSize(14);
+  doc.text(reportTitle, 14, 15);
 
   autoTable(doc, {
-    startY: 20,
+    startY: 22,
     head: [["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel]],
     body: tableData,
   });
 
-  doc.save("Received_Sludge_Report.pdf");
+  doc.save(`${reportTitle}.pdf`);
 };
-
 
 const downloadProcessedPDF = () => {
   const doc = new jsPDF();
 
-  const selectedKey =
-    processedMode === "processed" ? "processed" : "biochar";
+  let selectedKey;
+  let selectedLabel;
+  let reportTitle;
 
-  const selectedLabel =
-    processedMode === "processed"
-      ? "Sludge Processed (L)"
-      : "Biochar Produced (Kg)";
+  if (processedMode === "processed") {
+    selectedKey = "processed";
+    selectedLabel = "Sludge Processed (L)";
+    reportTitle = "Sludge Processed Report";
+  } else {
+    selectedKey = "biochar";
+    selectedLabel = "Biochar Produced (Kg)";
+    reportTitle = "Sludge Biochar Report";
+  }
 
   const tableData = processedSorted.map((item, index) => [
     index + 1,
@@ -329,15 +341,16 @@ const downloadProcessedPDF = () => {
     item[selectedKey],
   ]);
 
-  doc.text("Sludge Report - Processed Section", 14, 15);
+  doc.setFontSize(14);
+  doc.text(reportTitle, 14, 15);
 
   autoTable(doc, {
-    startY: 20,
+    startY: 22,
     head: [["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel]],
     body: tableData,
   });
 
-  doc.save("Processed_Sludge_Report.pdf");
+  doc.save(`${reportTitle}.pdf`);
 };
 
 

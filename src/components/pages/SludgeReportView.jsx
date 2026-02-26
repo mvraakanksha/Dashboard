@@ -13,6 +13,7 @@ import {
   useSearchParams,
   useNavigate,
 } from "react-router-dom";
+import { Layers, Droplets, Recycle, Box } from "lucide-react";
 import { getOperationsByDateRange } from "../../services/operationService";
 import { getPlantById } from "../../services/plantService";
 
@@ -99,7 +100,53 @@ const formatDisplayDate = (dateString) => {
 
   return `${day}-${month}-${year}`;
 };
+/* ================= THEME ================= */
+const theme = {
+  blue: {
+    bg: "bg-blue-50",
+    border: "border-blue-100",
+    barColor: "bg-blue-600",
+    iconColor: "text-blue-600",
+  },
+  indigo: {
+    bg: "bg-indigo-50",
+    border: "border-indigo-100",
+    barColor: "bg-indigo-600",
+    iconColor: "text-indigo-600",
+  },
+  emerald: {
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
+    barColor: "bg-emerald-600",
+    iconColor: "text-emerald-600",
+  },
+  amber: {
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    barColor: "bg-amber-600",
+    iconColor: "text-amber-600",
+  },
+};
+const KPICard = ({ label, value, theme, icon }) => (
+  <div className={`group relative overflow-hidden p-6 rounded-xl border ${theme.bg} ${theme.border} shadow-sm hover:shadow-md`}>
+    
+    <div className={`absolute bottom-0 left-0 h-1.5 w-full ${theme.barColor} origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
 
+    <div className="flex flex-col gap-2">
+      <div className={`p-2 w-fit rounded-lg bg-white shadow-sm ${theme.iconColor}`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+          {label}
+        </p>
+        <p className="text-xl font-black text-slate-900">
+          {value}
+        </p>
+      </div>
+    </div>
+  </div>
+);
 /* ---------------- MAIN COMPONENT ---------------- */
 export default function SludgeReportView() {
   const navigate = useNavigate();
@@ -291,87 +338,82 @@ const toTankLevel = getLastAvailableTankLevel(toDate);
         </span>
       </h2>
 
-      {/* KPI + FILTERS (UNCHANGED) */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-        <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-      <div
-  className={`grid grid-cols-1 sm:grid-cols-2 ${
-    activeMode === "biochar"
-      ? "lg:grid-cols-2"
-      : "lg:grid-cols-4"
-  } gap-4`}
->
+    {/* KPI + FILTERS */}
+<div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
 
-{/* TOTAL + AVERAGE */}
-{[0, 1].map((i) => (
-  <div
-    key={i}
-    className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center"
-  >
-    <p className="text-sm font-medium">
-      {labels[activeMode][i]}
-    </p>
-    <h2 className="text-xl font-extrabold text-green-400 mt-3">
-      {formatIndianRounded(i === 0 ? totalValue : avgValue)}
-    </h2>
+  {/* KPI CARDS SECTION */}
+  <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-10">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      {/* TOTAL */}
+      <KPICard
+        label={labels[activeMode][0]}
+        value={formatIndianRounded(totalValue)}
+        theme={theme.blue}
+        icon={<Layers size={18} />}
+      />
+
+      {/* AVERAGE */}
+      <KPICard
+        label={labels[activeMode][1]}
+        value={formatIndianRounded(avgValue)}
+        theme={theme.indigo}
+        icon={<Droplets size={18} />}
+      />
+
+      {/* EXTRA TANK CARDS (ONLY WHEN NOT BIOCHAR) */}
+      {activeMode !== "biochar" && (
+        <>
+          <KPICard
+            label={`Tank Level on ${formatDisplayDate(fromDate)}`}
+            value={`${formatIndianRounded(fromTankLevel)} L`}
+            theme={theme.amber}
+            icon={<Box size={18} />}
+          />
+
+          <KPICard
+            label={`Tank Level on ${formatDisplayDate(toDate)}`}
+            value={`${formatIndianRounded(toTankLevel)} L`}
+            theme={theme.emerald}
+            icon={<Recycle size={18} />}
+          />
+        </>
+      )}
+
+    </div>
   </div>
-))}
 
-{/* EXTRA TANK CARDS */}
-{activeMode !== "biochar" && (
-  <>
-    <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center">
-      <p className="text-sm font-medium">
-       Tank Level on {formatDisplayDate(fromDate)}
-
-      </p>
-      <h2 className="text-xl font-extrabold text-green-400 mt-3">
-        {formatIndianRounded(fromTankLevel)} L
-      </h2>
+  {/* DATE FILTER SECTION (UNCHANGED) */}
+  <div className="lg:col-span-1 bg-white rounded-xl shadow-md p-4 flex flex-col justify-center gap-3">
+    <div>
+      <label className="text-xs font-semibold text-gray-700">From</label>
+      <input
+        type="date"
+        value={fromDate}
+        onChange={(e) => setFromDate(e.target.value)}
+        className="border p-2 rounded-md w-full"
+      />
     </div>
 
-    <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center">
-      <p className="text-sm font-medium">
-       Tank Level on {formatDisplayDate(toDate)}
-
-      </p>
-      <h2 className="text-xl font-extrabold text-green-400 mt-3">
-        {formatIndianRounded(toTankLevel)} L
-      </h2>
+    <div>
+      <label className="text-xs font-semibold text-gray-700">To</label>
+      <input
+        type="date"
+        value={toDate}
+        onChange={(e) => setToDate(e.target.value)}
+        className="border p-2 rounded-md w-full"
+      />
     </div>
-  </>
-)}
 
-          </div>
-        </div>
+    <button
+      onClick={fetchDaywise}
+      className="bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800 transition"
+    >
+      GET
+    </button>
+  </div>
 
-        <div className="lg:col-span-1 bg-white rounded-xl shadow-md p-4 flex flex-col justify-center gap-3">
-          <div>
-            <label className="text-xs font-semibold text-gray-700">From</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="border p-2 rounded-md w-full"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-700">To</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="border p-2 rounded-md w-full"
-            />
-          </div>
-          <button
-            onClick={fetchDaywise}
-            className="bg-blue-700 text-white py-2 rounded-lg font-semibold"
-          >
-            GET
-          </button>
-        </div>
-      </div>
+</div>
 
       {/* CHART (UNCHANGED) */}
       <div className="bg-white shadow-xl rounded-xl p-6 w-full">
