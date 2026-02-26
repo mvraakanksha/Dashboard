@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { getAllPlants } from "../../services/plantService";
@@ -459,8 +462,276 @@ const pdfBody = filteredPlants.map((p, i) => {
 
   doc.save(`Plant_Report_${selectedCard}.pdf`);
 };
+const imageToBase64 = (url) =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = url;
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+  });
+/* ================= PROFESSIONAL PLANT REPORT EXCEL ================= */
+/* ================= PROFESSIONAL PLANT REPORT EXCEL ================= */
+const downloadTableExcel = async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Plant Report");
 
+  /* =====================================================
+     LOGO (TOP LEFT)
+  ===================================================== */
+  const logoBase64 = await imageToBase64(companyLogo);
 
+  const logoId = workbook.addImage({
+    base64: logoBase64,
+    extension: "png",
+  });
+
+  sheet.addImage(logoId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: 100, height: 55 },
+  });
+
+  /* =====================================================
+     COMPANY HEADER (START FROM ROW 1)
+  ===================================================== */
+
+  // Row 1
+  sheet.mergeCells("A1:H1");
+  const companyCell = sheet.getCell("A1");
+  companyCell.value = "MVR TECHNOLOGY";
+  companyCell.font = {
+    name: "Times New Roman",
+    size: 18,
+    bold: true,
+    color: { argb: "FFC80000" },
+  };
+  companyCell.alignment = { horizontal: "center", vertical: "middle" };
+
+  // Row 2
+  sheet.mergeCells("A2:H2");
+  const subCell = sheet.getCell("A2");
+  subCell.value = "FSTP RAJASTHAN";
+  subCell.font = {
+    name: "Times New Roman",
+    size: 12,
+    bold: true,
+  };
+  subCell.alignment = { horizontal: "center", vertical: "middle" };
+
+  // Row 3
+  sheet.mergeCells("A3:H3");
+  const titleCell = sheet.getCell("A3");
+  titleCell.value =
+    selectedCard === "ALL"
+      ? "Plant Infrastructure Report"
+      : `${selectedCard} Completion Report`;
+
+  titleCell.font = {
+    name: "Times New Roman",
+    size: 11,
+    bold: true,
+  };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+
+  /* =====================================================
+     TABLE HEADER (START FROM ROW 5)
+  ===================================================== */
+
+  const startRow = 5;
+
+  const headers =
+    selectedCard === "ALL"
+      ? [
+          "S.No",
+          "Plant ID",
+          "Plant Name",
+          "KLD",
+          "District",
+          "Zone",
+          "MNIT",
+          "POWER",
+          "SOLAR",
+          "INTERNET",
+          "COD/BOD",
+        ]
+      : [
+          "S.No",
+          "Plant ID",
+          "Plant Name",
+          "KLD",
+          selectedCard,
+          "Completion Date",
+        ];
+
+  const headerRow = sheet.getRow(startRow);
+
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = h;
+
+    cell.font = {
+      name: "Times New Roman",
+      bold: true,
+      size: 11,
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
+
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFD3EAC8" },
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" },
+    };
+  });
+
+/* =====================================================
+   DATA ROWS (WITH CORRECT COMPLETION DATES)
+===================================================== */
+
+filteredPlants.forEach((p, index) => {
+
+  let rowData;
+
+  if (selectedCard === "ALL") {
+
+    rowData = [
+      index + 1,
+      p.plantID,
+      p.plantName,
+      p.kld,
+      p.district,
+      p.zones,
+      p.mnit ? "YES" : "NO",
+      p.permanentPower ? "YES" : "NO",
+      p.solar ? "YES" : "NO",
+      p.internet ? "YES" : "NO",
+      p.codAndBodSenserDate ? "YES" : "NO",
+    ];
+
+  } else {
+
+    let status = false;
+    let completionDate = "-";
+
+    if (selectedCard === "MNIT") {
+      status = p.mnit;
+      completionDate = p.mnitDateOfCompletion
+        ? formatDate(p.mnitDateOfCompletion)
+        : "-";
+    }
+
+    if (selectedCard === "POWER") {
+      status = p.permanentPower;
+      completionDate = p.permanentPowerDateOfCompletion
+        ? formatDate(p.permanentPowerDateOfCompletion)
+        : "-";
+    }
+
+    if (selectedCard === "SOLAR") {
+      status = p.solar;
+      completionDate = p.solarDateOfCompletion
+        ? formatDate(p.solarDateOfCompletion)
+        : "-";
+    }
+
+    if (selectedCard === "INTERNET") {
+      status = p.internet;
+      completionDate = p.internetDateOfCompletion
+        ? formatDate(p.internetDateOfCompletion)
+        : "-";
+    }
+
+    if (selectedCard === "CODBOD") {
+      status = !!p.codAndBodSenserDate;
+      completionDate = p.codAndBodSenserDate
+        ? formatDate(p.codAndBodSenserDate)
+        : "-";
+    }
+
+    if (selectedCard === "CTE") {
+      status = p.cteCertified;
+      completionDate = p.cteIssuedDate
+        ? formatDate(p.cteIssuedDate)
+        : "-";
+    }
+
+    if (selectedCard === "CTO") {
+      status = p.ctoCertified;
+      completionDate = p.ctoIssuedDate
+        ? formatDate(p.ctoIssuedDate)
+        : "-";
+    }
+
+    rowData = [
+      index + 1,
+      p.plantID,
+      p.plantName,
+      p.kld,
+      status ? "YES" : "NO",
+      completionDate,
+    ];
+  }
+
+  const row = sheet.addRow(rowData);
+
+  row.eachCell((cell) => {
+    cell.font = {
+      name: "Times New Roman",
+      size: 10,
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" },
+    };
+  });
+
+});
+
+  /* =====================================================
+     COLUMN WIDTH + FREEZE
+  ===================================================== */
+
+  sheet.columns.forEach((column) => {
+    column.width = 18;
+  });
+
+  sheet.views = [{ state: "frozen", ySplit: startRow }];
+
+  /* =====================================================
+     DOWNLOAD
+  ===================================================== */
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(
+    new Blob([buffer]),
+    `Plant_Report_${selectedCard}.xlsx`
+  );
+};
   /* ================= UI ================= */
   return (
     <div className="space-y-6 p-6">
@@ -628,25 +899,25 @@ const pdfBody = filteredPlants.map((p, i) => {
     <option value="NO">No Only</option>
   </select>
 )}
-    <button
-      onClick={downloadTablePdf}
-      className="bg-indigo-600 hover:bg-indigo-700
-                 text-white px-5 py-2 rounded-lg
-                 text-sm font-semibold shadow"
-    >
-      Download
-    </button>
-     {/* {selectedCard === "CTE/CTO" && (
-      <button
-        onClick={() => setSelectedCard("ALL")}
-        className="flex items-center gap-1 text-sm font-semibold
-                   text-indigo-600 border border-indigo-300
-                   px-3 py-1.5 rounded-lg
-                   hover:bg-indigo-50 transition"
-      >
-        ← Back
-      </button>
-    )} */}
+    <div className="flex gap-2">
+  <button
+    onClick={downloadTablePdf}
+    className="bg-red-600 hover:bg-red-700
+               text-white px-4 py-2 rounded-lg
+               text-sm font-semibold shadow"
+  >
+    PDF
+  </button>
+
+  <button
+    onClick={downloadTableExcel}
+    className="bg-green-600 hover:bg-green-700
+               text-white px-4 py-2 rounded-lg
+               text-sm font-semibold shadow"
+  >
+    Excel
+  </button>
+</div>
 
   </div>
   
