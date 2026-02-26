@@ -85,6 +85,11 @@ const toYMD = (date) => {
   return `${y}-${m}-${da}`;
 };
 
+const getMonthEnd = (monthStr) => {
+  const [y, m] = monthStr.split("-");
+  return new Date(y, m, 0);
+};
+
 export default function MonthlyReportPage() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [plantMaster, setPlantMaster] = useState({});
@@ -101,13 +106,14 @@ getAllPlants().then((list) => {
 
   const map = {};
   (list || []).forEach((p) => {
-    map[p.plantID] = {
-      name: p.plantName,
-      district: p.district,
-      kld: p.kld,
-      permanentPowerDate: p.permanentPowerDateOfCompletion,
-      zone: p.zones, // ⭐ ADD THIS
-    };
+  map[p.plantID] = {
+  name: p.plantName,
+  district: p.district,
+  kld: p.kld,
+  permanentPowerDate: p.permanentPowerDateOfCompletion, // styling
+  mnitDate: p.mnitDateOfCompletion,                     // ⭐ visibility
+  zone: p.zones,
+};
   });
 
   setPlantMaster(map);
@@ -251,37 +257,49 @@ const getClosingSludge = (ops, startDate, endDate) => {
   return 0;
 };
 
-const finalRows = Object.values(temp).map((r) => {
-  const meta = plantMaster[r.plantId] || {};
+const finalRows = Object.entries(plantMaster)
+  .map(([pid, meta]) => {
+    const op = temp[pid] || {
+      sludgeReceived: 0,
+      sludgeProcessed: 0,
+      ops: [],
+    };
 
-const oldSludge = getOpeningSludge(r.ops, startDate);
-const remaining = getClosingSludge(r.ops, startDate, endDate);
-  const total = oldSludge + r.sludgeReceived;
+    const oldSludge = getOpeningSludge(op.ops || [], startDate);
+    const remaining = getClosingSludge(op.ops || [], startDate, endDate);
+    const total = oldSludge + op.sludgeReceived;
 
-  return {
-    plantId: r.plantId,
-    district: meta.district,
-    name: meta.name,
-    kld: meta.kld,
-    zone: meta.zone,
-    permanentPowerDate: meta.permanentPowerDate,
-
-    sludgeReceived: r.sludgeReceived,
-    sludgeProcessed: r.sludgeProcessed,
-    oldSludge,
-    total,
-    remaining,
-  };
-})
+    return {
+      plantId: Number(pid),
+      district: meta.district,
+      name: meta.name,
+      kld: meta.kld,
+      zone: meta.zone,
+      permanentPowerDate: meta.permanentPowerDate,
+      mnitDate: meta.mnitDate,
+      sludgeReceived: op.sludgeReceived,
+      sludgeProcessed: op.sludgeProcessed,
+      oldSludge,
+      total,
+      remaining,
+    };
+  })
   .filter(r =>
     zoneFilter === "All" ||
     String(r.zone) === String(zoneFilter)
   );
 
-    const [y, m] = month.split("-");
+  const [y, m] = month.split("-");
 const monthEnd = new Date(y, m, 0);
 
-const withStatus = finalRows.map(r => {
+const visibleRows = finalRows.filter(r => {
+  if (!r.mnitDate) return false; // not activated
+
+  return new Date(r.mnitDate) <= monthEnd;
+});
+
+
+const withStatus = visibleRows.map(r => {
   const completion = r.permanentPowerDate;
 
   const noPower =

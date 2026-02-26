@@ -154,8 +154,7 @@ const KPICard = ({ label, value, theme }) => (
 export default function PelletsPage() {
   const navigate = useNavigate();
   const { plantId, plantName } = useParams();
-  const [params] = useSearchParams();
-  const materialType = params.get("type") || "pellets";
+const [materialType, setMaterialType] = useState("pellets");
 
   const [fromDate, setFromDate] = useState(
     formatDate(subtractDays(new Date(), 10))
@@ -228,7 +227,7 @@ const fetchDaywise = async (from, to) => {
 
 useEffect(() => {
   fetchDaywise(fromDate, toDate);
-}, []);
+}, [materialType]);
 
   /* ---------------- TOP BAR LABEL ---------------- */
 const TopBarLabel = ({ x, y, width, value }) => {
@@ -385,6 +384,32 @@ const chartWidth = needsScroll
 
     {/* BAR GRAPH */}
     <div className="bg-white rounded-xl shadow-xl p-6 w-full">
+
+<div className="flex justify-end mb-4">
+  <button
+    onClick={() => setMaterialType("pellets")}
+    className={`px-4 py-1.5 text-xs font-bold rounded-md transition
+      ${materialType === "pellets"
+        ? "bg-blue-700 text-white shadow"
+        : "text-slate-600 hover:bg-white"}
+    `}
+  >
+    Pellets
+  </button>
+
+  <button
+    onClick={() => setMaterialType("polymer")}
+    className={`px-4 py-1.5 text-xs font-bold rounded-md transition
+      ${materialType === "polymer"
+        ? "bg-blue-700 text-white shadow"
+        : "text-slate-600 hover:bg-white"}
+    `}
+  >
+    Polymer
+  </button>
+
+</div>
+
      <div className={needsScroll ? "overflow-x-auto" : ""}>
   <div
     style={{

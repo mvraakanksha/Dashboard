@@ -31,11 +31,12 @@ export const addMonthlyReportToPdf = async ({
 
   (plantList || []).forEach((p) => {
     plantMaster[p.plantID] = {
-      name: p.plantName,
-      district: p.district,
-      kld: p.kld,
-      permanentPowerDate: p.permanentPowerDateOfCompletion,
-    };
+  name: p.plantName,
+  district: p.district,
+  kld: p.kld,
+  permanentPowerDate: p.permanentPowerDateOfCompletion, // styling
+  mnitDate: p.mnitDateOfCompletion,                     // ⭐ visibility
+};
   });
 
   /* ================= LOAD OPERATIONS ================= */
@@ -90,31 +91,47 @@ const monthEnd = new Date(y, m, 0);
 
   });
 
-const rows = Object.values(temp).map((r) => {
-  const meta = plantMaster[r.plantId] || {};
-  const total = r.oldSludge + r.sludgeReceived;
+const rawRows = Object.entries(plantMaster).map(([pid, meta]) => {
+  const op = temp[pid] || {
+    sludgeReceived: 0,
+    sludgeProcessed: 0,
+    oldSludge: 0,
+    remaining: 0,
+  };
 
-  const completion = meta.permanentPowerDate;
-  const [y, m] = month.split("-");
-  const monthEnd = new Date(y, m, 0);
-
-  const noPower =
-    !completion ||
-    new Date(completion).getTime() > monthEnd.getTime();
+  const total = op.oldSludge + op.sludgeReceived;
 
   return {
-    plantId: r.plantId,
+    plantId: Number(pid),
     district: meta.district,
     name: meta.name,
     kld: meta.kld,
-    noPower,   // ⭐ used for grey
-    sludgeReceived: r.sludgeReceived,
-    oldSludge: r.oldSludge,
+    permanentPowerDate: meta.permanentPowerDate,
+    mnitDate: meta.mnitDate,
+    sludgeReceived: op.sludgeReceived,
+    oldSludge: op.oldSludge,
     total,
-    sludgeProcessed: r.sludgeProcessed,
-    remaining: r.remaining,
+    sludgeProcessed: op.sludgeProcessed,
+    remaining: op.remaining,
   };
 });
+
+const visibleRows = rawRows.filter(r => {
+  if (!r.mnitDate) return false;
+
+  return new Date(r.mnitDate).getTime() <= monthEnd.getTime();
+});
+
+const rows = visibleRows.map(r => {
+  const completion = r.permanentPowerDate;
+
+  const noPower =
+    !completion ||
+    new Date(completion) > monthEnd;
+
+  return { ...r, noPower };
+});
+
 
   const totals = rows.reduce(
     (a, r) => {
