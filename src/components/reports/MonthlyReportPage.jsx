@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from "react";
-import React, { useEffect, useState, useCallback } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -8,7 +7,7 @@ import ExcelJS from "exceljs";
 
 // import mainLogo from '../reports/logo.png';
 import mainLogo from '../reports/logo1.jpg';
-// import companyLogo from '../reports/company_logo.png'
+// import comonthlympanyLogo from '../reports/company_logo.png'
 import companyLogo from '../reports/company_logo1.jpg'
 
 import { getAllPlants } from "../../services/plantService";
@@ -93,15 +92,12 @@ export default function MonthlyReportPage() {
   const [loading, setLoading] = useState(false);
 const [refreshKey, setRefreshKey] = useState(0);
 const [plants, setPlants] = useState([]);
-const [plants, setPlants] = useState([]);
 const [zoneFilter, setZoneFilter] = useState("All");
 
   /* ================= LOAD PLANTS ================= */
 useEffect(() => {
 getAllPlants().then((list) => {
   setPlants(list || []);
-getAllPlants().then((list) => {
-  setPlants(list || []);
 
   const map = {};
   (list || []).forEach((p) => {
@@ -113,19 +109,7 @@ getAllPlants().then((list) => {
       zone: p.zones, // ⭐ ADD THIS
     };
   });
-  const map = {};
-  (list || []).forEach((p) => {
-    map[p.plantID] = {
-      name: p.plantName,
-      district: p.district,
-      kld: p.kld,
-      permanentPowerDate: p.permanentPowerDateOfCompletion,
-      zone: p.zones, // ⭐ ADD THIS
-    };
-  });
 
-  setPlantMaster(map);
-});
   setPlantMaster(map);
 });
 }, []);
@@ -146,11 +130,6 @@ const monthStart = new Date(year, monthNum - 1, 1);
 const monthEndDate = new Date(year, monthNum, 0); // ⭐ last day (Google logic)
 const endDate = toYMD(new Date(year, monthNum, 1)); // first day next month
 
-
-  // ✅ End = first day of NEXT month (API exclusive end)
-  const endDate = new Date(year, Number(monthNum), 1)
-    .toISOString()
-    .split("T")[0];
 
   const temp = {};
 
@@ -278,10 +257,6 @@ const finalRows = Object.values(temp).map((r) => {
 const oldSludge = getOpeningSludge(r.ops, startDate);
 const remaining = getClosingSludge(r.ops, startDate, endDate);
   const total = oldSludge + r.sludgeReceived;
-const finalRows = Object.values(temp)
-  .map((r) => {
-    const meta = plantMaster[r.plantId] || {};
-    const total = r.oldSludge + r.sludgeReceived;
 
   return {
     plantId: r.plantId,
@@ -320,52 +295,11 @@ const withStatus = finalRows.map(r => {
 });
 
 setRows(withStatus);
-    return {
-      plantId: r.plantId,
-      district: meta.district,
-      name: meta.name,
-      kld: meta.kld,
-      zone: meta.zone, // ⭐ IMPORTANT
-      permanentPowerDate: meta.permanentPowerDate,
-      sludgeReceived: r.sludgeReceived,
-      oldSludge: r.oldSludge,
-      total,
-      sludgeProcessed: r.sludgeProcessed,
-      remaining: r.remaining,
-    };
-  })
-  .filter(r =>
-    zoneFilter === "All" ||
-    String(r.zone) === String(zoneFilter)
-  );
-
-    const [y, m] = month.split("-");
-const monthEnd = new Date(y, m, 0);
-
-const withStatus = finalRows.map(r => {
-  const completion = r.permanentPowerDate;
-
-  const noPower =
-    !completion ||
-    new Date(completion) > monthEnd;
-
-  return {
-    ...r,
-    noPower
-  };
-});
-
-setRows(withStatus);
 
   } catch (e) {
     console.error(e);
   }
-  } catch (e) {
-    console.error(e);
-  }
 
-  setLoading(false);
-}, [month, plantMaster, zoneFilter]);
   setLoading(false);
 }, [month, plantMaster, zoneFilter]);
 
@@ -523,7 +457,6 @@ didParseCell: function (data) {
     if (colIndex === 4) {
       const rowData = rows[rowIndex];
 
-      if (rowData?.noPower) {
       if (rowData?.noPower) {
         data.cell.styles.fillColor = [229, 231, 235]; // grey
         data.cell.styles.textColor = [0, 0, 0]; // dark black text
@@ -767,7 +700,6 @@ rows.forEach((r, i) => {
 
     // Grey site name if permanent power false
    if (colNumber === 5 && r.noPower) {
-   if (colNumber === 5 && r.noPower) {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
@@ -900,7 +832,6 @@ return (
       {/* ===== CONTROLS ===== */}
       <div className="flex flex-wrap gap-3 mb-4">
         <select
-        <select
   value={zoneFilter}
   onChange={(e) => setZoneFilter(e.target.value)}
   className="border p-2 text-sm"
@@ -911,13 +842,7 @@ return (
     .map(z => (
       <option key={z} value={z}>Zone {z}</option>
     ))}
-  {[...new Set(plants.map(p => p.zones).filter(Boolean))]
-    .sort((a,b)=>Number(a)-Number(b))
-    .map(z => (
-      <option key={z} value={z}>Zone {z}</option>
-    ))}
 </select>
-
 
         <input
           type="month"
@@ -1005,12 +930,10 @@ return (
               // ✅ ONLY SITE NAME CELL
              backgroundColor:
             idx === 4 && r.noPower
-            idx === 4 && r.noPower
              ? "#E5E7EB" // grey
              : "transparent",
 
             color:
-          idx === 4 && r.noPower
           idx === 4 && r.noPower
            ? "#000000"
           : "#000",
