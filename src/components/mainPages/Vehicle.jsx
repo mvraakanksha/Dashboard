@@ -22,6 +22,8 @@ import { getAllPlants } from "../../services/plantService";
 import { getVehicleOperationsByDate, getVehiclesByPlant} from "../../services/vehicleService";
 import { getOperationsByDate,getOperationsByDateRange} from "../../services/operationService";
 import { getEmployeesByPlant } from "../../services/employeeService";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 /* ---------------- CLICKABLE X-TICK ---------------- */
 const ClickableTick = ({
@@ -187,7 +189,7 @@ const [vehiclesMap, setVehiclesMap] = useState({});
   const [vehicleSortMode, setVehicleSortMode] = useState("distance");
 const [operationsData, setOperationsData] = useState([]);
 const [employeesMap, setEmployeesMap] = useState({});
-
+const [pdfFilter, setPdfFilter] = useState("all"); // "all", "expired", "soon", "both"
 
 
   /* ---------------- FETCH PLANTS ---------------- */
@@ -321,6 +323,17 @@ const expiringVehicles = useMemo(() => {
     })
     .filter(Boolean);
 }, [filteredVehicleOps, date]);
+
+
+const expiredCount = useMemo(
+  () => expiringVehicles.filter(v => v.status === "expired").length,
+  [expiringVehicles]
+);
+
+const expiringSoonCount = useMemo(
+  () => expiringVehicles.filter(v => v.status === "soon").length,
+  [expiringVehicles]
+);
 
 const insuranceAlertMap = useMemo(() => {
   const map = {};
@@ -492,7 +505,101 @@ const totalPrivateSludge = useMemo(() => {
     }
   }, [chartData, vehicleSortMode]);
 
-  /* ---------------- UI ---------------- */
+
+const downloadInsurancePdf = () => {
+  const doc = new jsPDF();
+  const getPlant = (plantId) => plants.find(p => Number(p.plantID) === Number(plantId));
+
+  let reportData = [];
+  let goodCount = 0;
+
+  // 1. Process Master List
+  Object.entries(vehiclesMap).forEach(([plantId, vehicles]) => {
+    vehicles.forEach(v => {
+      // Check if date exists first
+      const hasDate = !!v.insuranceExpiryDate;
+      const statusRaw = hasDate ? checkInsuranceStatus(v.insuranceExpiryDate, date) : null;
+      
+      if (statusRaw === "valid") goodCount++;
+      
+      if (pdfFilter === "all") {
+        reportData.push({
+          plantId,
+          vehicleNumber: v.vehicleNumber,
+          // Blank if no date
+          expiry: hasDate ? new Date(v.insuranceExpiryDate).toLocaleDateString("en-IN") : "-",
+          // Blank status if no date, otherwise map status
+          status: !hasDate ? "-" : (statusRaw === "valid" ? "Good" : (statusRaw === "expired" ? "Expired" : "Expiring Soon"))
+        });
+      }
+    });
+  });
+
+  // 2. Process Alert List (if not 'all')
+  if (pdfFilter !== "all") {
+    reportData = expiringVehicles.filter(v => {
+      if (!v.expiry) return false; // Safety check: alert list should usually have dates
+      if (pdfFilter === "expired") return v.status === "expired";
+      if (pdfFilter === "soon") return v.status === "soon";
+      if (pdfFilter === "both") return v.status === "expired" || v.status === "soon";
+      return true;
+    }).map(v => ({
+      ...v,
+      expiry: v.expiry ? new Date(v.expiry).toLocaleDateString("en-IN") : "-",
+      status: v.status === "expired" ? "Expired" : "Expiring Soon"
+    }));
+  }
+
+  // 3. Render Header (Metrics)
+  doc.setFontSize(18);
+  doc.setTextColor(0, 63, 138);
+  doc.text("Vehicle Insurance Status Report", 14, 15);
+
+  doc.setFontSize(11);
+  doc.setTextColor(0);
+  doc.text(`Total Plants: ${totalPlants}   |   Total Vehicles: ${totalVehicles}`, 14, 30);
+
+  let currentX = 14;
+  doc.setFontSize(10);
+  
+  // Row for Dynamic counts
+  if (pdfFilter === "all") {
+    doc.setTextColor(5, 150, 105); doc.text(`Good: ${goodCount}`, currentX, 38); currentX += 30;
+  }
+  if (["all", "expired", "both"].includes(pdfFilter)) {
+    doc.setTextColor(220, 38, 38); doc.text(`Expired: ${expiredCount}`, currentX, 38); currentX += 35;
+  }
+  if (["all", "soon", "both"].includes(pdfFilter)) {
+    doc.setTextColor(245, 158, 11); doc.text(`Soon: ${expiringSoonCount}`, currentX, 38);
+  }
+
+  // 4. Generate Table
+  const tableRows = reportData.map((v, i) => [
+    i + 1,
+    getPlant(v.plantId)?.plantID ?? v.plantId,
+    getPlant(v.plantId)?.plantName ?? "-",
+    v.vehicleNumber,
+    v.expiry, 
+    v.status
+  ]);
+
+  autoTable(doc, {
+    startY: 45,
+    head: [["S.No", "PID", "Plant Name", "Vehicle No", "Expiry Date", "Status"]],
+    body: tableRows,
+    headStyles: { fillColor: [0, 63, 138] },
+    didParseCell: (data) => {
+      if (data.section === "body") {
+        const val = data.row.raw[5];
+        if (val === "Expired") data.cell.styles.textColor = [220, 38, 38];
+        if (val === "Expiring Soon") data.cell.styles.textColor = [180, 100, 0];
+        if (val === "Good") data.cell.styles.textColor = [5, 150, 105];
+      }
+    }
+  });
+
+  doc.save(`Insurance_Report_${pdfFilter}.pdf`);
+};
  /* ---------------- UI ---------------- */
 return (
   <div className="min-h-screen p-6 bg-gradient-to-br from-[#CFE2FF] via-[#BBD8FE] to-[#013B88]">
@@ -542,6 +649,7 @@ return (
           { label: "Total Distance", value: Math.round(totalDistance), icon: <Activity size={18} />, bg: "#FFE4E6", bar: "#E11D48" },
           { label: "Avg Distance", value: Math.round(avgDistance), icon: <Activity size={18} />, bg: "#FEF3C7", bar: "#D97706" },
           { label: "Private Vehicle Trips", value: totalPrivateTrips, subValue: `Sludge collected : ${totalPrivateSludge.toLocaleString()} L`, icon: <Milestone size={18} />, bg: "#EDE9FE", bar: "#7C3AED" }
+
         ].map((card, i) => (
           <div
             key={i}
@@ -586,6 +694,29 @@ return (
           Vehicle Movement
         </h3>
 
+<div className="flex items-end gap-3 mb-4">
+  <div className="flex flex-col">
+    <label className="text-[12px] font-bold text-slate-500  mb-1">Insurance Expiry Report Type</label>
+    <select
+      value={pdfFilter}
+      onChange={(e) => setPdfFilter(e.target.value)}
+      className="border rounded-md px-2 py-1.5 text-xs font-semibold bg-white border-slate-300 outline-none focus:ring-2 focus:ring-blue-500"
+    >
+     <option value="all">Show All Vehicles (Complete List)</option>
+  <option value="expired">Show Only Expired</option>
+  <option value="soon">Show Only Expiring Soon</option>
+  <option value="both">Show Both (Expired + Soon)</option>
+</select>
+  </div>
+
+  <button
+    onClick={downloadInsurancePdf}
+    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-xs font-bold rounded-md transition duration-200 shadow-sm flex items-center gap-2"
+  >
+    Generate PDF Report
+  </button>
+</div>
+
         <div className="flex-col justify-end">
           <span className="text-xs font-semibold text-slate-500">
             Sort by
@@ -603,6 +734,7 @@ return (
             <option value="id">Plant ID</option>
           </select>
         </div>
+
       </div>
 
       <div className={needsScroll ? "overflow-x-auto" : ""}>
