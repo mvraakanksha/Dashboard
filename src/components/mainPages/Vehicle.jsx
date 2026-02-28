@@ -564,10 +564,24 @@ const downloadInsurancePdf = async () => {
   doc.setTextColor(0);
   doc.text("FSTP RAJASTHAN", pageWidth / 2, 21, { align: "center" });
 
-  doc.setFont("times", "normal");
-  doc.setFontSize(11);
-  doc.text("Vehicle Insurance Report", pageWidth / 2, 27, { align: "center" });
+let reportTitle = "Vehicle Insurance Report";
 
+if (pdfFilter === "expired") {
+  reportTitle = "Vehicle Insurance Expired Report";
+}
+
+if (pdfFilter === "soon") {
+  reportTitle = "Vehicle Insurance Expiring Soon Report";
+}
+
+if (pdfFilter === "both") {
+  reportTitle = "Vehicle Insurance Expired and Expiring Soon Report";
+}
+
+doc.setFont("times", "bold");
+doc.setFontSize(12);
+doc.setTextColor(0);
+doc.text(reportTitle, pageWidth / 2, 27, { align: "center" });
   const getPlant = id =>
     plants.find(p => Number(p.plantID) === Number(id));
 
@@ -625,14 +639,61 @@ if (pdfFilter === "both")
   );
 
   /* ===== TOTALS ===== */
-  const totalVehicles = allVehicles.length;
+/* ===== TOTALS ===== */
 
-  doc.setFontSize(10);
-  doc.text(`Total Plants: ${totalPlants}`, 14, 38);
-  doc.text(`Total Vehicles: ${totalVehicles}`, 70, 38);
-  doc.text(`Good: ${goodCount}`, 130, 38);
-  doc.text(`Expired: ${expiredCount}`, 14, 44);
-doc.text(`Soon: ${soonCount}`, 70, 44);
+/* ===== TOTALS ===== */
+
+const totalVehicles = allVehicles.length;
+
+/* ===== TOTALS (ALIGNED WITH TABLE WIDTH) ===== */
+
+// const pageWidth = doc.internal.pageSize.getWidth();
+const tableLeft = 14; // default autoTable margin
+const tableRight = pageWidth - 14;
+const tableWidth = tableRight - tableLeft;
+
+doc.setFontSize(10);
+doc.setFont("times", "normal");
+doc.setTextColor(0, 0, 0); // Pure black
+// Build dynamic items array
+let items = [
+  `Total Plants: ${totalPlants}`,
+  `Total Vehicles: ${allVehicles.length}`
+];
+
+if (pdfFilter === "all") {
+  items.push(
+    `Good: ${goodCount}`,
+    `Expired: ${expiredCount}`,
+    `Soon: ${soonCount}`
+  );
+}
+
+if (pdfFilter === "expired") {
+  items.push(`Expired: ${expiredCount}`);
+}
+
+if (pdfFilter === "soon") {
+  items.push(`Expiring Soon: ${soonCount}`);
+}
+
+if (pdfFilter === "both") {
+  items.push(
+    `Expired: ${expiredCount}`,
+    `Soon: ${soonCount}`
+  );
+}
+
+// Dynamic spacing
+const sectionWidth = tableWidth / items.length;
+
+items.forEach((text, index) => {
+  const xPosition = tableLeft + (sectionWidth * index) + (sectionWidth / 2);
+  doc.text(text, xPosition, 38, { align: "center" });
+});
+
+// Print everything in one line
+// doc.text(summaryText, 14, 38);
 
   /* ===== GROUP BY PLANT ===== */
   const group = {};
@@ -643,6 +704,8 @@ doc.text(`Soon: ${soonCount}`, 70, 44);
 
   /* ===== TABLE BODY (PLANT MERGE STYLE) ===== */
   const body = [];
+doc.setDrawColor(0, 0, 0);
+doc.setLineWidth(0.5); 
 
   Object.entries(group).forEach(([plantId, vehicles]) => {
     const plant = getPlant(plantId);
@@ -660,46 +723,80 @@ doc.text(`Soon: ${soonCount}`, 70, 44);
   });
 
   /* ===== TABLE ===== */
-  autoTable(doc, {
-    startY: 50,
+autoTable(doc, {
+  startY: 50,
 
-    theme: "grid",
+  theme: "grid",
 
-    styles: {
-      font: "times",
-      fontSize: 8,
-      cellPadding: 2
-    },
+  styles: {
+    font: "times",
+    fontSize: 8,
+    cellPadding: 2,
+    halign: "center",
+    valign: "middle",
+    lineColor: [0, 0, 0],   // 🔥 BLACK borders
+    lineWidth: 0.5          // Slightly thicker
+  },
 
-    headStyles: {
-      fillColor: [220, 230, 241],
-      textColor: 0,
-      fontStyle: "bold",
-      halign: "center"
-    },
+  headStyles: {
+    fillColor: [220, 230, 241],
+    textColor: [0, 0, 0],   // 🔥 BLACK header text
+    fontStyle: "bold",
+    halign: "center",
+    valign: "middle",
+    lineColor: [0, 0, 0],   // 🔥 BLACK header borders
+    lineWidth: 0.5
+  },
 
-    head: [[
-      "Plant ID",
-      "Plant Name",
-      "Zone",
-      "Vehicle No",
-      "Expiry",
-      "Status"
-    ]],
+  bodyStyles: {
+    lineColor: [0, 0, 0],   // 🔥 BLACK body borders
+    lineWidth: 0.2
+  },
 
-    body,
+  head: [[
+    "Plant ID",
+    "Plant Name",
+    "Zone",
+    "Vehicle No",
+    "Expiry",
+    "Status"
+  ]],
 
-    didParseCell: (data) => {
-      if (data.section === "body") {
-        const val = data.row.raw[5];
-        if (val === "Expired") data.cell.styles.textColor = [220, 38, 38];
-        if (val === "Expiring Soon") data.cell.styles.textColor = [180, 100, 0];
-        if (val === "Good") data.cell.styles.textColor = [5, 150, 105];
+  body,
+
+  didParseCell: (data) => {
+    if (data.section === "body") {
+      const val = data.row.raw[5];
+
+      if (val === "Expired") {
+        data.cell.styles.textColor = [220, 38, 38];
+      }
+
+      if (val === "Expiring Soon") {
+        data.cell.styles.textColor = [180, 100, 0];
+      }
+
+      if (val === "Good") {
+        data.cell.styles.textColor = [5, 150, 105];
       }
     }
-  });
+  }
+});
+let fileName = "Vehicle_Insurance_Report.pdf";
 
-  doc.save(`Insurance_Report_${pdfFilter}.pdf`);
+if (pdfFilter === "expired") {
+  fileName = "Vehicle_Insurance_Expired_Report.pdf";
+}
+
+if (pdfFilter === "soon") {
+  fileName = "Vehicle_Insurance_Expiring_Soon_Report.pdf";
+}
+
+if (pdfFilter === "both") {
+  fileName = "Vehicle_Insurance_Expired_and_Expiring_Soon_Report.pdf";
+}
+
+doc.save(fileName);
 };
 
 const downloadInsuranceExcel = async () => {
@@ -724,23 +821,66 @@ const downloadInsuranceExcel = async () => {
   ws.mergeCells("A1:G1");
   ws.getCell("A1").value = "MVR TECHNOLOGY";
   ws.getCell("A1").alignment = { horizontal: "center" };
-  ws.getCell("A1").font = {
-    name: "Times New Roman",
-    bold: true,
-    size: 18,
-    color: { argb: "FFCC0000" }
-  };
+
+// MVR TECHNOLOGY (Red + Bold)
+ws.getCell("A1").font = {
+  name: "Times New Roman",
+  size: 18,
+  bold: true,
+  color: { argb: "FFFF0000" } // Red
+};
+
+ws.getCell("A1").alignment = {
+  horizontal: "center",
+  vertical: "middle"
+};
+
 
   ws.mergeCells("A2:G2");
   ws.getCell("A2").value = "FSTP RAJASTHAN";
-  ws.getCell("A2").alignment = { horizontal: "center" };
-  ws.getCell("A2").font = { name: "Times New Roman", bold: true, size: 12 };
+
+// FSTP RAJASTHAN (Black + Bold)
+ws.getCell("A2").font = {
+  name: "Times New Roman",
+  size: 13,
+  bold: true,
+  color: { argb: "FF000000" } // Black
+};
+
+ws.getCell("A2").alignment = {
+  horizontal: "center",
+  vertical: "middle"
+};
+
 
   ws.mergeCells("A3:G3");
-  ws.getCell("A3").value = "Vehicle Insurance Report";
-  ws.getCell("A3").alignment = { horizontal: "center" };
-  ws.getCell("A3").font = { name: "Times New Roman", size: 11 };
+let reportTitle = "Vehicle Insurance Report";
 
+if (pdfFilter === "expired") {
+  reportTitle = "Vehicle Insurance Expired Report";
+}
+
+if (pdfFilter === "soon") {
+  reportTitle = "Vehicle Insurance Expiring Soon Report";
+}
+
+if (pdfFilter === "both") {
+  reportTitle = "Vehicle Insurance Expired and Expiring Soon Report";
+}
+
+ws.getCell("A3").value = reportTitle;
+// Vehicle Insurance Report (Black + Bold)
+ws.getCell("A3").font = {
+  name: "Times New Roman",
+  size: 12,
+  bold: true,
+  color: { argb: "FF000000" } // Black
+};
+
+ws.getCell("A3").alignment = {
+  horizontal: "center",
+  vertical: "middle"
+};
   ws.mergeCells("A4:G4");
 
   /* ===== BUILD MASTER LIST ===== */
@@ -800,9 +940,27 @@ const downloadInsuranceExcel = async () => {
   ws.getCell("C5").font = { bold: true };
 
   ws.mergeCells("E5:G5");
-  ws.getCell("E5").value =
-    `Good: ${goodCount}   Expired: ${expiredCount}   Soon: ${soonCount}`;
-  ws.getCell("E5").font = { bold: true };
+let countText = "";
+
+if (pdfFilter === "all") {
+  countText = `Good: ${goodCount}   Expired: ${expiredCount}   Soon: ${soonCount}`;
+}
+
+if (pdfFilter === "expired") {
+  countText = `Expired: ${expiredCount}`;
+}
+
+if (pdfFilter === "soon") {
+  countText = `Expiring Soon: ${soonCount}`;
+}
+
+if (pdfFilter === "both") {
+  countText = `Expired: ${expiredCount}   Soon: ${soonCount}`;
+}
+
+ws.getCell("E5").value = countText;
+
+    ws.getCell("E5").font = { bold: true };
 
   ws.addRow([]);
 
@@ -818,17 +976,25 @@ const downloadInsuranceExcel = async () => {
     "Status"
   ];
 
-  ws.addRow(headers);
+ ws.addRow(headers);
 
-  ws.lastRow.eachCell(cell => {
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFDCE6F1" }
-    };
-    cell.font = { bold: true };
-    cell.alignment = { horizontal: "center" };
-  });
+const tableStartRow = ws.lastRow.number; // header row number
+
+ws.lastRow.eachCell(cell => {
+  cell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFD9D9D9" }  // light grey
+  };
+  cell.font = {
+    name: "Times New Roman",
+    bold: true
+  };
+  cell.alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
+});
 
   const getPlant = id =>
     plants.find(p => Number(p.plantID) === Number(id));
@@ -869,8 +1035,95 @@ const downloadInsuranceExcel = async () => {
 
   ws.columns.forEach(col => (col.width = 20));
 
+  /* ===== STYLE ENTIRE SHEET ===== */
+
+// ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+//   row.eachCell({ includeEmpty: true }, (cell) => {
+
+//    ws.eachRow(row => {
+//   row.height = 22;
+// });
+
+//     // Font - Times New Roman for all
+//     cell.font = {
+//       name: "Times New Roman",
+//       size: 11,
+//       bold: rowNumber === 1 || rowNumber === 2 || rowNumber === 5 || rowNumber === 6 // keep headers bold
+//     };
+
+//     // Alignment - Center + Middle
+//     cell.alignment = {
+//       horizontal: "center",
+//       vertical: "middle",
+//       wrapText: true
+//     };
+
+//     // Borders
+//     cell.border = {
+//       top: { style: "thin" },
+//       left: { style: "thin" },
+//       bottom: { style: "thin" },
+//       right: { style: "thin" }
+//     };
+//   });
+// });
+const tableEndRow = ws.lastRow.number;
+
+/* ===== STYLE TABLE ONLY ===== */
+
+for (let i = tableStartRow; i <= tableEndRow; i++) {
+  const row = ws.getRow(i);
+
+  row.eachCell({ includeEmpty: true }, (cell) => {
+
+    // Font
+    cell.font = {
+      name: "Times New Roman",
+      size: 11,
+      bold: i === tableStartRow // only table header bold
+    };
+
+    // Alignment
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+
+    // ✅ Apply borders to BOTH header + data rows
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+
+  row.height = 22;
+}
+ws.getCell("A1").font = {
+  name: "Times New Roman",
+  size: 18,
+  bold: true,
+  color: { argb: "FFFF0000" }
+};
   const buffer = await wb.xlsx.writeBuffer();
-  saveAs(new Blob([buffer]), `Insurance_Report_${pdfFilter}.xlsx`);
+ let fileName = "Vehicle_Insurance_Report.xlsx";
+
+if (pdfFilter === "expired") {
+  fileName = "Vehicle_Insurance_Expired_Report.xlsx";
+}
+
+if (pdfFilter === "soon") {
+  fileName = "Vehicle_Insurance_Expiring_Soon_Report.xlsx";
+}
+
+if (pdfFilter === "both") {
+  fileName = "Vehicle_Insurance_Expired_and_Expiring_Soon_Report.xlsx";
+}
+
+saveAs(new Blob([buffer]), fileName);
+
 };
  /* ---------------- UI ---------------- */
 return (

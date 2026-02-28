@@ -304,6 +304,7 @@ const generate = () => {
 
 
 
+
 return(
 <div className={`max-w-7xl mx-auto p-6 md:p-10 bg-slate-50/50 min-h-screen }`}>
 {/* HEADER */}
