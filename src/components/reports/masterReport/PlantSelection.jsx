@@ -83,15 +83,13 @@ fields:[
 { id:"civilWorkCompletedDate", label:"Civil Work Completed Date" },
 
 { id:"machinaryAssembleDate", label:"Machinery Assembled Date" },
-{ id:"ctoCertified", label:"CTO Certified" },
+{ id:"ctoCertified", label:"CTO Status" },
 { id:"ctoIssuedDate", label:"CTO Issued Date" },
-{ id:"cteCertified", label:"CTE Certified" },
+{ id:"cteCertified", label:"CTE Status" },
 { id:"cteIssuedDate", label:"CTE Issued Date" }
-
 
 ]
 },
-
 
 
 ];
@@ -108,7 +106,7 @@ const VEHICLE_FIELDS = [
   { id:"insuranceExpiryDate", label:"Insurance Expiry" },
 
   { id:"gpsStatus", label:"GPS Status" },
-  { id:"gpsInstallationDate", label:"GPS Installed" },
+  { id:"gpsInstallationDate", label:"GPS Installed Date" },
 
   { id:"vehicleEngineNumber", label:"Engine Number" },
 
@@ -305,6 +303,7 @@ const generate = () => {
 };
 
 
+
 return(
 <div className={`max-w-7xl mx-auto p-6 md:p-10 bg-slate-50/50 min-h-screen }`}>
 {/* HEADER */}
@@ -418,7 +417,7 @@ onToggle={id=>toggle(selVehicleFields,setSelVehicleFields,id)}
 
 {/* EMPLOYEE */}
 {modules.employee && (
-<div className="bg-white p-5 rounded-2xl border shadow-sm">
+<div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
 
 <h3 className="font-bold text-slate-800 mb-3">Designation Based</h3>
 
