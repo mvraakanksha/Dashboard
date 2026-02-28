@@ -302,7 +302,38 @@ const generate = () => {
   });
 };
 
+const totals = useMemo(() => {
+  if (!config) return null;
 
+  const totalPlants = config.plants.length;
+
+  let totalVehicles = 0;
+  let totalEmployees = 0;
+
+  config.plants.forEach(p => {
+
+    if (config.modules.vehicle) {
+      totalVehicles += (config.vehiclesMap[p.plantID] || []).length;
+    }
+
+    if (config.modules.employee) {
+      totalEmployees += (config.employeesMap[p.plantID] || [])
+        .filter(e =>
+          config.selectedRoles?.length
+            ? config.selectedRoles.includes(e.designation)
+            : true
+        ).length;
+    }
+
+  });
+
+  return {
+    totalPlants,
+    totalVehicles,
+    totalEmployees
+  };
+
+}, [config]);
 
 
 return(
@@ -315,7 +346,7 @@ return(
 </div>
 
 <button onClick={generate}
-className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg">
+className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-900 text-white rounded-2xl font-bold shadow-lg">
 <Download size={18}/>Generate Report
 </button>
 </div>
@@ -580,9 +611,48 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
 </table>
 )}
 
-{/* ===== GENERATED TABLE ===== */}
+
 {/* ===== GENERATED TABLE ===== */}
 {config && (
+<>
+  {totals && (
+  <div className="p-6 bg-slate-100 border-b">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+      {/* Plants */}
+      <div className="bg-white rounded-2xl shadow-md p-4 border">
+        <p className="text-xs text-slate-500 uppercase">Total Plants</p>
+        <p className="text-2xl font-bold text-slate-800">
+          {totals.totalPlants}
+        </p>
+      </div>
+
+      {/* Vehicles */}
+      {config.modules.vehicle && (
+        <div className="bg-white rounded-2xl shadow-md p-4 border">
+          <p className="text-xs text-slate-500 uppercase">Total Vehicles</p>
+          <p className="text-2xl font-bold text-indigo-600">
+            {totals.totalVehicles}
+          </p>
+        </div>
+      )}
+
+      {/* Employees */}
+      {config.modules.employee && (
+        <div className="bg-white rounded-2xl shadow-md p-4 border">
+          <p className="text-xs text-slate-500 uppercase">
+            Total Employees
+          </p>
+          <p className="text-2xl font-bold text-emerald-600">
+            {totals.totalEmployees}
+          </p>
+        </div>
+      )}
+
+    </div>
+  </div>
+)}
+
   <table className="w-full text-sm border-collapse text-left">
     <thead className="bg-slate-900 text-white sticky top-0 z-20">
       {/* Category Row (Optional but helpful for visual grouping) */}
@@ -679,6 +749,7 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
       ))}
     </tbody>
   </table>
+  </>
 )}
 
 </div>
@@ -686,5 +757,6 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
 
 </div>
 );
+
 }
 

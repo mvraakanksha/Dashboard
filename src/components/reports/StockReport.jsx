@@ -5,6 +5,10 @@ import autoTable from "jspdf-autotable";
 import { getAllPlants } from "../../services/plantService";
 import { getOperationsByDateRange } from "../../services/operationService";
 import companyLogo from "./company_logo1.jpg";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+// import companyLogo from '../reports/company_logo1.jpg'
+
 const getLastEnteredStock = (ops, stockKey) => {
   if (!Array.isArray(ops)) return null;
 
@@ -190,42 +194,171 @@ const finalFilteredData = useMemo(() => {
 
 }, [stockData, filters, selectedPlants]);
   /* ---------------- DOWNLOAD CSV ---------------- */
-  const downloadReport = () => {
-    if (!finalFilteredData.length) {
-      alert("No data found for selected filters");
-      return;
-    }
 
-    const headers = [
-        "S.No",
-      "Plant ID",
-      "Plant Name",
-      "Zone",
-      "Pellets Stock (Kg)",
-      "Polymer Stock (Kg)"
+const downloadReport = async () => {
+  if (!finalFilteredData.length) {
+    alert("No data found for selected filters");
+    return;
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Stock Report");
+
+  let totalColumns = 4;
+  if (filters.pellets) totalColumns++;
+  if (filters.polymer) totalColumns++;
+
+  /* ================= ADD LOGO ================= */
+
+  const response = await fetch(companyLogo);
+  const blob = await response.blob();
+  const buffer = await blob.arrayBuffer();
+
+  const imageId = workbook.addImage({
+    buffer: buffer,
+    extension: "jpeg",
+  });
+
+  worksheet.addImage(imageId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: 120, height: 60 },
+  });
+
+  /* ================= HEADER TEXT ================= */
+
+  // Company Name
+  worksheet.mergeCells(1, 1, 1, totalColumns);
+  const header1 = worksheet.getCell("A1");
+  header1.value = "MVR TECHNOLOGY";
+  header1.font = {
+    name: "Times New Roman",
+    size: 18,
+    bold: true,
+    color: { argb: "FFFF0000" },
+  };
+  header1.alignment = { horizontal: "center", vertical: "middle" };
+
+  // Subtitle
+  worksheet.mergeCells(2, 1, 2, totalColumns);
+  const header2 = worksheet.getCell("A2");
+  header2.value = "FSTP RAJASTHAN";
+  header2.font = {
+    name: "Times New Roman",
+    size: 12,
+    bold: true,
+  };
+  header2.alignment = { horizontal: "center" };
+
+  // Report Title
+  worksheet.mergeCells(3, 1, 3, totalColumns);
+  const header3 = worksheet.getCell("A3");
+  header3.value = "Pellets & Polymer Stock Details Report";
+  header3.font = {
+    name: "Times New Roman",
+    size: 11,
+  };
+  header3.alignment = { horizontal: "center" };
+
+  worksheet.addRow([]);
+
+  /* ================= TABLE HEADER ================= */
+
+  const columns = [
+    "S.No",
+    "Plant ID",
+    "Plant Name",
+    "Zone",
+  ];
+
+  if (filters.pellets) columns.push("Pellets Stock (Kg)");
+  if (filters.polymer) columns.push("Polymer Stock (Kg)");
+
+  const headerRow = worksheet.addRow(columns);
+
+  headerRow.eachCell((cell) => {
+    cell.font = {
+      name: "Times New Roman",
+      bold: true,
+    };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFD9D9D9" },
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+  });
+
+  /* ================= TABLE BODY ================= */
+
+  finalFilteredData.forEach((row, index) => {
+    const rowData = [
+      index + 1,
+      row.plantId,
+      row.plantName,
+      row.zone,
     ];
 
-    const rows = finalFilteredData.map((r) => [
-      r.plantId,
-      r.plantName,
-      r.zone,
-      r.pelletsStock ?? "-",
-      r.polymerStock ?? "-"
-    ]);
+    if (filters.pellets)
+      rowData.push(row.pelletsStock ?? "-");
 
-    const csv =
-      [headers, ...rows].map((e) => e.join(",")).join("\n");
+    if (filters.polymer)
+      rowData.push(row.polymerStock ?? "-");
 
-    const blob = new Blob([csv], {
-      type: "text/csv;charset=utf-8;"
+    const dataRow = worksheet.addRow(rowData);
+
+    dataRow.eachCell((cell, colNumber) => {
+      cell.font = { name: "Times New Roman" };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" },
+      };
+
+      // ===== COLOR LOGIC =====
+      if (filters.pellets && colNumber === columns.indexOf("Pellets Stock (Kg)") + 1) {
+        const val = row.pelletsStock;
+        if (val === 0)
+          cell.font = { name: "Times New Roman", bold: true, color: { argb: "FFFF0000" } };
+        else if (val > 0 && val <= 200)
+          cell.font = { name: "Times New Roman", bold: true, color: { argb: "FFFFC000" } };
+        else
+          cell.font = { name: "Times New Roman", bold: true, color: { argb: "FF008000" } };
+      }
+
+      if (filters.polymer && colNumber === columns.indexOf("Polymer Stock (Kg)") + 1) {
+        const val = row.polymerStock;
+        if (val === 0)
+          cell.font = { name: "Times New Roman", bold: true, color: { argb: "FFFF0000" } };
+        else if (val > 0 && val <= 10)
+          cell.font = { name: "Times New Roman", bold: true, color: { argb: "FFFFC000" } };
+        else
+          cell.font = { name: "Times New Roman", bold: true, color: { argb: "FF008000" } };
+      }
     });
+  });
 
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Stock_Report_${date}.csv`;
-    link.click();
-  };
+  /* ================= AUTO WIDTH ================= */
 
+  worksheet.columns.forEach((column) => {
+    let maxLength = 10;
+    column.eachCell({ includeEmpty: true }, (cell) => {
+      const length = cell.value ? cell.value.toString().length : 10;
+      if (length > maxLength) maxLength = length;
+    });
+    column.width = maxLength + 2;
+  });
+
+  const bufferFile = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([bufferFile]), `Stock_Report_${date}.xlsx`);
+};
 const downloadPDF = async () => {
   if (!finalFilteredData.length) {
     alert("No data found for selected filters");

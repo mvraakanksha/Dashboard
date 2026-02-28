@@ -1612,10 +1612,42 @@ const overviewTotals = useMemo(() => {
 
   const list = [];
 
+  const isVehicleEnabled = metrics.some(
+    m => m.module === "vehicle"
+  );
+
+  /* ================= TOTAL SELECTED PLANTS (NEW) ================= */
+  list.push({
+    label: "Selected Plants",
+    value: rows.length
+  });
+
+  /* ================= TOTAL VEHICLES ================= */
+  if (isVehicleEnabled) {
+    const vehicleSet = new Set();
+
+    rows.forEach(r => {
+      dates.forEach(d => {
+        r.values?.[d]?.vehicleRows?.forEach(v => {
+          if (v?.vehicleNo) {
+            vehicleSet.add(
+              String(v.vehicleNo).trim().toUpperCase()
+            );
+          }
+        });
+      });
+    });
+
+    list.push({
+      label: "Vehicles",
+      value: vehicleSet.size
+    });
+  }
+
+  /* ================= EXISTING TOTALS ================= */
   metrics.forEach(m => {
     const isVehicle = m.module === "vehicle";
 
-    // 🚫 same exclusion as footer
     const shouldExclude =
       (m.module === "lab" && m.metric !== "cumulativeFlow") ||
       m.metric === "tankLevel" ||
