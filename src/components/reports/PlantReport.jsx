@@ -15,7 +15,7 @@ import { saveAs } from "file-saver";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { getAllPlants } from "../../services/plantService";
-
+import { getVehiclesByPlant } from "../../services/vehicleService";
 import companyLogo from './company_logo1.jpg'
 
 // ✔ jsPDF-safe PNG icons (verified)
@@ -76,6 +76,7 @@ export default function PlantReport() {
   const [loading, setLoading] = useState(true);
 const [fromDate, setFromDate] = useState("");
 const [toDate, setToDate] = useState("");
+const [gpsDataMap, setGpsDataMap] = useState({});
   const [zoneFilter, setZoneFilter] = useState(() => {
   return localStorage.getItem("plantReportZone") || "All";
 });
@@ -105,6 +106,47 @@ useEffect(() => {
     .catch(console.error)
     .finally(() => setLoading(false));
 }, []);
+
+useEffect(() => {
+  if (!plants.length) return;
+
+  const fetchGpsData = async () => {
+    const map = {};
+
+    await Promise.all(
+      plants.map(async (plant) => {
+        try {
+          const vehicles = await getVehiclesByPlant(plant.plantID);
+
+          // if any vehicle has gpsStatus true
+          const gpsVehicle = vehicles?.find(v => v.gpsStatus);
+
+          if (gpsVehicle) {
+            map[plant.plantID] = {
+              gpsStatus: true,
+              gpsInstallationDate: gpsVehicle.gpsInstallationDate
+            };
+          } else {
+            map[plant.plantID] = {
+              gpsStatus: false,
+              gpsInstallationDate: null
+            };
+          }
+
+        } catch (err) {
+          map[plant.plantID] = {
+            gpsStatus: false,
+            gpsInstallationDate: null
+          };
+        }
+      })
+    );
+
+    setGpsDataMap(map);
+  };
+
+  fetchGpsData();
+}, [plants]);
 
   /* ================= ZONES ================= */
   const zones = useMemo(
@@ -155,6 +197,25 @@ const filteredPlants = useMemo(() => {
       dateField = p.codAndBodSenserDate;
     }
 
+    if (selectedCard === "IPPHONES") {
+  value = !!p.ipPhoneDate;
+  dateField = p.ipPhoneDate;
+}
+
+if (selectedCard === "TABS") {
+  value = !!p.tabsReceivedDate;
+  dateField = p.tabsReceivedDate;
+}
+
+if (selectedCard === "GPS") {
+  const gpsInfo = gpsDataMap[p.plantID];
+  value = gpsInfo?.gpsStatus || false;
+  dateField = gpsInfo?.gpsInstallationDate || null;
+}
+if (selectedCard === "CAMERA") {
+  value = !!p.cameraConfigurationDate;
+  dateField = p.cameraConfigurationDate;
+}
     if (selectedCard === "CTE") {
       value = p.cteCertified;
       dateField = p.cteIssuedDate;
@@ -196,12 +257,18 @@ const counts = useMemo(() => ({
   solar: zoneFilteredPlants.filter(p => p.solar).length,
   internet: zoneFilteredPlants.filter(p => p.internet).length,
 codBod: zoneFilteredPlants.filter(p => p.codAndBodSenserDate).length,
+ipPhones: zoneFilteredPlants.filter(p => p.ipPhoneDate).length,
+tabsReceived: zoneFilteredPlants.filter(p => p.tabsReceivedDate).length,
+gpsInstalled: zoneFilteredPlants.filter(
+  p => gpsDataMap[p.plantID]?.gpsStatus
+).length,
+cameraConfigured: zoneFilteredPlants.filter(p => p.cameraConfigurationDate).length,
   // ✅ CTE / CTO
   cteCertified: zoneFilteredPlants.filter(p => p.cteCertified).length,
   cteIssued: zoneFilteredPlants.filter(p => p.cteIssuedDate).length,
   ctoCertified: zoneFilteredPlants.filter(p => p.ctoCertified).length,
   ctoIssued: zoneFilteredPlants.filter(p => p.ctoIssuedDate).length,
-}), [zoneFilteredPlants]);
+}), [zoneFilteredPlants,gpsDataMap]);
 
   /* ================= TODAY DATE ================= */
   const today = useMemo(
@@ -402,6 +469,28 @@ const pdfBody = filteredPlants.map((p, i) => {
     status = p.internet;
     completionDate = formatDate(p.internetDateOfCompletion);
   }
+  if (selectedCard === "IPPHONES") {
+  status = !!p.ipPhoneDate;
+  completionDate = p.ipPhoneDate ? formatDate(p.ipPhoneDate) : "-";
+}
+
+if (selectedCard === "TABS") {
+  status = !!p.tabsReceivedDate;
+  completionDate = p.tabsReceivedDate ? formatDate(p.tabsReceivedDate) : "-";
+}
+
+if (selectedCard === "GPS") {
+  const gpsInfo = gpsDataMap[p.plantID];
+  status = gpsInfo?.gpsStatus || false;
+  completionDate = gpsInfo?.gpsInstallationDate
+    ? formatDate(gpsInfo.gpsInstallationDate)
+    : "-";
+}
+
+if (selectedCard === "CAMERA") {
+  status = !!p.cameraConfigurationDate;
+  completionDate = p.cameraConfigurationDate ? formatDate(p.cameraConfigurationDate) : "-";
+}
 
   return [
     i + 1,
@@ -664,7 +753,27 @@ filteredPlants.forEach((p, index) => {
         ? formatDate(p.codAndBodSenserDate)
         : "-";
     }
+if (selectedCard === "IPPHONES") {
+  status = !!p.ipPhoneDate;
+  completionDate = p.ipPhoneDate ? formatDate(p.ipPhoneDate) : "-";
+}
 
+if (selectedCard === "TABS") {
+  status = !!p.tabsReceivedDate;
+  completionDate = p.tabsReceivedDate ? formatDate(p.tabsReceivedDate) : "-";
+}
+
+if (selectedCard === "GPS") {
+  const gpsInfo = gpsDataMap[p.plantID];
+  status = gpsInfo?.gpsStatus || false;
+  completionDate = gpsInfo?.gpsInstallationDate
+    ? formatDate(gpsInfo.gpsInstallationDate)
+    : "-";
+}
+if (selectedCard === "CAMERA") {
+  status = !!p.cameraConfigurationDate;
+  completionDate = p.cameraConfigurationDate ? formatDate(p.cameraConfigurationDate) : "-";
+}
     if (selectedCard === "CTE") {
       status = p.cteCertified;
       completionDate = p.cteIssuedDate
@@ -736,7 +845,7 @@ filteredPlants.forEach((p, index) => {
   return (
     <div className="space-y-6 p-6">
 
-<div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+<div className="grid grid-cols-1 md:grid-cols-10 gap-4">
 
   {selectedCard !== "CTE" &&
    selectedCard !== "CTO" &&
@@ -789,7 +898,37 @@ filteredPlants.forEach((p, index) => {
         active={selectedCard === "CODBOD"}
         onClick={() => setSelectedCard("CODBOD")}
       />
+<StatCard
+  title="IP Phones Received"
+  count={counts.ipPhones}
+  icon={<CheckCircle size={20} />}
+  active={selectedCard === "IPPHONES"}
+  onClick={() => setSelectedCard("IPPHONES")}
+/>
 
+<StatCard
+  title="Tabs Received"
+  count={counts.tabsReceived}
+  icon={<CheckCircle size={20} />}
+  active={selectedCard === "TABS"}
+  onClick={() => setSelectedCard("TABS")}
+/>
+
+{/* <StatCard
+  title="GPS Installed"
+  count={counts.gpsInstalled}
+  icon={<CheckCircle size={20} />}
+  active={selectedCard === "GPS"}
+  onClick={() => setSelectedCard("GPS")}
+/> */}
+
+<StatCard
+  title="Cameras Configured"
+  count={counts.cameraConfigured}
+  icon={<CheckCircle size={20} />}
+  active={selectedCard === "CAMERA"}
+  onClick={() => setSelectedCard("CAMERA")}
+/>
       <StatCard
         title="CTE / CTO"
         count={zoneFilteredPlants.filter(p => p.cteCertified && p.ctoCertified).length}
@@ -989,40 +1128,54 @@ filteredPlants.forEach((p, index) => {
 
         ) : (
           <table className="border-collapse w-full text-sm">
- <thead>
+<thead>
   <tr className="bg-slate-100 text-xs font-bold">
     <th className="border p-2">S.No</th>
     <th className="border p-2">Plant ID</th>
     <th className="border p-2">Plant Name</th>
     <th className="border p-2">KLD</th>
 
-   {selectedCard === "CTE" ? (
-  <>
-    <th className="border p-2 text-center">CTE Status</th>
-    <th className="border p-2 text-center">CTE Issued Date</th>
-  </>
-) : selectedCard === "CTO" ? (
-  <>
-    <th className="border p-2 text-center">CTO Status</th>
-    <th className="border p-2 text-center">CTO Issued Date</th>
-  </>
-) : selectedCard === "CTE/CTO" ? (
-  <>
-    <th className="border p-2 text-center">CTE Status</th>
-    <th className="border p-2 text-center">CTE Issued Date</th>
-    <th className="border p-2 text-center">CTO Status</th>
-    <th className="border p-2 text-center">CTO Issued Date</th>
-  </>
-) : (
+    {selectedCard === "CTE" ? (
       <>
-       <th className="border p-2 text-center">
-  {selectedCard === "MNIT" && "MNIT"}
-  {selectedCard === "POWER" && "Permanent Power"}
-  {selectedCard === "SOLAR" && "Solar"}
-  {selectedCard === "INTERNET" && "Internet"}
-  {selectedCard === "CODBOD" && "COD / BOD"}
-</th>
-        <th className="border p-2 text-center">Completion Date</th>
+        <th className="border p-2 text-center">CTE Status</th>
+        <th className="border p-2 text-center">CTE Issued Date</th>
+      </>
+    ) : selectedCard === "CTO" ? (
+      <>
+        <th className="border p-2 text-center">CTO Status</th>
+        <th className="border p-2 text-center">CTO Issued Date</th>
+      </>
+    ) : selectedCard === "CTE/CTO" ? (
+      <>
+        <th className="border p-2 text-center">CTE Status</th>
+        <th className="border p-2 text-center">CTE Issued Date</th>
+        <th className="border p-2 text-center">CTO Status</th>
+        <th className="border p-2 text-center">CTO Issued Date</th>
+      </>
+    ) : (
+      <>
+        <th className="border p-2 text-center">
+          {selectedCard === "MNIT" && "MNIT"}
+          {selectedCard === "POWER" && "Permanent Power"}
+          {selectedCard === "SOLAR" && "Solar"}
+          {selectedCard === "INTERNET" && "Internet"}
+          {selectedCard === "CODBOD" && "COD / BOD"}
+
+          {/* 🔥 NEW DEVICE CARDS */}
+          {selectedCard === "IPPHONES" && "IP Phones Received"}
+          {selectedCard === "TABS" && "Tabs Received"}
+          {selectedCard === "GPS" && "GPS Installed"}
+          {selectedCard === "CAMERA" && "Cameras Configured"}
+        </th>
+
+        <th className="border p-2 text-center">
+          {selectedCard === "IPPHONES" ||
+          selectedCard === "TABS" ||
+          selectedCard === "GPS" ||
+          selectedCard === "CAMERA"
+            ? "Received Date"
+            : "Completion Date"}
+        </th>
       </>
     )}
   </tr>
@@ -1090,6 +1243,11 @@ filteredPlants.forEach((p, index) => {
             {selectedCard === "SOLAR" && (p.solar ? "YES" : "NO")}
             {selectedCard === "INTERNET" && (p.internet ? "YES" : "NO")}
             {selectedCard === "CODBOD" && (p.codAndBodSenserDate ? "YES" : "NO")}
+            {selectedCard === "IPPHONES" && (p.ipPhoneDate ? "YES" : "NO")}
+            {selectedCard === "TABS" && (p.tabsReceivedDate ? "YES" : "NO")}
+            {selectedCard === "GPS" &&
+  (gpsDataMap[p.plantID]?.gpsStatus ? "YES" : "NO")}
+            {selectedCard === "CAMERA" && (p.cameraConfigurationDate ? "YES" : "NO")}
           </td>
 
           <td className="border p-2 text-center">
@@ -1111,6 +1269,19 @@ filteredPlants.forEach((p, index) => {
               (p.codAndBodSenserDate
                 ? formatDate(p.codAndBodSenserDate)
                 : "-")}
+            {selectedCard === "IPPHONES" &&
+              (p.ipPhoneDate ? formatDate(p.ipPhoneDate) : "-")}
+
+             {selectedCard === "TABS" &&
+               (p.tabsReceivedDate ? formatDate(p.tabsReceivedDate) : "-")}
+
+            {selectedCard === "GPS" &&
+  (gpsDataMap[p.plantID]?.gpsInstallationDate
+    ? formatDate(gpsDataMap[p.plantID]?.gpsInstallationDate)
+    : "-")}
+
+            {selectedCard === "CAMERA" &&
+              (p.cameraConfigurationDate ? formatDate(p.cameraConfigurationDate) : "-")}    
           </td>
         </>
       )}
