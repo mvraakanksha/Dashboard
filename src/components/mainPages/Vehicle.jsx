@@ -24,7 +24,9 @@ import { getOperationsByDate,getOperationsByDateRange} from "../../services/oper
 import { getEmployeesByPlant } from "../../services/employeeService";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import companyLogo from '../reports/company_logo1.jpg'
 /* ---------------- CLICKABLE X-TICK ---------------- */
 const ClickableTick = ({
   x,
@@ -151,11 +153,14 @@ const checkInsuranceStatus = (expiryDate, selectedDate) => {
   const exp = new Date(expiryDate);
   const sel = new Date(selectedDate);
 
-  const diffDays = Math.ceil((exp - sel) / (1000 * 60 * 60 * 24));
+  // ⭐ remove time
+  exp.setHours(0,0,0,0);
+  sel.setHours(0,0,0,0);
+
+  const diffDays = Math.floor((exp - sel) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) return "expired";
   if (diffDays <= 30) return "soon";
-
   return "valid";
 };
 
@@ -506,88 +511,184 @@ const totalPrivateSludge = useMemo(() => {
   }, [chartData, vehicleSortMode]);
 
 
-const downloadInsurancePdf = () => {
+    const loadAndCompressImage = (
+      src,
+      { targetWidth = 240, targetHeight = 120, quality = 0.7 } = {}
+    ) =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = src;
+
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+
+          const ctx = canvas.getContext("2d");
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+          resolve({
+            base64: canvas.toDataURL("image/jpeg", quality),
+            width: targetWidth,
+            height: targetHeight
+          });
+        };
+      });
+
+
+const downloadInsurancePdf = async () => {
   const doc = new jsPDF();
-  const getPlant = (plantId) => plants.find(p => Number(p.plantID) === Number(plantId));
+  const pageWidth = doc.internal.pageSize.getWidth();
 
-  let reportData = [];
-  let goodCount = 0;
+  const logo = await loadAndCompressImage(companyLogo);
 
-  // 1. Process Master List
-  Object.entries(vehiclesMap).forEach(([plantId, vehicles]) => {
-    vehicles.forEach(v => {
-      // Check if date exists first
-      const hasDate = !!v.insuranceExpiryDate;
-      const statusRaw = hasDate ? checkInsuranceStatus(v.insuranceExpiryDate, date) : null;
-      
-      if (statusRaw === "valid") goodCount++;
-      
-      if (pdfFilter === "all") {
-        reportData.push({
-          plantId,
-          vehicleNumber: v.vehicleNumber,
-          // Blank if no date
-          expiry: hasDate ? new Date(v.insuranceExpiryDate).toLocaleDateString("en-IN") : "-",
-          // Blank status if no date, otherwise map status
-          status: !hasDate ? "-" : (statusRaw === "valid" ? "Good" : (statusRaw === "expired" ? "Expired" : "Expiring Soon"))
-        });
-      }
+  /* ===== LOGO ===== */
+  doc.addImage(
+    logo.base64,
+    "JPEG",
+    8,
+    6,
+    logo.width / 10,
+    logo.height / 8
+  );
+
+  /* ===== HEADER ===== */
+  doc.setFont("times", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(200, 0, 0);
+  doc.text("MVR TECHNOLOGY", pageWidth / 2, 14, { align: "center" });
+
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  doc.text("FSTP RAJASTHAN", pageWidth / 2, 21, { align: "center" });
+
+  doc.setFont("times", "normal");
+  doc.setFontSize(11);
+  doc.text("Vehicle Insurance Report", pageWidth / 2, 27, { align: "center" });
+
+  const getPlant = id =>
+    plants.find(p => Number(p.plantID) === Number(id));
+
+  /* ===== BUILD MASTER LIST ===== */
+  const allVehicles = [];
+
+
+let expiredCount = 0;
+let soonCount = 0;
+let goodCount = 0;
+
+Object.entries(vehiclesMap).forEach(([plantId, vehicles]) => {
+  vehicles.forEach(v => {
+    const raw = v.insuranceExpiryDate
+      ? checkInsuranceStatus(v.insuranceExpiryDate, date)
+      : null;
+
+
+    const status =
+      !raw
+        ? "-"
+        : raw === "valid"
+        ? "Good"
+        : raw === "expired"
+        ? "Expired"
+        : "Expiring Soon";
+
+    if (status === "Expired") expiredCount++;
+    if (status === "Expiring Soon") soonCount++;
+    if (status === "Good") goodCount++;
+
+    allVehicles.push({
+      plantId: Number(plantId),
+      vehicleNumber: v.vehicleNumber,
+      expiry: v.insuranceExpiryDate
+        ? new Date(v.insuranceExpiryDate).toLocaleDateString("en-IN")
+        : "-",
+      status
+    });
+  });
+});
+
+  /* ===== FILTER ===== */
+let list = allVehicles;
+
+if (pdfFilter === "expired")
+  list = allVehicles.filter(v => v.status === "Expired");
+
+if (pdfFilter === "soon")
+  list = allVehicles.filter(v => v.status === "Expiring Soon");
+
+if (pdfFilter === "both")
+  list = allVehicles.filter(
+    v => v.status === "Expired" || v.status === "Expiring Soon"
+  );
+
+  /* ===== TOTALS ===== */
+  const totalVehicles = allVehicles.length;
+
+  doc.setFontSize(10);
+  doc.text(`Total Plants: ${totalPlants}`, 14, 38);
+  doc.text(`Total Vehicles: ${totalVehicles}`, 70, 38);
+  doc.text(`Good: ${goodCount}`, 130, 38);
+  doc.text(`Expired: ${expiredCount}`, 14, 44);
+doc.text(`Soon: ${soonCount}`, 70, 44);
+
+  /* ===== GROUP BY PLANT ===== */
+  const group = {};
+  list.forEach(v => {
+    if (!group[v.plantId]) group[v.plantId] = [];
+    group[v.plantId].push(v);
+  });
+
+  /* ===== TABLE BODY (PLANT MERGE STYLE) ===== */
+  const body = [];
+
+  Object.entries(group).forEach(([plantId, vehicles]) => {
+    const plant = getPlant(plantId);
+
+    vehicles.forEach((v, i) => {
+      body.push([
+        i === 0 ? plant?.plantID ?? plantId : "",
+        i === 0 ? plant?.plantName ?? "-" : "",
+        i === 0 ? plant?.zones ?? "-" : "",
+        v.vehicleNumber,
+        v.expiry,
+        v.status
+      ]);
     });
   });
 
-  // 2. Process Alert List (if not 'all')
-  if (pdfFilter !== "all") {
-    reportData = expiringVehicles.filter(v => {
-      if (!v.expiry) return false; // Safety check: alert list should usually have dates
-      if (pdfFilter === "expired") return v.status === "expired";
-      if (pdfFilter === "soon") return v.status === "soon";
-      if (pdfFilter === "both") return v.status === "expired" || v.status === "soon";
-      return true;
-    }).map(v => ({
-      ...v,
-      expiry: v.expiry ? new Date(v.expiry).toLocaleDateString("en-IN") : "-",
-      status: v.status === "expired" ? "Expired" : "Expiring Soon"
-    }));
-  }
-
-  // 3. Render Header (Metrics)
-  doc.setFontSize(18);
-  doc.setTextColor(0, 63, 138);
-  doc.text("Vehicle Insurance Status Report", 14, 15);
-
-  doc.setFontSize(11);
-  doc.setTextColor(0);
-  doc.text(`Total Plants: ${totalPlants}   |   Total Vehicles: ${totalVehicles}`, 14, 30);
-
-  let currentX = 14;
-  doc.setFontSize(10);
-  
-  // Row for Dynamic counts
-  if (pdfFilter === "all") {
-    doc.setTextColor(5, 150, 105); doc.text(`Good: ${goodCount}`, currentX, 38); currentX += 30;
-  }
-  if (["all", "expired", "both"].includes(pdfFilter)) {
-    doc.setTextColor(220, 38, 38); doc.text(`Expired: ${expiredCount}`, currentX, 38); currentX += 35;
-  }
-  if (["all", "soon", "both"].includes(pdfFilter)) {
-    doc.setTextColor(245, 158, 11); doc.text(`Soon: ${expiringSoonCount}`, currentX, 38);
-  }
-
-  // 4. Generate Table
-  const tableRows = reportData.map((v, i) => [
-    i + 1,
-    getPlant(v.plantId)?.plantID ?? v.plantId,
-    getPlant(v.plantId)?.plantName ?? "-",
-    v.vehicleNumber,
-    v.expiry, 
-    v.status
-  ]);
-
+  /* ===== TABLE ===== */
   autoTable(doc, {
-    startY: 45,
-    head: [["S.No", "PID", "Plant Name", "Vehicle No", "Expiry Date", "Status"]],
-    body: tableRows,
-    headStyles: { fillColor: [0, 63, 138] },
+    startY: 50,
+
+    theme: "grid",
+
+    styles: {
+      font: "times",
+      fontSize: 8,
+      cellPadding: 2
+    },
+
+    headStyles: {
+      fillColor: [220, 230, 241],
+      textColor: 0,
+      fontStyle: "bold",
+      halign: "center"
+    },
+
+    head: [[
+      "Plant ID",
+      "Plant Name",
+      "Zone",
+      "Vehicle No",
+      "Expiry",
+      "Status"
+    ]],
+
+    body,
+
     didParseCell: (data) => {
       if (data.section === "body") {
         const val = data.row.raw[5];
@@ -599,6 +700,177 @@ const downloadInsurancePdf = () => {
   });
 
   doc.save(`Insurance_Report_${pdfFilter}.pdf`);
+};
+
+const downloadInsuranceExcel = async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Insurance Report");
+
+  const logo = await loadAndCompressImage(companyLogo);
+
+  /* ===== LOGO ===== */
+  const imageId = wb.addImage({
+    base64: logo.base64,
+    extension: "jpeg"
+  });
+
+  ws.addImage(imageId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: 120, height: 60 }
+  });
+
+  /* ===== HEADER ===== */
+
+  ws.mergeCells("A1:G1");
+  ws.getCell("A1").value = "MVR TECHNOLOGY";
+  ws.getCell("A1").alignment = { horizontal: "center" };
+  ws.getCell("A1").font = {
+    name: "Times New Roman",
+    bold: true,
+    size: 18,
+    color: { argb: "FFCC0000" }
+  };
+
+  ws.mergeCells("A2:G2");
+  ws.getCell("A2").value = "FSTP RAJASTHAN";
+  ws.getCell("A2").alignment = { horizontal: "center" };
+  ws.getCell("A2").font = { name: "Times New Roman", bold: true, size: 12 };
+
+  ws.mergeCells("A3:G3");
+  ws.getCell("A3").value = "Vehicle Insurance Report";
+  ws.getCell("A3").alignment = { horizontal: "center" };
+  ws.getCell("A3").font = { name: "Times New Roman", size: 11 };
+
+  ws.mergeCells("A4:G4");
+
+  /* ===== BUILD MASTER LIST ===== */
+
+  const allVehicles = [];
+
+  Object.entries(vehiclesMap).forEach(([plantId, vehicles]) => {
+    vehicles.forEach(v => {
+      const raw = v.insuranceExpiryDate
+        ? checkInsuranceStatus(v.insuranceExpiryDate, date)
+        : null;
+
+      allVehicles.push({
+        plantId: Number(plantId),
+        vehicleNumber: v.vehicleNumber,
+        expiry: v.insuranceExpiryDate,
+        status:
+          !raw
+            ? "-"
+            : raw === "valid"
+            ? "Good"
+            : raw === "expired"
+            ? "Expired"
+            : "Expiring Soon"
+      });
+    });
+  });
+
+  /* ===== FILTER ===== */
+  let list = allVehicles;
+
+  if (pdfFilter === "expired")
+    list = allVehicles.filter(v => v.status === "Expired");
+
+  if (pdfFilter === "soon")
+    list = allVehicles.filter(v => v.status === "Expiring Soon");
+
+  if (pdfFilter === "both")
+    list = allVehicles.filter(
+      v => v.status === "Expired" || v.status === "Expiring Soon"
+    );
+
+  /* ===== TOTALS ===== */
+
+  const totalPlants = filteredPlants.length;
+  const totalVehicles = allVehicles.length;
+  const goodCount = allVehicles.filter(v => v.status === "Good").length;
+  const expiredCount = allVehicles.filter(v => v.status === "Expired").length;
+  const soonCount = allVehicles.filter(v => v.status === "Expiring Soon").length;
+
+  ws.mergeCells("A5:B5");
+  ws.getCell("A5").value = `Total Plants: ${totalPlants}`;
+  ws.getCell("A5").font = { bold: true };
+
+  ws.mergeCells("C5:D5");
+  ws.getCell("C5").value = `Total Vehicles: ${totalVehicles}`;
+  ws.getCell("C5").font = { bold: true };
+
+  ws.mergeCells("E5:G5");
+  ws.getCell("E5").value =
+    `Good: ${goodCount}   Expired: ${expiredCount}   Soon: ${soonCount}`;
+  ws.getCell("E5").font = { bold: true };
+
+  ws.addRow([]);
+
+  /* ===== TABLE HEADER ===== */
+
+  const headers = [
+    "Plant ID",
+    "Plant Name",
+    "Zone",
+    "Vehicle Count",
+    "Vehicle Number",
+    "Expiry",
+    "Status"
+  ];
+
+  ws.addRow(headers);
+
+  ws.lastRow.eachCell(cell => {
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFDCE6F1" }
+    };
+    cell.font = { bold: true };
+    cell.alignment = { horizontal: "center" };
+  });
+
+  const getPlant = id =>
+    plants.find(p => Number(p.plantID) === Number(id));
+
+  /* ===== GROUP + MERGE ===== */
+
+  const group = {};
+  list.forEach(v => {
+    if (!group[v.plantId]) group[v.plantId] = [];
+    group[v.plantId].push(v);
+  });
+
+  Object.entries(group).forEach(([plantId, vehicles]) => {
+    const plant = getPlant(plantId);
+    const startRow = ws.lastRow.number + 1;
+
+    vehicles.forEach(v => {
+      ws.addRow([
+        plant?.plantID ?? plantId,
+        plant?.plantName ?? "-",
+        plant?.zones ?? "-",
+        vehicles.length,
+        v.vehicleNumber,
+        v.expiry ? new Date(v.expiry).toLocaleDateString("en-IN") : "-",
+        v.status
+      ]);
+    });
+
+    const endRow = ws.lastRow.number;
+
+    if (vehicles.length > 1) {
+      ws.mergeCells(`A${startRow}:A${endRow}`);
+      ws.mergeCells(`B${startRow}:B${endRow}`);
+      ws.mergeCells(`C${startRow}:C${endRow}`);
+      ws.mergeCells(`D${startRow}:D${endRow}`);
+    }
+  });
+
+  ws.columns.forEach(col => (col.width = 20));
+
+  const buffer = await wb.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), `Insurance_Report_${pdfFilter}.xlsx`);
 };
  /* ---------------- UI ---------------- */
 return (
@@ -711,9 +983,15 @@ return (
 
   <button
     onClick={downloadInsurancePdf}
-    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-xs font-bold rounded-md transition duration-200 shadow-sm flex items-center gap-2"
+    className="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 text-xs font-bold rounded-md transition duration-200 shadow-sm flex items-center gap-2"
   >
-    Generate PDF Report
+    PDF
+  </button>
+    <button
+    onClick={downloadInsuranceExcel}
+    className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 text-xs font-bold rounded-md transition duration-200 shadow-sm flex items-center gap-2"
+  >
+    EXcel
   </button>
 </div>
 
