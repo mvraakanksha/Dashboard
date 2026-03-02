@@ -185,59 +185,6 @@ const getPreviousMonth = (monthStr) => {
   ).padStart(2, "0")}`;
 };
 
-const getClosingSludge = (ops, startDate, endDate) => {
-  if (!ops?.length) return 0;
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  // ⭐ last day of selected month
-  const monthEnd = new Date(end.getFullYear(), end.getMonth(), 0);
-
-  // ⭐ Build date map
-  const map = {};
-
-  ops.forEach(op => {
-    if (!op.operationDate) return;
-
-    const d = toYMD(op.operationDate);
-    const d = toYMD(op.operationDate);
-
-    const time = new Date(d);
-    if (time < start || time >= end) return;
-
-    if (!map[d]) {
-      map[d] = { am: null, pm: null };
-    }
-
-    if (op.sludgeTankLevelAm != null) {
-      map[d].am = Number(op.sludgeTankLevelAm);
-    }
-
-    if (op.sludgeTankLevelPm != null) {
-      map[d].pm = Number(op.sludgeTankLevelPm);
-    }
-  });
-
-  // ⭐ walk backward from month end
-  let cursor = new Date(monthEnd);
-
-  while (cursor >= start) {
-    const key = toYMD(cursor); // ⭐ NO ISO STRING
-
-    const day = map[key];
-
-    if (day) {
-      if (day.pm != null) return day.pm; // PM first
-      if (day.am != null) return day.am; // then AM
-    }
-
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  return 0;
-};
-
 const previousMonth = getPreviousMonth(month);
 
 const prevStart = `${previousMonth}-01`;
@@ -326,7 +273,57 @@ const getOpeningSludge = (ops, startDate, endDate) => {
   return 0;
 };
 
+const getClosingSludge = (ops, startDate, endDate) => {
+  if (!ops?.length) return 0;
 
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // ⭐ last day of selected month
+  const monthEnd = new Date(end.getFullYear(), end.getMonth(), 0);
+
+  // ⭐ Build date map
+  const map = {};
+
+  ops.forEach(op => {
+    if (!op.operationDate) return;
+
+    const d = toYMD(op.operationDate);
+
+    const time = new Date(d);
+    if (time < start || time >= end) return;
+
+    if (!map[d]) {
+      map[d] = { am: null, pm: null };
+    }
+
+    if (op.sludgeTankLevelAm != null) {
+      map[d].am = Number(op.sludgeTankLevelAm);
+    }
+
+    if (op.sludgeTankLevelPm != null) {
+      map[d].pm = Number(op.sludgeTankLevelPm);
+    }
+  });
+
+  // ⭐ walk backward from month end
+  let cursor = new Date(monthEnd);
+
+  while (cursor >= start) {
+    const key = toYMD(cursor); // ⭐ NO ISO STRING
+
+    const day = map[key];
+
+    if (day) {
+      if (day.pm != null) return day.pm; // PM first
+      if (day.am != null) return day.am; // then AM
+    }
+
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return 0;
+};
 
 const finalRows = Object.entries(plantMaster)
   .map(([pid, meta]) => {
@@ -335,8 +332,6 @@ const finalRows = Object.entries(plantMaster)
       sludgeProcessed: 0,
       ops: [],
     };
-
-const oldSludge = getOpeningSludge(op.ops || [], startDate, endDate);
 
 const oldSludge = getOpeningSludge(op.ops || [], startDate, endDate);
 
