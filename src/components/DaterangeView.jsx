@@ -25,7 +25,9 @@ import companyLogo1  from './reports/company_logo1.jpg'
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'
 import { useNavigate } from "react-router-dom";
-import machineryImg from '../assets/machinery.jpeg';
+import machineryImg from '../../src/assets/machinery.jpeg'
+import machineryImgwithoutmotor from '../assets/machinery without motor.jpeg';
+
 import { X } from "lucide-react";
 
 
@@ -244,6 +246,9 @@ const [vehiclesByPlant, setVehiclesByPlant] = useState({});
 const [sortBy, setSortBy] = useState("label"); // label | plantId | metric
 const [showMachinery, setShowMachinery] = useState(false);
 
+const [machineryType, setMachineryType] = useState("with"); 
+// with | without
+
   /* ================= FETCH PLANTS ================= */
   useEffect(() => {
     getAllPlants().then((res) => {
@@ -405,10 +410,14 @@ if (module === "vehicle") {
 
 };
 
+const selectedMachineryImage =
+  machineryType === "with"
+    ? machineryImg
+    : machineryImgwithoutmotor;
 
 const handleDownloadMachineryImage = () => {
   const link = document.createElement("a");
-  link.href = machineryImg;
+ link.href = selectedMachineryImage;
   link.download = "machinery.png";
   document.body.appendChild(link);
   link.click();
@@ -1042,31 +1051,72 @@ const motors = [
 
 {showMachinery && (
 <div className="bg-white rounded-xl shadow p-4 space-y-4">
+
+<div className="flex items-center justify-between">
   <h3 className="font-bold text-blue-900">
     Machinery Layout
   </h3>
 
-  {/* Image + Table Side by Side */}
-  <div className="flex flex-col md:flex-row gap-6 items-start">
+<div className="flex gap-2">
+  <button
+    onClick={() => setMachineryType("with")}
+    className={`px-3 py-1 text-sm font-semibold rounded-md transition
+      ${
+        machineryType === "with"
+          ? "bg-blue-600 text-white"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+  >
+    With Motors
+  </button>
 
+  <button
+    onClick={() => setMachineryType("without")}
+    className={`px-3 py-1 text-sm font-semibold rounded-md transition
+      ${
+        machineryType === "without"
+          ? "bg-blue-600 text-white"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+  >
+    Without Motors
+  </button>
+</div>
+</div>
+
+  {/* Image + Table Side by Side */}
+<div
+  className={`flex gap-6 ${
+    machineryType === "with"
+      ? "flex-col md:flex-row items-start"
+      : "flex-col items-center"
+  }`}
+>
     {/* Image Section - 70% */}
-    <div className="w-full md:w-[60%] flex justify-center">
-      <img
-        src={machineryImg}
-        alt="Machinery"
-        onClick={() => setPreviewImage(machineryImg)}
-        className="w-full max-h-[400px] object-contain  cursor-pointer hover:scale-[1.01] transition"
-      />
-    </div>
+<div
+  className={`flex justify-center w-full ${
+    machineryType === "with" ? "md:w-[60%]" : ""
+  }`}
+>
+  <img
+    src={selectedMachineryImage}
+    alt="Machinery"
+    onClick={() => setPreviewImage(selectedMachineryImage)}
+    className="w-full max-h-[500px] max-w-[1000px] object-contain cursor-pointer transition-all duration-300 hover:scale-[1.01]"
+  />
+</div>
 
     {/* Table Section - 30% */}
+   
 {/* Table Section - 30% */}
-<div className="w-full md:w-[40%]">
-  
+<div className="w-full md:w-[50%]">
+    {machineryType === "with" && (
   <div className="border border-gray-300  overflow-hidden">
     
     {/* Scrollable Wrapper */}
+   
     <div className="max-h-[400px] overflow-y-auto">
+
       <table className="w-full text-sm border-collapse">
         
  <thead className="bg-blue-100 text-blue-900 sticky top-0 z-10">
@@ -1092,14 +1142,16 @@ const motors = [
     </div>
 
   </div>
+      )}
 </div>
 
 
   </div>
 
   {/* Download Button */}
-<div className="flex justify-center gap-200 mt-4">
-  
+<div className="flex justify-center gap-220 mt-4">
+
+  {/* IMAGE DOWNLOAD — always */}
   <button
     onClick={handleDownloadMachineryImage}
     className="px-4 py-2 text-sm font-bold rounded-md
@@ -1108,14 +1160,16 @@ const motors = [
     Download Image
   </button>
 
-  <button
-    onClick={handleDownloadMotorsPdf}
-    className="px-4 py-2 text-sm font-bold rounded-md
-               bg-blue-600 text-white hover:bg-blue-700 transition"
-  >
-    Download PDF
-  </button>
-
+  {/* PDF ONLY WHEN WITH MOTORS */}
+  {machineryType === "with" && (
+    <button
+      onClick={handleDownloadMotorsPdf}
+      className="px-4 py-2 text-sm font-bold rounded-md
+                 bg-blue-600 text-white hover:bg-blue-700 transition"
+    >
+      Download PDF
+    </button>
+  )}
 </div>
 
 </div>
