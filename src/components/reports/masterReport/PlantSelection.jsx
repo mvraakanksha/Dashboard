@@ -50,8 +50,7 @@ fields:[
 { id:"solarMultiplicationFactor", label:"Solar MF" },
 { id:"solarMeterSerialNo", label:"Solar Meter Serial No" },
 { id:"solarPlantCapacity", label:"Solar Capacity" },
-{ id:"isSolarFencingDone", label:"Solar Fencing Status" },
-{ id:"solarFencingDoneDate", label:"Solar Fencing Date" }
+
 ]
 },
 
@@ -83,6 +82,8 @@ fields:[
 { id:"civilWorkCompletedDate", label:"Civil Work Completed Date" },
 
 { id:"machinaryAssembleDate", label:"Machinery Assembled Date" },
+{ id:"isSolarFencingDone", label:"Solar Fencing Status" },
+{ id:"solarFencingDoneDate", label:"Solar Fencing Date" },
 { id:"ctoCertified", label:"CTO Status" },
 { id:"ctoIssuedDate", label:"CTO Issued Date" },
 { id:"cteCertified", label:"CTE Status" },

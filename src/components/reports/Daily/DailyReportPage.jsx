@@ -4,14 +4,14 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 // import companyLogo from '../reports/company_logo.png';
-import companyLogo from '../reports/company_logo1.jpg';
+import companyLogo from '../../reports/company_logo1.jpg';
 
 // import logo from '../reports/logo.png';
-import logo from '../reports/logo1.jpg';
+import logo from '../../reports/logo1.jpg';
 
 // Constants (replace with your actual API endpoints or environment variables)
-import { getAllPlants } from '../../services/plantService'
-import { getOperationsByDate } from "../../services/operationService";
+import { getAllPlants } from '../../../services/plantService'
+import { getOperationsByDate } from "../../../services/operationService";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 

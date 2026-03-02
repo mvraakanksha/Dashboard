@@ -1,6 +1,6 @@
 import autoTable from "jspdf-autotable";
-import { getAllPlants } from "../../services/plantService";
-import { getOperationsByDateRange } from "../../services/operationService";
+import { getAllPlants } from "../../../services/plantService";
+import { getOperationsByDateRange } from "../../../services/operationService";
 
 const format = v => Number(v || 0).toLocaleString("en-IN");
 

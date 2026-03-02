@@ -6,12 +6,12 @@ import { saveAs } from "file-saver";
 import ExcelJS from "exceljs";
 
 // import mainLogo from '../reports/logo.png';
-import mainLogo from '../reports/logo1.jpg';
+import mainLogo from '../../reports/logo1.jpg';
 // import comonthlympanyLogo from '../reports/company_logo.png'
-import companyLogo from '../reports/company_logo1.jpg'
+import companyLogo from '../../reports/company_logo1.jpg'
 
-import { getAllPlants } from "../../services/plantService";
-import { getOperationsByDateRange } from "../../services/operationService";
+import { getAllPlants } from "../../../services/plantService";
+import { getOperationsByDateRange } from "../../../services/operationService";
 /* ================= API ================= */
 
 const formatDisplayDate = (dateString) => {
@@ -175,34 +175,14 @@ temp[pid].sludgeProcessed += Number(op?.sludgeProcessed || 0);
 // }
 });
 
-const getOpeningSludge = (ops, startDate) => {
-  const sorted = [...ops].sort(
-    (a, b) => new Date(b.operationDate) - new Date(a.operationDate)
-  );
+const getPreviousMonth = (monthStr) => {
+  const [year, month] = monthStr.split("-").map(Number);
 
-  for (const op of sorted) {
-    const d = op.operationDate;
+  const date = new Date(year, month - 2); // go 1 month back
 
-    // ⭐ only dates BEFORE month start OR equal start
-    if (d > startDate) continue;
-
-    // ⭐ first preference → start day AM
-    if (d === startDate && op.sludgeTankLevelAm != null) {
-      return Number(op.sludgeTankLevelAm);
-    }
-
-    // ⭐ then previous PM
-    if (op.sludgeTankLevelPm != null) {
-      return Number(op.sludgeTankLevelPm);
-    }
-
-    // ⭐ then previous AM
-    if (op.sludgeTankLevelAm != null) {
-      return Number(op.sludgeTankLevelAm);
-    }
-  }
-
-  return 0;
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}`;
 };
 
 const getClosingSludge = (ops, startDate, endDate) => {
@@ -220,7 +200,7 @@ const getClosingSludge = (ops, startDate, endDate) => {
   ops.forEach(op => {
     if (!op.operationDate) return;
 
-    const d = op.operationDate;
+    const d = toYMD(op.operationDate);
 
     const time = new Date(d);
     if (time < start || time >= end) return;
@@ -257,6 +237,96 @@ const getClosingSludge = (ops, startDate, endDate) => {
   return 0;
 };
 
+const previousMonth = getPreviousMonth(month);
+
+const prevStart = `${previousMonth}-01`;
+const prevEndDateObj = new Date(previousMonth.split("-")[0], previousMonth.split("-")[1], 0);
+const prevEnd = toYMD(new Date(prevEndDateObj.getFullYear(), prevEndDateObj.getMonth(), prevEndDateObj.getDate() + 1));
+
+let previousMonthData = {};
+
+try {
+  const prevRangeData = await getOperationsByDateRange(prevStart, prevEnd);
+
+  const tempPrev = {};
+
+  prevRangeData.forEach((r) => {
+    const pid = r.plantId;
+    const op = r.operation;
+
+    if (!tempPrev[pid]) {
+      tempPrev[pid] = {
+        ops: [],
+      };
+    }
+
+    tempPrev[pid].ops.push(op);
+  });
+
+Object.keys(plantMaster).forEach((pid) => {
+  const ops = tempPrev[pid]?.ops || [];
+
+  previousMonthData[pid] = getClosingSludge(
+    ops,
+    prevStart,
+    prevEnd
+  );
+});
+
+} catch (e) {
+  console.error("Previous month load error", e);
+}
+
+const getOpeningSludge = (ops, startDate, endDate) => {
+  if (!ops?.length) return 0;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Build date map (same like closing)
+  const map = {};
+
+  ops.forEach(op => {
+    if (!op.operationDate) return;
+
+    const d = toYMD(op.operationDate);
+    const time = new Date(d);
+
+    if (time < start || time >= end) return;
+
+    if (!map[d]) {
+      map[d] = { am: null, pm: null };
+    }
+
+    if (op.sludgeTankLevelAm != null) {
+      map[d].am = Number(op.sludgeTankLevelAm);
+    }
+
+    if (op.sludgeTankLevelPm != null) {
+      map[d].pm = Number(op.sludgeTankLevelPm);
+    }
+  });
+
+  // 🔥 Walk forward from month start
+  let cursor = new Date(start);
+
+  while (cursor < end) {
+    const key = toYMD(cursor);
+    const day = map[key];
+
+    if (day) {
+      if (day.am != null) return day.am;   // 1️⃣ AM first
+      if (day.pm != null) return day.pm;   // 2️⃣ then PM
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return 0;
+};
+
+
+
 const finalRows = Object.entries(plantMaster)
   .map(([pid, meta]) => {
     const op = temp[pid] || {
@@ -265,7 +335,8 @@ const finalRows = Object.entries(plantMaster)
       ops: [],
     };
 
-    const oldSludge = getOpeningSludge(op.ops || [], startDate);
+const oldSludge = getOpeningSludge(op.ops || [], startDate, endDate);
+
     const remaining = getClosingSludge(op.ops || [], startDate, endDate);
     const total = oldSludge + op.sludgeReceived;
 

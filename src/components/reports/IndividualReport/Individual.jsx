@@ -2,20 +2,20 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Calendar, Filter, Factory, Download } from "lucide-react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import companyLogo from '../reports/company_logo.png';
-import logo from '../reports/logo.png';
+import companyLogo from '../../reports/company_logo.png';
+import logo from '../../reports/logo.png';
 
 /* ================= API ================= */
-import { getAllPlants } from "../../services/plantService";
-import { getOperationsByDate } from "../../services/operationService";
-import { getVehiclesByPlant, getVehicleOperationsByDate } from "../../services/vehicleService";
-import { getEmployeeOperationsByDate } from "../../services/employeeService";
-import { getLabOperationsByDate } from "../../services/operationService";
+import { getAllPlants } from "../../../services/plantService";
+import { getOperationsByDate } from "../../../services/operationService";
+import { getVehiclesByPlant, getVehicleOperationsByDate } from "../../../services/vehicleService";
+import { getEmployeeOperationsByDate } from "../../../services/employeeService";
+import { getLabOperationsByDate } from "../../../services/operationService";
 
 /* ================= CALCULATIONS ================= */
 import {
   calcPowerMetrics
-} from "./reportCalculations";
+} from "../customized/reportCalculations";
 
 /* ================= HELPERS ================= */
 const todayStr = new Date().toISOString().split("T")[0];

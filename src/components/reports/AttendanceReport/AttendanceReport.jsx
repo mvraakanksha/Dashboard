@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
 
-import { getAllPlants } from "../../services/plantService";
+import { getAllPlants } from "../../../services/plantService";
 import {
   getEmployeesByPlant,
   getEmployeeOperationsByDateRange
-} from "../../services/employeeService";
+} from "../../../services/employeeService";
 import * as XLSX from "xlsx-js-style";
 
 import ExcelJS from "exceljs";
 
-import companyLogo from './company_logo.png'
+import companyLogo from '../../reports/company_logo.png'
 
 
 

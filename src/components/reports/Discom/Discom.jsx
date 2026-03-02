@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { getAllPlants } from "../../services/plantService";
-import companyLogo from './company_logo1.jpg';
+import { getAllPlants } from "../../../services/plantService";
+import companyLogo from '../company_logo1.jpg';
 
 export default function Discom() {
   const [plants, setPlants] = useState([]);

@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { getAllPlants } from "../../services/plantService";
-import { getOperationsByDateRange } from "../../services/operationService";
-import companyLogo from "./company_logo1.jpg";
+import { getAllPlants } from "../../../services/plantService";
+import { getOperationsByDateRange } from "../../../services/operationService";
+import companyLogo from "../company_logo1.jpg";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 // import companyLogo from '../reports/company_logo1.jpg'

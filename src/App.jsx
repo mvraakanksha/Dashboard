@@ -31,29 +31,31 @@ const PowerPage = lazy(() => import("./components/pages/PowerPage"));
 
 const PelletsPage = lazy(() => import("./components/pages/PelletsPage"));
 const Report = lazy(() => import("./components/Report"));
-const DailyReportPage = lazy(() => import("./components/reports/DailyReportPage"));
-const MonthlyReportPage = lazy(() => import("./components/reports/MonthlyReportPage"));
-const CustomizedReport = lazy(() => import("./components/reports/CustomizedReport"));
-const Individual = lazy(() => import("./components/reports/Individual"));
-const AttendanceReport = lazy(() => import("./components/reports/AttendanceReport"));
-const WaterReport = lazy(() => import("./components/reports/WaterReport"));
-const EmployeeDetails =  lazy(() => import("./components/reports/EmployeeDetails"));
+const DailyReportPage = lazy(() => import('../src/components/reports/Daily/DailyReportPage'));
+const MonthlyReportPage = lazy(() => import('../src/components/reports/monthly&performance/MonthlyReportPage'));
+const CustomizedReport = lazy(() => import('../src/components/reports/customized/CustomizedReport'));
+const Individual = lazy(() => import('../src/components/reports/IndividualReport/Individual'));
+const AttendanceReport = lazy(() => import('../src/components/reports/AttendanceReport/AttendanceReport'));
+const WaterReport = lazy(() => import('../src/components/reports/AttendanceReport/AttendanceReport'));
+const EmployeeDetails =  lazy(() => import('../src/components/reports/EmpDetails/EmployeeDetails'));
 
-const Performance = lazy(() => import("./components/reports/Performance"));
-const powerbillReport = lazy(() => import("./components/reports/PowerbillReport"));
+const Performance = lazy(() => import('./components/reports/monthly&performance/Performance'));
+// const powerbillReport = lazy(() => import("./components/reports/PowerbillReport"));
 const Utility = lazy(() => import('./components/reports/utility/Utility'));
 
 // Shared UI
 import FilterBar from "./components/FilterBar";
 import LabView from "./components/pages/LabView";
-import PlantReport from "./components/reports/PlantReport";
 
-import PlantOneTimeReport from "./components/reports/PlantOneTimeReport";
+
+
 import DaterangeView from "./components/DaterangeView";
-import PowerbillReport from "./components/reports/PowerbillReport";
-import Discom from "./components/reports/Discom";
-import StockReport from "./components/reports/StockReport";
+
+import Discom from './components/reports/Discom/Discom';
+import  PlantReport from './components/reports/oneTimeView/PlantReport'
 import PlantMasterReport from "./components/reports/masterReport/PlantMasterReport";
+import StockReport from "./components/reports/StockReport/StockReport";
+import PlantOneTimeReport from "./components/reports/oneTimeView/PlantOneTimeReport";
 
 
 
@@ -342,7 +344,7 @@ useEffect(() => {
                    <Route path="water" element={<WaterReport/>} />
                    <Route path="performance" element={<Performance/>} />
                       <Route path="utility" element={<Utility/>} />
-                      <Route path="discom" element={<Discom />} />
+                      <Route path="discom" element={<Discom/>} />
                         <Route path="employee" element={<EmployeeDetails/>} />
                         <Route path="stockreport" element={<StockReport/>} />
                           <Route path="master" element={<PlantMasterReport/>} />

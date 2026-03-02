@@ -9,8 +9,8 @@ import {
   sumVehicleMetricForDate
 } from "./ReportTotals";
 
-import companyLogo from "../reports/company_logo.png";
-import mainLogo from "../reports/logo.png";
+import companyLogo from "../company_logo.png";
+import mainLogo from "../logo.png";
 
 /* ================= HELPERS ================= */
 

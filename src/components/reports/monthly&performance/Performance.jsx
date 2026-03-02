@@ -9,15 +9,14 @@ import {
   ResponsiveContainer,
   LabelList
 } from "recharts";
-import MonthlyReportPage from "./MonthlyReportPage";
 
 import autoTable from "jspdf-autotable";
 
-import { getOperationsByDateRange } from "../../services/operationService";
-import { getAllPlants } from "../../services/plantService";
+import { getOperationsByDateRange } from "../../../services/operationService";
+import { getAllPlants } from "../../../services/plantService";
 
 import jsPDF from "jspdf";
-import companyLogo from '../../components/reports/company_logo1.jpg'
+import companyLogo from '../../reports/company_logo1.jpg'
 
 import { addMonthlyReportToPdf } from "./monthlyPdfBuilder";
 

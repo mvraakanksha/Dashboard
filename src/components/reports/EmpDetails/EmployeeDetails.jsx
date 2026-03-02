@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { getAllPlants } from "../../services/plantService";
-import { getEmployeesByPlant } from "../../services/employeeService";
+import { getAllPlants } from "../../../services/plantService";
+import { getEmployeesByPlant } from "../../../services/employeeService";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
-import companyLogo from './company_logo.png'
+import companyLogo from '../../reports/company_logo.png'
 
 const DESIGNATIONS = [
   "Supervisor",

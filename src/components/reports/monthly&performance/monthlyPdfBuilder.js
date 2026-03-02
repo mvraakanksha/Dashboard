@@ -1,6 +1,6 @@
 import autoTable from "jspdf-autotable";
-import { getAllPlants } from "../../services/plantService";
-import { getOperationsByDateRange } from "../../services/operationService";
+import { getAllPlants } from "../../../services/plantService";
+import { getOperationsByDateRange } from "../../../services/operationService";
 
 /* ================= HELPERS ================= */
 const formatNumber = (v) =>
@@ -38,6 +38,26 @@ export const addMonthlyReportToPdf = async ({
   mnitDate: p.mnitDateOfCompletion,                     // ⭐ visibility
 };
   });
+const getOpeningSludge = (plantId) => {
+  const plantDates = dateMap[plantId];
+  if (!plantDates) return 0;
+
+  let cursor = new Date(startDate);
+
+  while (cursor < new Date(endDate)) {
+    const key = cursor.toISOString().split("T")[0];
+    const day = plantDates[key];
+
+    if (day) {
+      if (day.am != null) return day.am;  // 1️⃣ Check AM first
+      if (day.pm != null) return day.pm;  // 2️⃣ If AM null check PM
+    }
+
+    cursor.setDate(cursor.getDate() + 1); // 3️⃣ Move to next day
+  }
+
+  return 0;
+};
 
   /* ================= LOAD OPERATIONS ================= */
   const [year, monthNum] = month.split("-");
@@ -52,68 +72,92 @@ const monthEnd = new Date(y, m, 0);
   const ops = await getOperationsByDateRange(startDate, endDate);
 
   const temp = {};
+const dateMap = {}; // 🔥 store AM/PM per day per plant
 
-  ops.forEach(({ plantId, operation }) => {
-    if (!temp[plantId]) {
-      temp[plantId] = {
-        plantId,
-        sludgeReceived: 0,
-        sludgeProcessed: 0,
-        oldSludge: 0,
-        remaining: 0,
-         lastDate: null,   // ✅ ADD THIS
-      };
+ops.forEach(({ plantId, operation }) => {
+  if (!temp[plantId]) {
+    temp[plantId] = {
+      plantId,
+      sludgeReceived: 0,
+      sludgeProcessed: 0,
+      oldSludge: 0,
+      remaining: 0,
+    };
+  }
+
+  if (!dateMap[plantId]) {
+    dateMap[plantId] = {};
+  }
+
+  const opDate = operation.operationDate;
+
+  if (!dateMap[plantId][opDate]) {
+    dateMap[plantId][opDate] = { am: null, pm: null };
+  }
+
+  // Store AM / PM
+  if (operation.sludgeTankLevelAm != null) {
+    dateMap[plantId][opDate].am =
+      Number(operation.sludgeTankLevelAm);
+  }
+
+  if (operation.sludgeTankLevelPm != null) {
+    dateMap[plantId][opDate].pm =
+      Number(operation.sludgeTankLevelPm);
+  }
+
+  // Aggregate totals
+  temp[plantId].sludgeReceived +=
+    Number(operation.sludgeReceived || 0);
+
+  temp[plantId].sludgeProcessed +=
+    Number(operation.sludgeProcessed || 0);
+});
+
+const getClosingSludge = (plantId) => {
+  const plantDates = dateMap[plantId];
+  if (!plantDates) return 0;
+
+  let cursor = new Date(monthEnd);
+
+  while (cursor >= new Date(startDate)) {
+    const key = cursor.toISOString().split("T")[0];
+    const day = plantDates[key];
+
+    if (day) {
+      if (day.pm != null) return day.pm;  // PM first
+      if (day.am != null) return day.am;
     }
 
-    // Old sludge = AM of 1st day
-    if (operation.operationDate === startDate) {
-      temp[plantId].oldSludge =
-        Number(operation.sludgeTankLevelAm || 0);
-    }
+    cursor.setDate(cursor.getDate() - 1);
+  }
 
-    temp[plantId].sludgeReceived +=
-      Number(operation.sludgeReceived || 0);
-
-    temp[plantId].sludgeProcessed +=
-      Number(operation.sludgeProcessed || 0);
-
-  if (
-  operation.sludgeTankLevelPm != null &&
-  (
-    !temp[plantId].lastDate ||
-    operation.operationDate > temp[plantId].lastDate
-  )
-) {
-  temp[plantId].remaining =
-    Number(operation.sludgeTankLevelPm);
-  temp[plantId].lastDate = operation.operationDate;
-}
-
-  });
+  return 0;
+};
 
 const rawRows = Object.entries(plantMaster).map(([pid, meta]) => {
-  const op = temp[pid] || {
-    sludgeReceived: 0,
-    sludgeProcessed: 0,
-    oldSludge: 0,
-    remaining: 0,
-  };
+const op = temp[pid] || {
+  sludgeReceived: 0,
+  sludgeProcessed: 0,
+};
 
-  const total = op.oldSludge + op.sludgeReceived;
+const oldSludge = getOpeningSludge(pid);
+const remaining = getClosingSludge(pid);
+const total = oldSludge + op.sludgeReceived;
 
-  return {
-    plantId: Number(pid),
-    district: meta.district,
-    name: meta.name,
-    kld: meta.kld,
-    permanentPowerDate: meta.permanentPowerDate,
-    mnitDate: meta.mnitDate,
-    sludgeReceived: op.sludgeReceived,
-    oldSludge: op.oldSludge,
-    total,
-    sludgeProcessed: op.sludgeProcessed,
-    remaining: op.remaining,
-  };
+return {
+  plantId: Number(pid),
+  district: meta.district,
+  name: meta.name,
+  kld: meta.kld,
+  permanentPowerDate: meta.permanentPowerDate,
+  mnitDate: meta.mnitDate,
+  sludgeReceived: op.sludgeReceived,
+  oldSludge,
+  total,
+  sludgeProcessed: op.sludgeProcessed,
+  remaining,
+};
 });
 
 const visibleRows = rawRows.filter(r => {

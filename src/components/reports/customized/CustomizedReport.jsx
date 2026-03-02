@@ -16,11 +16,11 @@ import {
   sumVehicleMetricForDate
 } from "./ReportTotals";
 
-import CustomizedExcel from './CustomizedExcel'
-import CustomizedPdf from "./CustomizedPdf";
+import CustomizedExcel from '../customized/CustomizedExcel'
+import CustomizedPdf from '../customized/CustomizedPdf'
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import companyLogo from './company_logo1.jpg'
+import companyLogo from '../company_logo1.jpg'
 
 import {
  
@@ -31,8 +31,8 @@ import {
 
 
 /* ================= API ================= */
-import { getAllPlants } from '../../services/plantService'
-import { getVehiclesByPlant, getVehicleOperationsByDateRange } from "../../services/vehicleService";
+import { getAllPlants } from '../../../services/plantService'
+import { getVehiclesByPlant, getVehicleOperationsByDateRange } from "../../../services/vehicleService";
 
 import {
   getOperationsByDate,
@@ -41,7 +41,7 @@ import {
   getLabOperationsByDate,
   getLabOperationsByDateRange,
  
-} from '../../services/operationService';
+} from '../../../services/operationService';
 
 
 

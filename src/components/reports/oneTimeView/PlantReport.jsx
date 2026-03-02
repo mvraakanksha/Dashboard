@@ -14,9 +14,9 @@ import { saveAs } from "file-saver";
 
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
-import { getAllPlants } from "../../services/plantService";
-import { getVehiclesByPlant } from "../../services/vehicleService";
-import companyLogo from './company_logo1.jpg'
+import { getAllPlants } from "../../../services/plantService";
+import { getVehiclesByPlant } from "../../../services/vehicleService";
+import companyLogo from '../company_logo1.jpg'
 
 // ✔ jsPDF-safe PNG icons (verified)
 const GREEN_TICK =
