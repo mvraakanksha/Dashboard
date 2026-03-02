@@ -76,7 +76,7 @@ export default function PlantReport() {
   const [loading, setLoading] = useState(true);
 const [fromDate, setFromDate] = useState("");
 const [toDate, setToDate] = useState("");
-const [gpsDataMap, setGpsDataMap] = useState({});
+const [gpsVehicleMap, setGpsVehicleMap] = useState({});
   const [zoneFilter, setZoneFilter] = useState(() => {
   return localStorage.getItem("plantReportZone") || "All";
 });
@@ -106,11 +106,10 @@ useEffect(() => {
     .catch(console.error)
     .finally(() => setLoading(false));
 }, []);
-
 useEffect(() => {
   if (!plants.length) return;
 
-  const fetchGpsData = async () => {
+  const fetchGpsVehicles = async () => {
     const map = {};
 
     await Promise.all(
@@ -118,34 +117,17 @@ useEffect(() => {
         try {
           const vehicles = await getVehiclesByPlant(plant.plantID);
 
-          // if any vehicle has gpsStatus true
-          const gpsVehicle = vehicles?.find(v => v.gpsStatus);
-
-          if (gpsVehicle) {
-            map[plant.plantID] = {
-              gpsStatus: true,
-              gpsInstallationDate: gpsVehicle.gpsInstallationDate
-            };
-          } else {
-            map[plant.plantID] = {
-              gpsStatus: false,
-              gpsInstallationDate: null
-            };
-          }
-
+          map[plant.plantID] = vehicles || [];
         } catch (err) {
-          map[plant.plantID] = {
-            gpsStatus: false,
-            gpsInstallationDate: null
-          };
+          map[plant.plantID] = [];
         }
       })
     );
 
-    setGpsDataMap(map);
+    setGpsVehicleMap(map);
   };
 
-  fetchGpsData();
+  fetchGpsVehicles();
 }, [plants]);
 
   /* ================= ZONES ================= */
@@ -208,9 +190,14 @@ if (selectedCard === "TABS") {
 }
 
 if (selectedCard === "GPS") {
-  const gpsInfo = gpsDataMap[p.plantID];
-  value = gpsInfo?.gpsStatus || false;
-  dateField = gpsInfo?.gpsInstallationDate || null;
+  const vehicles = gpsVehicleMap[p.plantID] || [];
+
+  // if any vehicle matches
+  value = vehicles.some(v => v.gpsStatus);
+
+  // take first installed date for filtering
+  const installedVehicle = vehicles.find(v => v.gpsStatus);
+  dateField = installedVehicle?.gpsInstallationDate || null;
 }
 if (selectedCard === "CAMERA") {
   value = !!p.cameraConfigurationDate;
@@ -259,16 +246,18 @@ const counts = useMemo(() => ({
 codBod: zoneFilteredPlants.filter(p => p.codAndBodSenserDate).length,
 ipPhones: zoneFilteredPlants.filter(p => p.ipPhoneDate).length,
 tabsReceived: zoneFilteredPlants.filter(p => p.tabsReceivedDate).length,
-gpsInstalled: zoneFilteredPlants.filter(
-  p => gpsDataMap[p.plantID]?.gpsStatus
-).length,
+gpsInstalled: zoneFilteredPlants.reduce((total, plant) => {
+  const vehicles = gpsVehicleMap[plant.plantID] || [];
+  const installedCount = vehicles.filter(v => v.gpsStatus).length;
+  return total + installedCount;
+}, 0),
 cameraConfigured: zoneFilteredPlants.filter(p => p.cameraConfigurationDate).length,
   // ✅ CTE / CTO
   cteCertified: zoneFilteredPlants.filter(p => p.cteCertified).length,
   cteIssued: zoneFilteredPlants.filter(p => p.cteIssuedDate).length,
   ctoCertified: zoneFilteredPlants.filter(p => p.ctoCertified).length,
   ctoIssued: zoneFilteredPlants.filter(p => p.ctoIssuedDate).length,
-}), [zoneFilteredPlants,gpsDataMap]);
+}), [zoneFilteredPlants,gpsVehicleMap]);
 
   /* ================= TODAY DATE ================= */
   const today = useMemo(
@@ -363,13 +352,13 @@ doc.setFontSize(10);
 
   doc.setFont("times", "normal");
   doc.setFontSize(10);
-  doc.setTextColor(90);
+  doc.setTextColor(95);
 doc.text(
   selectedCard === "ALL"
     ? "Plant Infrastructure Report"
     : `${selectedCard} Completion Report`,
   pageWidth / 2,
-  24,
+  25,
   { align: "center" }
 );
 
@@ -480,11 +469,19 @@ if (selectedCard === "TABS") {
 }
 
 if (selectedCard === "GPS") {
-  const gpsInfo = gpsDataMap[p.plantID];
-  status = gpsInfo?.gpsStatus || false;
-  completionDate = gpsInfo?.gpsInstallationDate
-    ? formatDate(gpsInfo.gpsInstallationDate)
-    : "-";
+  const vehicles = gpsVehicleMap[p.plantID] || [];
+
+  return vehicles.map((vehicle, idx) => [
+    i + 1,
+    p.plantID,
+    p.plantName,
+    p.kld,
+    vehicle.vehicleNumber,
+    vehicle.gpsStatus ? "YES" : "NO",
+    vehicle.gpsStatus
+      ? formatDate(vehicle.gpsInstallationDate)
+      : "-"
+  ]);
 }
 
 if (selectedCard === "CAMERA") {
@@ -565,7 +562,7 @@ const imageToBase64 = (url) =>
       resolve(canvas.toDataURL("image/png"));
     };
   });
-/* ================= PROFESSIONAL PLANT REPORT EXCEL ================= */
+
 /* ================= PROFESSIONAL PLANT REPORT EXCEL ================= */
 const downloadTableExcel = async () => {
   const workbook = new ExcelJS.Workbook();
@@ -1164,7 +1161,13 @@ if (selectedCard === "CAMERA") {
           {/* 🔥 NEW DEVICE CARDS */}
           {selectedCard === "IPPHONES" && "IP Phones Received"}
           {selectedCard === "TABS" && "Tabs Received"}
-          {selectedCard === "GPS" && "GPS Installed"}
+          {selectedCard === "GPS" && (
+  <>
+    <th className="border p-2 text-center">Vehicle Number</th>
+    <th className="border p-2 text-center">GPS Status</th>
+    <th className="border p-2 text-center">Installation Date</th>
+  </>
+)}
           {selectedCard === "CAMERA" && "Cameras Configured"}
         </th>
 

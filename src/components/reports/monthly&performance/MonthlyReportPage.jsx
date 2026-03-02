@@ -201,6 +201,7 @@ const getClosingSludge = (ops, startDate, endDate) => {
     if (!op.operationDate) return;
 
     const d = toYMD(op.operationDate);
+    const d = toYMD(op.operationDate);
 
     const time = new Date(d);
     if (time < start || time >= end) return;
@@ -334,6 +335,8 @@ const finalRows = Object.entries(plantMaster)
       sludgeProcessed: 0,
       ops: [],
     };
+
+const oldSludge = getOpeningSludge(op.ops || [], startDate, endDate);
 
 const oldSludge = getOpeningSludge(op.ops || [], startDate, endDate);
 
