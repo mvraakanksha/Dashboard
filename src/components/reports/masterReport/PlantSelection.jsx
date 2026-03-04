@@ -62,6 +62,8 @@ fields:[
 { id:"internetDateOfCompletion", label:"Internet Completed" },
 { id:"tabs", label:"Tabs Available" },
 { id:"tabsReceivedDate", label:"Tabs Received Date" },
+{ id:"tabImeiNo", label:"Tab IMEI No" },
+{ id:"tabMake", label:"Tab Make" },
 { id:"ipPhoneDate", label:"Ip Phone Received Date" },
 { id:"cameraConfigurationDate", label:"Camera Configuration Date" },
 ]
@@ -126,10 +128,10 @@ const DESIGNATIONS = [
 ];
 
 const EMPLOYEE_FIELDS = [
-{ id:"employeeId", label:"Employee ID" },
-{ id:"employeeName", label:"Name" },
-{ id:"mobileNo", label:"Mobile" },
-{ id:"alternateMobNo", label:"Alternate Mobile" },
+{ id:"employeeId", label:"Emp ID" },
+{ id:"employeeName", label:"Emp Name" },
+{ id:"mobileNo", label:"Emp Mobile No" },
+{ id:"alternateMobNo", label:"Alternate Mobile No" },
 { id:"address", label:"Address" },
 { id:"dateOfBirth", label:"DOB" },
 {id:"designation", label:"Designation"},
@@ -179,7 +181,7 @@ const [selEmployeeFields,setSelEmployeeFields]=useState(["employeeName"]);
 const [selectedRoles,setSelectedRoles] = useState([]);
 const [vehiclesMap,setVehiclesMap]=useState({});
 const [employeesMap,setEmployeesMap]=useState({});
-
+const [reportStatus, setReportStatus] = useState("generate");
 
 
 useEffect(()=>{
@@ -241,18 +243,35 @@ setEmployeesMap(map);
 })();
 },[modules.employee,selectedPlants]);
 
-const toggleGroup = (id)=>{
-setEnabledGroups(prev=>{
-const next = !prev[id];
+const getGroupState = (group) => {
+  const selected = group.fields.filter(f => selPlantFields.includes(f.id)).length;
 
-if(!next){
-const group = PLANT_GROUPS.find(g=>g.id===id);
-setSelPlantFields(p=>p.filter(f=>!group.fields.some(x=>x.id===f)));
-}
-
-return {...prev,[id]:next};
-});
+  if (selected === 0) return "none";
+  if (selected === group.fields.length) return "all";
+  return "partial";
 };
+
+const toggleGroup = (id) => {
+  setEnabledGroups(prev => {
+    const next = !prev[id];
+    const group = PLANT_GROUPS.find(g => g.id === id);
+
+    if (next) {
+      // ✅ SELECT ALL fields when group enabled
+      setSelPlantFields(p => [
+        ...new Set([...p, ...group.fields.map(f => f.id)])
+      ]);
+    } else {
+      // ❌ REMOVE all group fields when group disabled
+      setSelPlantFields(p =>
+        p.filter(f => !group.fields.some(x => x.id === f))
+      );
+    }
+
+    return { ...prev, [id]: next };
+  });
+};
+
 const formatDate = (v) => {
   if (!v) return "-";
 
@@ -285,6 +304,18 @@ const formatValue = (v) => {
   return v ?? "-";
 };
 
+useEffect(()=>{
+  setReportStatus("generate");
+},[
+  selectedPlants,
+  zoneFilter,
+  modules,
+  selPlantFields,
+  selVehicleFields,
+  selEmployeeFields,
+  selectedRoles
+]);
+
 
 const generate = () => {
   const filteredPlants = plants
@@ -299,9 +330,15 @@ const generate = () => {
     selEmployeeFields,
     selectedRoles,
     vehiclesMap,
-    employeesMap
+    employeesMap,
+    plantFieldDefs: ALL_PLANT_FIELDS,
+    vehicleFieldDefs: VEHICLE_FIELDS,
+    employeeFieldDefs: EMPLOYEE_FIELDS
   });
+
+  setReportStatus("done");   // ✅ show DONE
 };
+
 
 const totals = useMemo(() => {
   if (!config) return null;
@@ -346,10 +383,18 @@ return(
 
 </div>
 
-<button onClick={generate}
-className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-900 text-white rounded-2xl font-bold shadow-lg">
-<Download size={18}/>Generate Report
+<button
+  onClick={generate}
+  className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-bold shadow-lg transition
+  ${reportStatus === "done"
+    ? "bg-green-600 hover:bg-green-700"
+    : "bg-indigo-600 hover:bg-indigo-900 text-white"}`}
+>
+
+  {reportStatus === "done" ? "✓ Report Generated" : "Generate Report"}
+
 </button>
+
 </div>
 
 {/* MODULE SELECT */}

@@ -41,16 +41,33 @@ export default function PlantPdf(config) {
   doc.text("FSTP RAJASTHAN", pageWidth / 2, 20, { align: "center" });
 
   /* ===== TABLE HEADER ===== */
-  const head = [[
-    "S.No",
-    "Plant ID",
-    "Plant Name",
-    "KLD",
-    "Zone",
-    ...(config.modules.plant ? config.selPlantFields : []),
-    ...(config.modules.vehicle ? config.selVehicleFields : []),
-    ...(config.modules.employee ? config.selEmployeeFields : [])
-  ]];
+  
+const plantLabels = config.selPlantFields.map(f => {
+  const field = config.plantFieldDefs?.find(x => x.id === f);
+  return field ? field.label : f;
+});
+
+const vehicleLabels = config.selVehicleFields.map(f => {
+  const field = config.vehicleFieldDefs?.find(x => x.id === f);
+  return field ? field.label : f;
+});
+
+const employeeLabels = config.selEmployeeFields.map(f => {
+  const field = config.employeeFieldDefs?.find(x => x.id === f);
+  return field ? field.label : f;
+});
+
+const head = [[
+  "S.No",
+  "Plant ID",
+  "Plant Name",
+  "KLD",
+  "Zone",
+
+  ...(config.modules.plant ? plantLabels : []),
+  ...(config.modules.vehicle ? vehicleLabels : []),
+  ...(config.modules.employee ? employeeLabels : [])
+]];
 
   /* ===== TABLE BODY ===== */
   const body = config.plants.map((p,index)=>{
