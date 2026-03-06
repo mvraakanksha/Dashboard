@@ -107,8 +107,9 @@ const CombinedTooltip = ({ active, payload }) => {
           </p>
           <p>Distance: {distance(d.v1.am, d.v1.pm)} Km</p>
           <p>Fuel: {d.v1.fuel ?? "-"}</p>
-          <p>No. of Trips: {d.v1.trips ?? 0}</p>          {/* ✅ */}
-          <p>Sludge Collected: {d.v1.sludge ?? 0} L</p>     {/* ✅ */}
+          <p>No. of Trips: {d.v1.trips ?? 0}</p>         
+          <p>Sludge Collected: {d.v1.sludge ?? 0} L</p> 
+           <p>Remark: {d.v1.remark ?? "-"}</p>     
         </div>
       )}
 
@@ -119,8 +120,9 @@ const CombinedTooltip = ({ active, payload }) => {
           </p>
           <p>Distance: {distance(d.v2.am, d.v2.pm)} Km</p>
           <p>Fuel: {d.v2.fuel ?? "-"}</p>
-          <p>No. of Trips: {d.v2.trips ?? 0}</p>          {/* ✅ */}
-          <p>Sludge Collected: {d.v2.sludge ?? 0} L</p>     {/* ✅ */}
+          <p>No. of Trips: {d.v2.trips ?? 0}</p>         
+          <p>Sludge Collected: {d.v2.sludge ?? 0} L</p>  
+           <p>Remark: {d.v2.remark ?? "-"}</p>   
         </div>
       )}
     </div>
@@ -384,8 +386,10 @@ const insuranceAlertMap = useMemo(() => {
               am: v.vehicleOp?.vehicleReadingAm,
               pm: v.vehicleOp?.vehicleReadingPm,
               fuel: v.vehicleOp?.vehicleFuelLevel,
-              trips: v.vehicleOp?.noOfTrips,          // ✅ added
-        sludge: v.vehicleOp?.sludgeCollect,     // ✅ added
+              trips: v.vehicleOp?.noOfTrips,          
+              sludge: v.vehicleOp?.sludgeCollect,  
+              remark: v.vehicleOp?.vehicleRemark,
+        
             }
           : null;
 
