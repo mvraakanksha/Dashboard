@@ -41,7 +41,7 @@ const [selectedZone, setSelectedZone] = useState("ALL");
 const [dateRange, setDateRange] = useState({ from: "", to: "" });
 const [dateError, setDateError] = useState("");
 const [waterTypes, setWaterTypes] = useState([]);
-
+const [billFilter, setBillFilter] = useState("ALL");
   /* ===== FETCH PLANTS ===== */
   useEffect(() => {
     getAllPlants()
@@ -93,23 +93,34 @@ const filteredWaterBill =
           String(p.zones).toLowerCase().trim() ===
           selectedZone.toLowerCase().trim()
       );
-
 const finalData = filteredWaterBill
-  // ✅ WATER TYPE FILTER AT PLANT LEVEL
+  // WATER TYPE FILTER
   .filter(p => {
     if (!waterTypes.length) return true;
     return waterTypes.includes(p.waterType);
   })
-  // ✅ DATE FILTER AT BILL LEVEL
-  .map(p => ({
-    ...p,
-    waterBills: p.waterBills.filter(r => {
+  // DATE FILTER
+  .map(p => {
+    const dateFiltered = p.waterBills.filter(r => {
       const d = new Date(r.waterFilledDate);
+
       if (dateRange.from && d < new Date(dateRange.from)) return false;
       if (dateRange.to && d > new Date(dateRange.to)) return false;
+
       return true;
-    })
-  }));
+    });
+
+    return {
+      ...p,
+      waterBills: dateFiltered
+    };
+  })
+  // BILL STATUS FILTER
+  .filter(p => {
+    if (billFilter === "ENTERED") return p.waterBills.length > 0;
+    if (billFilter === "NO_RECORD") return p.waterBills.length === 0;
+    return true;
+  });
 
   const exportRows = useMemo(() => {
   const rows = [];
@@ -712,7 +723,25 @@ ws.columns.forEach((column) => {
   {dateError && (
     <p className="text-red-600 text-xs font-semibold">{dateError}</p>
   )}
+<div>
+  <label className="text-[10px] font-bold text-slate-500 uppercase">
+    Bill Status
+  </label>
 
+  <div className="flex items-center gap-2 mt-1">
+    <Filter size={16} />
+
+    <select
+      value={billFilter}
+      onChange={(e) => setBillFilter(e.target.value)}
+      className="border p-2 rounded text-xs"
+    >
+      <option value="ALL">All</option>
+      <option value="ENTERED">Entered Bills</option>
+      <option value="NO_RECORD">No Water Bills</option>
+    </select>
+  </div>
+</div>
 <div className="ml-auto flex gap-2">
   <button
     onClick={downloadPdf}

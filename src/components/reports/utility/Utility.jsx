@@ -772,15 +772,52 @@
 
 
 
-import React from 'react'
-import WaterBill from './WaterBill'
+import React, { useState } from "react";
+import WaterBill from "./WaterBill";
+import VehicleFuel from "./VehicleFuel";
 
 const Utility = () => {
-  return (
-    <div>
-      <WaterBill/>
-    </div>
-  )
-}
 
-export default Utility
+const [activeTab, setActiveTab] = useState("water");
+
+return ( <div className="p-4">
+
+
+  {/* Toggle Buttons */}
+  <div className="flex gap-3 mb-4">
+
+    <button
+      onClick={() => setActiveTab("water")}
+      className={`px-4 py-2 rounded font-semibold ${
+        activeTab === "water"
+          ? "bg-indigo-600 text-white"
+          : "bg-gray-200"
+      }`}
+    >
+      Water Bill
+    </button>
+
+    <button
+      onClick={() => setActiveTab("fuel")}
+      className={`px-4 py-2 rounded font-semibold ${
+        activeTab === "fuel"
+          ? "bg-indigo-600 text-white"
+          : "bg-gray-200"
+      }`}
+    >
+      Vehicle Fuel
+    </button>
+
+  </div>
+
+  {/* Conditional Rendering */}
+  {activeTab === "water" && <WaterBill />}
+  {activeTab === "fuel" && <VehicleFuel />}
+
+</div>
+
+);
+};
+
+export default Utility;
+
