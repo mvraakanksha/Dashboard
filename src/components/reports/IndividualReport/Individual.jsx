@@ -932,10 +932,11 @@ const downloadZoneSummaryExcel = async () => {
   // HEADER
   const header = ws.addRow([
     "S.No",
+    "Zone",
     "Plant ID",
     "Plant KLD",
     "Plant Name",
-    "Zone"
+    
   ]);
 
   header.eachCell(cell => {
@@ -969,12 +970,12 @@ const downloadZoneSummaryExcel = async () => {
 
       plantsInZone.forEach(p => {
         const row = ws.addRow([
-          serial++,
-          p.plantID,
-          p.kld,
-          p.plantName,
-          `Zone-${zone}`
-        ]);
+  serial++,
+  `Zone-${zone}`,
+  p.plantID,
+  p.kld,
+  p.plantName
+]);
 
         row.eachCell(cell => {
           cell.alignment = {
@@ -996,7 +997,7 @@ const downloadZoneSummaryExcel = async () => {
 
       // ✅ Merge Zone column (Column 5 = E)
       if (plantsInZone.length > 1) {
-        ws.mergeCells(`E${startRow}:E${endRow}`);
+        ws.mergeCells(`B${startRow}:B${endRow}`);
       }
     });
 
@@ -1137,10 +1138,10 @@ const downloadZoneSummaryExcel = async () => {
         <thead className="bg-slate-100">
           <tr>
             <th className="border p-2 text-center">S.No</th>
+            <th className="border p-2 text-center">Zone</th>
             <th className="border p-2 text-center">Plant ID</th>
             <th className="border p-2 text-center">Plant KLD</th>
             <th className="border p-2 text-center">Plant Name</th>
-            <th className="border p-2 text-center">Zone</th>
           </tr>
         </thead>
 
@@ -1160,28 +1161,31 @@ const downloadZoneSummaryExcel = async () => {
               .map(zone =>
                 zoneGroups[zone].map((plant, index) => (
                   <tr key={plant.plantID}>
-                    <td className="border text-center">
-                      {serial++}
-                    </td>
-                    <td className="border text-center">
-                      {plant.plantID}
-                    </td>
-                    <td className="border text-center">
-                      {plant.kld}
-                    </td>
-                    <td className="border text-center">
-                      {plant.plantName}
-                    </td>
+  <td className="border text-center">
+    {serial++}
+  </td>
 
-                    {index === 0 && (
-                      <td
-                        rowSpan={zoneGroups[zone].length}
-                        className="border text-center font-semibold"
-                      >
-                        Zone-{zone}
-                      </td>
-                    )}
-                  </tr>
+  {index === 0 && (
+    <td
+      rowSpan={zoneGroups[zone].length}
+      className="border text-center font-semibold"
+    >
+      Zone-{zone}
+    </td>
+  )}
+
+  <td className="border text-center">
+    {plant.plantID}
+  </td>
+
+  <td className="border text-center">
+    {plant.kld}
+  </td>
+
+  <td className="border text-center">
+    {plant.plantName}
+  </td>
+</tr>
                 ))
               );
           })()}

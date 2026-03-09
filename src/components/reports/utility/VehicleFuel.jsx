@@ -278,7 +278,7 @@ companyCell.font = {
 name: "Times New Roman",
 size: 22,
 bold: true,
-color: { argb: "FF800000" }
+color: { argb: "FFC80000" }
 };
 companyCell.alignment = { horizontal: "center", vertical: "middle" };
 
@@ -436,31 +436,32 @@ if (plantEndRow > plantStartRow) {
 APPLY BORDERS + ALIGNMENT
 ===================================================== */
 
-sheet.eachRow((row) => {
+sheet.eachRow((row, rowNumber) => {
 
+  row.eachCell((cell) => {
 
-row.eachCell((cell) => {
+    // Skip company header rows so their styling remains
+    if (rowNumber > 3) {
+      cell.font = {
+        name: "Times New Roman",
+        size: 10
+      };
+    }
 
-  cell.font = {
-    name: "Times New Roman",
-    size: 10
-  };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
 
-  cell.alignment = {
-    horizontal: "center",
-    vertical: "middle",
-    wrapText: true
-  };
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" }
+    };
 
-  cell.border = {
-    top: { style: "thin" },
-    bottom: { style: "thin" },
-    left: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-});
-
+  });
 
 });
 
@@ -498,9 +499,46 @@ new Blob([buffer]),
 
 
 
-const exportPDF = () => {
+const exportPDF = async () => {
 
-  const doc = new jsPDF();
+  const doc = new jsPDF("portrait", "mm", "a4");
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  /* ================= LOGO ================= */
+
+  const logoBase64 = await imageToBase64(companyLogo);
+
+  doc.addImage(
+    logoBase64,
+    "PNG",
+    8,
+    6,
+    22,
+    12
+  );
+
+  /* ================= HEADER ================= */
+
+  doc.setFont("times", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(128, 0, 0); // maroon
+
+  doc.text("MVR TECHNOLOGY", pageWidth / 2, 14, { align: "center" });
+
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+
+  doc.text("FSTP RAJASTHAN", pageWidth / 2, 20, { align: "center" });
+
+  doc.setFont("times", "normal");
+  doc.setFontSize(10);
+
+  doc.text("Vehicle Fuel Report", pageWidth / 2, 25, { align: "center" });
+
+  doc.setDrawColor(200);
+  doc.line(6, 28, pageWidth - 6, 28);
+
+  /* ================= TABLE HEADER ================= */
 
   const tableColumn = [
     "Plant ID",
@@ -508,30 +546,84 @@ const exportPDF = () => {
     "KLD",
     "District",
     "Zone",
-    "Vehicle",
-    "Fuel Date",
-    "Liters",
-    "Odometer"
+    "Vehicle Number",
+    "Fuel Filled Date",
+    "Quantity (Liters)",
+    "Odometer Reading"
   ];
 
-  const tableRows = exportRows.map(r => [
-    r.plantID,
-    r.plantName,
-    r.kld,
-    r.district,
-    r.zone,
-    r.vehicle,
-    r.date,
-    r.liters,
-    r.odometer
-  ]);
+  /* ================= TABLE DATA ================= */
 
-  autoTable(doc,{
-    head:[tableColumn],
-    body:tableRows,
-    startY:20,
-    styles:{fontSize:8}
+  const tableRows = [];
+
+  finalData.forEach((p) => {
+
+    Object.keys(p.vehicleMap).forEach((vehicleNumber) => {
+
+      const records = p.vehicleMap[vehicleNumber];
+
+      if (!records.length) {
+
+        tableRows.push([
+          p.plantID,
+          p.plantName,
+          p.kld,
+          p.district,
+          p.zones,
+          vehicleNumber,
+          {
+            content: "No Fuel Records",
+            colSpan: 3,
+            styles: {
+              halign: "center",
+              fontStyle: "bold"
+            }
+          }
+        ]);
+
+      } else {
+
+        records.forEach((f) => {
+
+          tableRows.push([
+            p.plantID,
+            p.plantName,
+            p.kld,
+            p.district,
+            p.zones,
+            vehicleNumber,
+            formatDisplayDate(f.lastFuelFilledDate),
+            formatIndian(f.filledLiters),
+            f.currentOdometerReading ?? "-"
+          ]);
+
+        });
+
+      }
+
+    });
+
   });
+
+  /* ================= TABLE ================= */
+
+  autoTable(doc, {
+    head: [tableColumn],
+    body: tableRows,
+    startY: 32,
+    styles: {
+      fontSize: 8,
+      halign: "center",
+      valign: "middle"
+    },
+    headStyles: {
+      fillColor: [55, 65, 81],
+      textColor: 255,
+      fontStyle: "bold"
+    }
+  });
+
+  /* ================= DOWNLOAD ================= */
 
   doc.save("Vehicle_Fuel_Report.pdf");
 
@@ -611,7 +703,7 @@ const exportPDF = () => {
 
   {/* RIGHT EXPORT BUTTONS */}
 
-  <div className="flex gap-3 items-start">
+  <div className="flex gap-4  items-start">
 
     <button
       onClick={exportExcel}
