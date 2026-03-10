@@ -185,22 +185,23 @@ try {
     : allPlants.filter(p => String(p.zones) === String(zone));
 
 // 🔥 Apply Permanent Power Date Logic
-const filteredPlants = filteredByZone.filter((p) => {
-  if (!p.permanentPower) return false;
-
-  const completionDate = p.permanentPowerDateOfCompletion;
-  if (!completionDate) return false;
-
-  const selectedISO = new Date(date).toISOString().split("T")[0];
-  const completedISO = new Date(completionDate).toISOString().split("T")[0];
-
-  return selectedISO >= completedISO;
-});
+const filteredPlants = filteredByZone;
 
           
 
-          const permanentPowerCount =
-          filteredPlants.filter(p => p.permanentPower === true).length;
+       const permanentPowerCount =
+  filteredPlants.filter((p) => {
+    if (!p.permanentPower) return false;
+
+    const completionDate = p.permanentPowerDateOfCompletion;
+    if (!completionDate) return false;
+
+    const selectedISO = new Date(date).toISOString().split("T")[0];
+    const completedISO = new Date(completionDate).toISOString().split("T")[0];
+
+    return selectedISO >= completedISO;
+  }).length;
+  
 
           const mnitCount =
   filteredPlants.filter(p => p.mnit === true).length;

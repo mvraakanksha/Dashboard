@@ -775,6 +775,7 @@
 import React, { useState } from "react";
 import WaterBill from "./WaterBill";
 import VehicleFuel from "./VehicleFuel";
+import PowerBill from "./PowerBill";
 
 const Utility = () => {
 
@@ -785,6 +786,19 @@ return ( <div className="p-4">
 
   {/* Toggle Buttons */}
   <div className="flex gap-3 mb-4">
+
+
+ <button
+      onClick={() => setActiveTab("power")}
+      className={`px-4 py-2 rounded font-semibold ${
+        activeTab === "power"
+          ? "bg-indigo-600 text-white"
+          : "bg-gray-200"
+      }`}
+    >
+     Power Bill
+    </button>
+
 
     <button
       onClick={() => setActiveTab("water")}
@@ -813,6 +827,7 @@ return ( <div className="p-4">
   {/* Conditional Rendering */}
   {activeTab === "water" && <WaterBill />}
   {activeTab === "fuel" && <VehicleFuel />}
+  {activeTab === "power" && <PowerBill/>}
 
 </div>
 

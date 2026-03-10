@@ -119,6 +119,29 @@ const VEHICLE_FIELDS = [
   { id:"vehicleBatteryExpiryDate", label:"Battery Expiry" }
 ];
 
+const TYRE_DETAILS_FIELDS = [
+  { id:"vehicleTyreFrontRightMake", label:"Front Right Make" },
+  { id:"vehicleTyreFrontRightSerialNo", label:"Front Right Serial No" },
+
+  { id:"vehicleTyreFrontLeftMake", label:"Front Left Make" },
+  { id:"vehicleTyreFrontLeftSerialNo", label:"Front Left Serial No" },
+
+  { id:"vehicleTyreRearRightInnerMake", label:"Rear Right Inner Make" },
+  { id:"vehicleTyreRearRightInnerSerialNo", label:"Rear Right Inner Serial No" },
+
+  { id:"vehicleTyreRearRightOuterMake", label:"Rear Right Outer Make" },
+  { id:"vehicleTyreRearRightOuterSerialNo", label:"Rear Right Outer Serial No" },
+
+  { id:"vehicleTyreRearLeftInnerMake", label:"Rear Left Inner Make" },
+  { id:"vehicleTyreRearLeftInnerSerialNo", label:"Rear Left Inner Serial No" },
+
+  { id:"vehicleTyreRearLeftOuterMake", label:"Rear Left Outer Make" },
+  { id:"vehicleTyreRearLeftOuterSerialNo", label:"Rear Left Outer Serial No" },
+
+  { id:"stepneyMake", label:"Stepney Make" },
+  { id:"stepneySerialNo", label:"Stepney Serial No" }
+];
+
 const DESIGNATIONS = [
 "Supervisor",
 "Operator",
@@ -182,7 +205,7 @@ const [selectedRoles,setSelectedRoles] = useState([]);
 const [vehiclesMap,setVehiclesMap]=useState({});
 const [employeesMap,setEmployeesMap]=useState({});
 const [reportStatus, setReportStatus] = useState("generate");
-
+const [enableTyreDetails,setEnableTyreDetails] = useState(false);
 
 useEffect(()=>{
 getAllPlants().then(res=>{
@@ -332,7 +355,7 @@ const generate = () => {
     vehiclesMap,
     employeesMap,
     plantFieldDefs: ALL_PLANT_FIELDS,
-    vehicleFieldDefs: VEHICLE_FIELDS,
+    vehicleFieldDefs: [...VEHICLE_FIELDS, ...TYRE_DETAILS_FIELDS],
     employeeFieldDefs: EMPLOYEE_FIELDS
   });
 
@@ -484,14 +507,73 @@ ${selPlantFields.includes(f.id)
 )}
 
 {/* VEHICLE */}
-{modules.vehicle &&
-<FieldSelector
-title="Vehicle"
-icon={Truck}
-fields={VEHICLE_FIELDS}
-selected={selVehicleFields}
-onToggle={id=>toggle(selVehicleFields,setSelVehicleFields,id)}
-/>}
+{modules.vehicle && (
+<div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
+
+<h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+<Truck size={18}/> Vehicle Details
+</h3>
+
+{/* VEHICLE BASIC FIELDS */}
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+{VEHICLE_FIELDS.map(f=>(
+<button
+key={f.id}
+onClick={()=>toggle(selVehicleFields,setSelVehicleFields,f.id)}
+className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium border
+${selVehicleFields.includes(f.id)
+?"bg-blue-600 text-white border-blue-600"
+:"bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+>
+{f.label}
+
+{selVehicleFields.includes(f.id)
+?<CheckSquare size={14}/>
+:<Square size={14} className="opacity-40"/>}
+
+</button>
+))}
+</div>
+
+{/* TYRE MODULE TOGGLE */}
+<label className="flex items-center gap-2 text-sm font-semibold mb-3 cursor-pointer">
+<input
+type="checkbox"
+checked={enableTyreDetails}
+onChange={()=>setEnableTyreDetails(p=>!p)}
+className="w-4 h-4"
+/>
+Tyre Details
+</label>
+
+{/* TYRE FIELDS */}
+{enableTyreDetails && (
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+{TYRE_DETAILS_FIELDS.map(f=>(
+<button
+key={f.id}
+onClick={()=>toggle(selVehicleFields,setSelVehicleFields,f.id)}
+className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium border
+${selVehicleFields.includes(f.id)
+?"bg-indigo-600 text-white border-indigo-600"
+:"bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+>
+
+{f.label}
+
+{selVehicleFields.includes(f.id)
+?<CheckSquare size={14}/>
+:<Square size={14} className="opacity-40"/>}
+
+</button>
+))}
+
+</div>
+)}
+
+</div>
+)}
 
 {/* EMPLOYEE */}
 {modules.employee && (

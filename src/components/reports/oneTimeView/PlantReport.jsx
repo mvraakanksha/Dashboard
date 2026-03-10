@@ -458,6 +458,14 @@ const pdfBody = filteredPlants.map((p, i) => {
     status = p.internet;
     completionDate = formatDate(p.internetDateOfCompletion);
   }
+
+  if (selectedCard === "CODBOD") {
+  status = !!p.codAndBodSenserDate;
+  completionDate = p.codAndBodSenserDate
+    ? formatDate(p.codAndBodSenserDate)
+    : "-";
+}
+
   if (selectedCard === "IPPHONES") {
   status = !!p.ipPhoneDate;
   completionDate = p.ipPhoneDate ? formatDate(p.ipPhoneDate) : "-";
