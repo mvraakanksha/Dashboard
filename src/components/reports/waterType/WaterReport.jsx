@@ -419,7 +419,6 @@ sheet.getCell("A4").value =
       {/* SUMMARY COUNTS */}
       <div className="bg-slate-50 p-4 rounded-lg shadow text-sm font-semibold flex flex-wrap gap-6">
         <span className="text-indigo-700">
-    Total Plants: {totalFilteredPlants}
     Total Plants: {totalPlants}
   </span>
         {waterTypes.normal && (

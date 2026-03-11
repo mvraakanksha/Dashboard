@@ -40,7 +40,7 @@ const KPICard = ({ label, value, theme, icon }) => (
         {React.cloneElement(icon, { size: 18 })}
       </div>
       <div>
-        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-900">
           {label}
         </p>
         <p className="text-xl font-black text-slate-900">
