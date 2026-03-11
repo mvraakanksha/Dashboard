@@ -2,7 +2,10 @@ import { useEffect, useState, useMemo } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getAllPlants } from "../../../services/plantService";
-import companyLogo from "./company_logo1.jpg";
+import companyLogo from "../company_logo1.jpg";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import ExcelJS from "exceljs";
 
 export default function WaterReport() {
   const [plants, setPlants] = useState([]);
@@ -126,6 +129,180 @@ const totalFilteredPlants = filteredPlants.length;
     doc.save("Water_Report.pdf");
   };
 
+    let cachedLeftLogo = null;
+
+const imageToBase64 = async (url) => {
+  const res = await fetch(url);
+  const blob = await res.blob();
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+};
+
+const downloadTableExcel = async () => {
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Water Report");
+
+  /* ===== LOAD LOGO ===== */
+  if (!cachedLeftLogo) {
+    cachedLeftLogo = await imageToBase64(companyLogo);
+  }
+
+  const logoId = workbook.addImage({
+    base64: cachedLeftLogo,
+    extension: "png"
+  });
+
+  /* HEADER HEIGHT */
+  sheet.getRow(1).height = 30;
+  sheet.getRow(2).height = 22;
+  sheet.getRow(3).height = 20;
+
+  /* LOGO */
+  sheet.addImage(logoId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: 90, height: 55 }
+  });
+
+  const lastColLetter = "G";
+
+  /* MERGES */
+  sheet.mergeCells(`A1:${lastColLetter}1`);
+  sheet.mergeCells(`A2:${lastColLetter}2`);
+  sheet.mergeCells(`A3:${lastColLetter}3`);
+  sheet.mergeCells(`A4:${lastColLetter}4`);
+
+  /* HEADER STYLE FUNCTION */
+  const setHeaderStyle = (cellRef, size = 12) => {
+    const cell = sheet.getCell(cellRef);
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.font = {
+      name: "Times New Roman",
+      bold: true,
+      size
+    };
+  };
+
+  /* TITLE */
+  sheet.getCell("A1").value = "MVR TECHNOLOGY";
+  sheet.getCell("A1").font = {
+    name: "Times New Roman",
+    bold: true,
+    size: 18,
+    color: { argb: "FFB31818" }
+  };
+  sheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
+
+  /* SUB TITLE */
+  sheet.getCell("A2").value = "FSTP RAJASTHAN";
+  setHeaderStyle("A2", 12);
+
+  /* REPORT TITLE */
+  sheet.getCell("A3").value = "WATER REPORT";
+  setHeaderStyle("A3", 12);
+
+  /* SUMMARY */
+  sheet.getCell("A4").value =
+    `Zone: ${selectedZone} | Total Plants: ${totalFilteredPlants} | Normal: ${waterCounts.normal} | Salt: ${waterCounts.salt} | No Borewell: ${waterCounts.noBorewell}`;
+
+  setHeaderStyle("A4", 11);
+
+  /* ===== TABLE HEADER ===== */
+  const headerRowIndex = 6;
+
+  const headers = [
+    "S.No",
+    "Plant ID",
+    "Plant Name",
+    "KLD",
+    "District",
+    "Zone",
+    "Water Type"
+  ];
+
+  const headerRow = sheet.getRow(headerRowIndex);
+  headerRow.values = headers;
+
+  /* COLUMN WIDTHS */
+  sheet.columns = [
+    { width: 8 },
+    { width: 18 },
+    { width: 30 },
+    { width: 12 },
+    { width: 20 },
+    { width: 10 },
+    { width: 18 }
+  ];
+
+  /* HEADER STYLE */
+  headerRow.eachCell((cell) => {
+    cell.font = {
+      name: "Times New Roman",
+      bold: true
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+
+  /* ===== TABLE DATA ===== */
+
+  let rowIndex = headerRowIndex + 1;
+  let s = 1;
+
+  filteredPlants.forEach((p) => {
+
+    const row = sheet.getRow(rowIndex);
+
+    row.values = [
+      s++,
+      p.plantID || "-",
+      p.plantName || "-",
+      p.kld || "-",
+      p.district || "-",
+      p.zones || "-",
+      p.waterType || "-"
+    ];
+
+    row.eachCell((cell) => {
+      cell.alignment = {
+        horizontal: "center",
+        vertical: "middle"
+      };
+
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+
+    rowIndex++;
+  });
+
+  /* DOWNLOAD FILE */
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  saveAs(
+    new Blob([buffer]),
+    "Water_Report.xlsx"
+  );
+};
+
   const loadLogo = (src) =>
     new Promise((resolve) => {
       const img = new Image();
@@ -145,68 +322,79 @@ const totalFilteredPlants = filteredPlants.length;
     <div className="p-6 space-y-4">
 
       {/* FILTER SECTION */}
-      <div className="bg-white p-4 rounded-lg shadow flex flex-wrap gap-6 items-center">
+ <div className="bg-white p-4 rounded-lg shadow flex flex-wrap gap-6 items-center">
 
-        {/* Zone Filter */}
-        <div>
-          <label className="text-sm font-semibold mr-2">Zone:</label>
-          <select
-            value={selectedZone}
-            onChange={(e) => setSelectedZone(e.target.value)}
-            className="border p-2 rounded"
-          >
-            <option value="All">All</option>
-            {zones.map((z) => (
-              <option key={z} value={z}>
-                Zone {z}
-              </option>
-            ))}
-          </select>
-        </div>
+  {/* Zone Filter */}
+  <div className="flex items-center gap-2">
+    <label className="text-sm font-semibold">Zone:</label>
+    <select
+      value={selectedZone}
+      onChange={(e) => setSelectedZone(e.target.value)}
+      className="border p-2 rounded"
+    >
+      <option value="All">All</option>
+      {zones.map((z) => (
+        <option key={z} value={z}>
+          Zone {z}
+        </option>
+      ))}
+    </select>
+  </div>
 
-        {/* Water Type Checkboxes */}
-        <div className="flex gap-4">
-          <label>
-            <input
-              type="checkbox"
-              checked={waterTypes.normal}
-              onChange={(e) =>
-                setWaterTypes({ ...waterTypes, normal: e.target.checked })
-              }
-            />{" "}
-            Normal Water
-          </label>
+  {/* Water Type Checkboxes */}
+  <div className="flex gap-4 items-center">
+    <label className="flex items-center gap-1">
+      <input
+        type="checkbox"
+        checked={waterTypes.normal}
+        onChange={(e) =>
+          setWaterTypes({ ...waterTypes, normal: e.target.checked })
+        }
+      />
+      Normal Water
+    </label>
 
-          <label>
-            <input
-              type="checkbox"
-              checked={waterTypes.salt}
-              onChange={(e) =>
-                setWaterTypes({ ...waterTypes, salt: e.target.checked })
-              }
-            />{" "}
-            Salt Water
-          </label>
+    <label className="flex items-center gap-1">
+      <input
+        type="checkbox"
+        checked={waterTypes.salt}
+        onChange={(e) =>
+          setWaterTypes({ ...waterTypes, salt: e.target.checked })
+        }
+      />
+      Salt Water
+    </label>
 
-          <label>
-            <input
-              type="checkbox"
-              checked={waterTypes.noBorewell}
-              onChange={(e) =>
-                setWaterTypes({ ...waterTypes, noBorewell: e.target.checked })
-              }
-            />{" "}
-            No Borewell
-          </label>
-        </div>
+    <label className="flex items-center gap-1">
+      <input
+        type="checkbox"
+        checked={waterTypes.noBorewell}
+        onChange={(e) =>
+          setWaterTypes({ ...waterTypes, noBorewell: e.target.checked })
+        }
+      />
+      No Borewell
+    </label>
+  </div>
 
-        <button
-          onClick={downloadTablePdf}
-          className="ml-auto bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-semibold"
-        >
-          Download PDF
-        </button>
-      </div>
+  {/* Buttons */}
+  <div className="ml-auto flex gap-3">
+    <button
+      onClick={downloadTablePdf}
+      className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-semibold"
+    >
+      Download PDF
+    </button>
+
+    <button
+      onClick={downloadTableExcel}
+      className="bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-semibold"
+    >
+      Download Excel
+    </button>
+  </div>
+
+</div>
 
       {/* SUMMARY COUNTS */}
       <div className="bg-slate-50 p-4 rounded-lg shadow text-sm font-semibold flex flex-wrap gap-6">

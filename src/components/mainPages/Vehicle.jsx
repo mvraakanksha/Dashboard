@@ -1195,7 +1195,7 @@ return (
               {card.icon}
             </div>
 
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">
               {card.label}
             </p>
 
@@ -1204,7 +1204,7 @@ return (
             </p>
 
             {card.subValue && (
-              <p className="text-xs font-semibold mt-1 text-slate-600">
+              <p className="text-xs font-semibold mt-1 text-slate-800">
                 {card.subValue}
               </p>
             )}

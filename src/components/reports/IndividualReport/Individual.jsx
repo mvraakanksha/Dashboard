@@ -397,9 +397,12 @@ const logoId = wb.addImage({
 });
 
 // LEFT LOGO
+// calculate exact height of row1 + row2
+const headerHeight = ws.getRow(1).height + ws.getRow(2).height;
+
 ws.addImage(companyLogoId, {
   tl: { col: 0, row: 0 },
-  ext: { width: 80, height: 40 }
+  ext: { width: 80, height: headerHeight }
 });
 
 /* ================= HEADER TEXT BESIDE LOGO ================= */
@@ -422,7 +425,7 @@ ws.getCell("B1").alignment = {
 // SUB TITLE
 /* ================= SUB TITLE (RICH TEXT) ================= */
 
-ws.getCell("A2").value = {
+ws.getCell("B2").value = {
   richText: [
     {
       text: "FSTP ",
@@ -451,14 +454,14 @@ ws.getCell("A2").value = {
 };
 
 
-ws.getCell("A2").alignment = {
+ws.getCell("B2").alignment = {
   horizontal: "left",
   vertical: "top",
   wrapText: false
 };
 
 // ✅ MERGE TILL BIOCHAR COLUMN
-ws.mergeCells("A2:J2");
+ws.mergeCells("B2:J2");
  ws.addRow([]);
 // merge across for long text
 

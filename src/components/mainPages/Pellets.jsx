@@ -442,7 +442,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
       <div>
         <p
           className={`text-[10px] font-black uppercase tracking-wider ${
-            isDark ? "text-slate-400" : "text-slate-500"
+            isDark ? "text-slate-400" : "text-slate-900"
           }`}
         >
           {label}
@@ -488,7 +488,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
       >
         Pellets and Polymer Report
       </h2>
-      <p className="text-xs tracking-widest font-bold text-slate-400">
+      <p className="text-xs tracking-widest font-bold text-slate-900">
         Pellets & Polymer Usage and Stock Monitoring
       </p>
     </div>
@@ -563,7 +563,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
 >
   <label
     className={`text-xs font-semibold mb-1 ${
-      isDark ? "text-slate-300" : "text-gray-700"
+      isDark ? "text-slate-300" : "text-gray-800"
     }`}
   >
     Select Material 

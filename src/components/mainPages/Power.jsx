@@ -86,12 +86,12 @@ const PowerTooltip = ({ active, payload, label }) => {
     <div className="bg-white border shadow-md rounded p-3 text-xs w-64">
       <p className="font-bold text-blue-900">PID: {row.plantId} - {row.label} - {row.kld} KLD</p>
       {row.powerCompletedOn && (
-  <p className="text-[11px] font-semibold text-slate-500 mt-1">
+  <p className="text-[11px] font-semibold text-slate-700 mt-1">
      Power completed On : {formatDDMMYYYY(row.powerCompletedOn)}
   </p> 
 )}
 {row.solarCompletedOn && (
-  <p className="text-[11px] font-semibold text-slate-500">
+  <p className="text-[11px] font-semibold text-slate-700">
     Solar completed On : {formatDDMMYYYY(row.solarCompletedOn)}
   </p>
 )}
@@ -269,7 +269,7 @@ const chartData = useMemo(() => {
       <div>
         <p
           className={`text-[10px] font-black uppercase tracking-wider ${
-            isDark ? "text-slate-400" : "text-slate-500"
+            isDark ? "text-slate-400" : "text-slate-900"
           }`}
         >
           {label}
@@ -285,7 +285,7 @@ const chartData = useMemo(() => {
         </p>
 
         {subLabel && (
-          <p className="text-xs mt-1 text-slate-400 font-semibold">
+          <p className="text-xs mt-1 text-slate-700 font-semibold">
             {subLabel}
           </p>
         )}

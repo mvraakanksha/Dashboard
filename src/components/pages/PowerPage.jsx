@@ -112,7 +112,7 @@ const KPICard = ({ label, value, theme, children }) => (
         <Zap size={18} />
       </div>
 
-      <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 mt-3">
+      <p className="text-[11px] font-black uppercase tracking-wider text-slate-900 mt-3">
         {label}
       </p>
 

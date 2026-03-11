@@ -63,7 +63,7 @@ const ClickableTick = ({ x, y, payload, plantMap, onPlantClick, isDark }) => {
       y={y + 10}
       textAnchor="end"
       fill={isDark ? "#94a3b8" : "#003f8a"}
-      fontSize={11}
+      fontSize={window.innerWidth < 640 ? 9 : 11}
       fontWeight={600}
       transform={`rotate(-45 ${x} ${y + 10})`}
       style={{ cursor: "pointer", textDecoration: "underline" }}
@@ -400,19 +400,19 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-4 mb-2">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-2">
                 <div className={`p-3 rounded-2xl ${isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-600 text-white"}`}>
                     <Activity className="w-6 h-6" />
                 </div>
-                <h2 className={`text-2xl font-black tracking-tight uppercase ${isDark ? "text-slate-100" : "text-blue-900"}`}>
+                <h2 className={`text-xl sm:text-2xl font-black tracking-tight uppercase ${isDark ? "text-slate-100" : "text-blue-900"}`}>
                     Attendance Analytics
                 </h2>
             </div>
 
             {/* KPI ROW WITH DYNAMIC COLORS AND DOWN BAR */}
 {/* ================= PREMIUM KPI CARDS ================= */}
- <div className="rounded-2xl p-6 bg-white shadow-lg mb-5 h-[270px]">
-<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+ <div className="rounded-2xl p-5 sm:p-4 sm:p-6 bg-white shadow-lg mb-5">
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
 
   {[
     { label: "Total Strength", value: totalEmployees, icon: <Users />, themeKey: "blue", type: "strength" },
@@ -425,7 +425,7 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
     return (
       <div
         key={i}
-        className={`group relative rounded-2xl p-4 shadow-md hover:shadow-xl transition-all border ${theme.staticBg}`}
+        className={`group relative rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-xl transition-all border ${theme.staticBg}`}
       >
         {/* Bottom Animated Bar */}
         <div
@@ -440,12 +440,12 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
         </div>
 
         {/* LABEL */}
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
           {c.label}
         </p>
 
         {/* VALUE */}
-        <p className={`text-3xl font-extrabold mt-2 ${theme.text}`}>
+        <p className={`text-2xl sm:text-3xl font-extrabold mt-2 ${theme.text}`}>
           {c.value}
         </p>
 
@@ -466,7 +466,7 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
               return (
                 <div
                   key={desig}
-                  className="flex justify-between text-xs font-medium text-slate-600"
+                  className="flex justify-between text-xs font-medium text-slate-800"
                 >
                   <span>{desig}</span>
                   <span className="font-bold text-slate-800">
@@ -484,7 +484,7 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
 </div>
 
             {/* GRAPH SECTION WITH LABELS */}
-            <div className={`p-6 rounded-[2rem] border bg-white border-slate-100 shadow-xl"}`}>
+            <div className="p-4 sm:p-6 rounded-3xl border bg-white border-slate-100 shadow-xl">
                             <div className="flex justify-end mb-3">
   <div className="flex-col justify-end">
     <span className="text-xs font-semibold text-slate-500">
@@ -507,12 +507,16 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
   </div>
 </div>
                 <div className="overflow-x-auto">
-                    <div style={{ width: zone === "All" ? allPlantsData.length * 80 : "100%", minWidth: "100%" }}>
+                    <div
+  style={{
+    width: zone === "All" ? Math.max(allPlantsData.length * 70, 600) : "100%"
+  }}
+>
                  
    
 
 
-                        <ResponsiveContainer width="100%" height={450}>
+                        <ResponsiveContainer width="100%" height={window.innerWidth < 640 ? 320 : 450}>
                             <BarChart data={sortedAttendanceData} margin={{ top: 40, right: 30, left: 40, bottom: 100 }}>
 
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "#334155" : "#e2e8f0"} />
@@ -520,7 +524,7 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
                                 <XAxis 
                                     dataKey="label" 
                                     interval={0} 
-                                    height={80}
+                                    height={window.innerWidth < 640 ? 100 : 80}
                                     tick={(props) => <ClickableTick {...props} plantMap={plantMap} onPlantClick={(p) => navigate(`/attendance-view/${p.plantId}`)} isDark={isDark} />} 
                                 >
                                     {/* <Label value="FSTP PLANTS" offset={-60} position="insideBottom" fill={isDark ? "#94a3b8" : "#475569"} fontSize={12} fontWeight={800} /> */}

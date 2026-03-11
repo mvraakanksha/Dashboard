@@ -1440,7 +1440,7 @@ const VehicleKpiCard = ({
     </div>
 
     {/* Label */}
-    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+    <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">
       {label}
     </p>
 
@@ -1451,7 +1451,7 @@ const VehicleKpiCard = ({
 
     {/* Optional sub value */}
     {subValue && (
-      <p className="text-xs font-semibold mt-1 text-slate-600">
+      <p className="text-xs font-semibold mt-1 text-slate-700">
         {subValue}
       </p>
     )}

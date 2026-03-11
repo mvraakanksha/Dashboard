@@ -140,7 +140,7 @@ const KPICard = ({ label, value, theme }) => (
       </div>
 
       <div>
-        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+        <p className="text-[11px] font-black uppercase tracking-wider text-slate-900">
           {label}
         </p>
         <p className="text-2xl font-black text-slate-900 mt-1">
