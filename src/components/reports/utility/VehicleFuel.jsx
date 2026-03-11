@@ -497,7 +497,7 @@ new Blob([buffer]),
 
 };
 
-
+ /* ================= EXPORT PDF ================= */
 
 const exportPDF = async () => {
 
@@ -521,7 +521,7 @@ const exportPDF = async () => {
 
   doc.setFont("times", "bold");
   doc.setFontSize(18);
-  doc.setTextColor(128, 0, 0); // maroon
+  doc.setTextColor(200, 0, 0); // maroon
 
   doc.text("MVR TECHNOLOGY", pageWidth / 2, 14, { align: "center" });
 
@@ -703,7 +703,7 @@ const exportPDF = async () => {
 
   {/* RIGHT EXPORT BUTTONS */}
 
-  <div className="flex gap-4  items-start">
+  <div className="ml-auto flex gap-2">
 
     <button
       onClick={exportExcel}

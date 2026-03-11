@@ -745,16 +745,16 @@ ws.columns.forEach((column) => {
 <div className="ml-auto flex gap-2">
   <button
     onClick={downloadPdf}
-    className="bg-indigo-600 text-white px-4 py-2 rounded"
+    className="bg-red-600 text-white px-4 py-2 rounded text-xs font-semibold"
   >
-    PDF
+    Export PDF
   </button>
 
   <button
     onClick={downloadExcel}
-    className="bg-emerald-600 text-white px-4 py-2 rounded"
+    className="bg-green-600 text-white px-4 py-2 rounded text-xs font-semibold"
   >
-    Excel
+    Export Excel
   </button>
 </div>
 

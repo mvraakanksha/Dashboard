@@ -47,9 +47,10 @@ const DgReport = () => {
   const [operations, setOperations] = useState([]);
 
   const [selectedZone, setSelectedZone] = useState("ALL");
-
+const [previewMode, setPreviewMode] = useState(false);
   const today = new Date().toISOString().split("T")[0];
-
+const [selectedPlantIds, setSelectedPlantIds] = useState([]);
+const [dgFilter, setDgFilter] = useState("ALL");
   const [dateRange, setDateRange] = useState({
     from: today,
     to: today
@@ -158,34 +159,80 @@ const DgReport = () => {
   }, [operations, plants]);
 
   /* ================= ZONE FILTER ================= */
+const finalData = useMemo(() => {
 
-  const finalData = useMemo(() => {
+  let data = mergedData;
 
-    if (selectedZone === "ALL") return mergedData;
-
-    return mergedData.filter(
+  if (selectedZone !== "ALL") {
+    data = data.filter(
       p => String(p.zones) === String(selectedZone)
     );
+  }
 
-  }, [mergedData, selectedZone]);
+  const plantMap = {};
 
+  data.forEach(r => {
+
+    const id = r.plantID;
+
+    if (!plantMap[id]) {
+      plantMap[id] = {
+        plant: r,
+        records: [],
+        usedDG: false
+      };
+    }
+
+    plantMap[id].records.push(r);
+
+    if (Number(r.dgRunHours) > 0) {
+      plantMap[id].usedDG = true;
+    }
+
+  });
+
+  let plantsList = Object.values(plantMap);
+
+  if (dgFilter === "USED") {
+    plantsList = plantsList.filter(p => p.usedDG);
+  }
+
+  if (dgFilter === "NOT_USED") {
+    plantsList = plantsList.filter(p => !p.usedDG);
+  }
+
+  // ⭐ APPLY SELECTED PLANTS ONLY AFTER GENERATE
+  if (previewMode && selectedPlantIds.length > 0) {
+    plantsList = plantsList.filter(p =>
+      selectedPlantIds.includes(p.plant.plantID)
+    );
+  }
+
+  return plantsList.flatMap(p => p.records);
+
+}, [mergedData, selectedZone, dgFilter, previewMode, selectedPlantIds]);
   /* ================= KPI ================= */
 const overview = useMemo(() => {
+
+  // plants filtered by zone
+  const zonePlants = plants.filter(p =>
+    selectedZone === "ALL" || String(p.zones) === String(selectedZone)
+  );
+
+  const plantSet = new Set(zonePlants.map(p => p.plantID));
+
+  const usedSet = new Set();
 
   let runHours = 0;
   let diesel = 0;
 
-  const totalPlantsSet = new Set();
-  const dgPlantsSet = new Set();
+  mergedData.forEach(r => {
 
-  finalData.forEach(r => {
-
-    if (r.plantID) {
-      totalPlantsSet.add(r.plantID);
-    }
+    // ignore plants outside selected zone
+    if (!plantSet.has(r.plantID)) return;
 
     if (Number(r.dgRunHours) > 0) {
-      dgPlantsSet.add(r.plantID);
+      usedSet.add(r.plantID);
     }
 
     runHours += Number(r.dgRunHours) || 0;
@@ -193,15 +240,17 @@ const overview = useMemo(() => {
 
   });
 
+  const notUsedCount = plantSet.size - usedSet.size;
+
   return [
-    { label: "Total Plants", value: totalPlantsSet.size },
-    { label: "DG Used Plants", value: dgPlantsSet.size },
+    { label: "Total Plants", value: plantSet.size },
+    { label: "DG Used Plants", value: usedSet.size },
+    { label: "DG Not Used Plants", value: notUsedCount },
     { label: "Total DG Run Hours", value: runHours },
     { label: "Diesel Consumed %", value: diesel }
   ];
 
-}, [finalData]);
-
+}, [plants, mergedData, selectedZone]);
   /* ================= DATE LIST ================= */
 
   const dates = useMemo(() => {
@@ -225,138 +274,395 @@ const overview = useMemo(() => {
   }, [dateRange]);
 
   /* ================= GROUP BY PLANT ================= */
+const plantDateMap = useMemo(() => {
 
-  const plantDateMap = useMemo(() => {
+  let basePlants = plants.filter(p =>
+    selectedZone === "ALL" || String(p.zones) === String(selectedZone)
+  );
 
-    const map = {};
+  // apply preview filter
+  if (previewMode && selectedPlantIds.length > 0) {
+    basePlants = basePlants.filter(p =>
+      selectedPlantIds.includes(p.plantID)
+    );
+  }
 
-    finalData.forEach(r => {
+  // DG used / not used filter
+  if (dgFilter !== "ALL") {
 
-      const plantKey = r.plantID;
+    const usedSet = new Set();
 
-      if (!map[plantKey]) {
-        map[plantKey] = {
-          plant: r,
-          values: {}
-        };
+    mergedData.forEach(r => {
+      if (Number(r.dgRunHours) > 0) {
+        usedSet.add(r.plantID);
       }
+    });
 
-      if (r.operationDate) {
-        const dateKey = r.operationDate.split("T")[0];
-        map[plantKey].values[dateKey] = r;
-      }
+    if (dgFilter === "USED") {
+      basePlants = basePlants.filter(p =>
+        usedSet.has(p.plantID)
+      );
+    }
+
+    if (dgFilter === "NOT_USED") {
+      basePlants = basePlants.filter(p =>
+        !usedSet.has(p.plantID)
+      );
+    }
+
+  }
+
+  return basePlants.map(p => {
+
+    const values = {};
+
+    dates.forEach(date => {
+
+      const record = mergedData.find(r =>
+        String(r.plantID) === String(p.plantID) &&
+        r.operationDate &&
+        r.operationDate.split("T")[0] === date
+      );
+
+      values[date] = record || null;
 
     });
 
-    return Object.values(map);
+    return {
+      plant: p,
+      values
+    };
 
-  }, [finalData]);
+  });
+
+}, [plants, mergedData, dates, selectedZone, previewMode, selectedPlantIds, dgFilter]);
 
   /* ================= EXPORT EXCEL ================= */
 
-  const exportExcel = async () => {
+/* ================= EXPORT EXCEL ================= */
 
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("DG Report");
+const exportExcel = async () => {
 
-    const logoBase64 = await imageToBase64(companyLogo);
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("DG Report");
 
-    const logoId = workbook.addImage({
-      base64: logoBase64,
-      extension: "png"
-    });
+  const logoBase64 = await imageToBase64(companyLogo);
 
-    sheet.addImage(logoId, {
-      tl: { col: 0, row: 0 },
-      ext: { width: 100, height: 55 }
-    });
+  const logoId = workbook.addImage({
+    base64: logoBase64,
+    extension: "png"
+  });
 
-    sheet.mergeCells("A1:H1");
-    sheet.getCell("A1").value = "MVR TECHNOLOGY";
+  sheet.addImage(logoId,{
+    tl:{col:0,row:0},
+    ext:{width:100,height:55}
+  });
 
-    sheet.mergeCells("A2:H2");
-    sheet.getCell("A2").value = "FSTP RAJASTHAN";
+  const totalColumns = 6 + (dates.length * 2);
 
-    sheet.mergeCells("A3:H3");
-    sheet.getCell("A3").value = "DG Diesel Consumption Report";
+  /* ================= COMPANY HEADER ================= */
 
-    const header = [
-      "Plant ID",
-      "Plant Name",
-      "Date",
-      "Units",
-      "Run Hours",
-      "Diesel Used",
-      "Units/Hr"
+  sheet.mergeCells(1,1,1,totalColumns);
+  const companyCell = sheet.getCell("A1");
+  companyCell.value = "MVR TECHNOLOGY";
+  companyCell.font = {
+    name:"Times New Roman",
+    bold:true,
+    size:18,
+    color:{argb:"FFC80000"}
+  };
+  companyCell.alignment = { horizontal:"center", vertical:"middle" };
+
+  sheet.mergeCells(2,1,2,totalColumns);
+  const subCell = sheet.getCell("A2");
+  subCell.value = "FSTP RAJASTHAN";
+  subCell.font = {
+    name:"Times New Roman",
+    bold:true,
+    size:12
+  };
+  subCell.alignment = { horizontal:"center", vertical:"middle" };
+
+  sheet.mergeCells(3,1,3,totalColumns);
+  const titleCell = sheet.getCell("A3");
+  titleCell.value = "DG Report";
+  titleCell.font = {
+    name:"Times New Roman",
+    bold:true,
+    size:11
+  };
+  titleCell.alignment = { horizontal:"center", vertical:"middle" };
+
+  /* ================= HEADER ROW 1 ================= */
+
+  const headerRow1 = sheet.addRow([
+    "S.No",
+    "Plant ID",
+    "Plant Name",
+    "KLD",
+    "District",
+    "Zone"
+  ]);
+
+  dates.forEach(d=>{
+    headerRow1.getCell(headerRow1.cellCount+1).value = formatDisplayDate(d);
+    headerRow1.getCell(headerRow1.cellCount+1).value = "";
+  });
+
+  let startCol = 7;
+
+  dates.forEach(()=>{
+    sheet.mergeCells(headerRow1.number,startCol,headerRow1.number,startCol+1);
+    startCol += 2;
+  });
+
+  /* ================= HEADER ROW 2 ================= */
+
+  const headerRow2 = sheet.addRow([
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+  ]);
+
+  dates.forEach(()=>{
+    headerRow2.getCell(headerRow2.cellCount+1).value = "DG Run Hrs";
+    headerRow2.getCell(headerRow2.cellCount+1).value = "Diesel Consumed";
+  });
+/* ================= MERGE S.NO → ZONE (ROWS 4 & 5) ================= */
+
+for (let col = 1; col <= 6; col++) {
+
+  sheet.mergeCells(4, col, 5, col);
+
+  const cell = sheet.getCell(4, col);
+
+  cell.alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+
+  cell.font = {
+    name: "Times New Roman",
+    bold: true,
+    size: 11
+  };
+
+}
+  /* ================= DATA ================= */
+
+  plantDateMap.forEach((row,i)=>{
+
+    const p = row.plant;
+
+    const dataRow = [
+      i+1,
+      p.plantID,
+      p.plantName,
+      p.kld,
+      p.district,
+      p.zones
     ];
 
-    sheet.addRow([]);
+    dates.forEach(date=>{
 
-    sheet.addRow(header);
+      const dg = row.values[date];
 
-    finalData.forEach(r => {
-
-      sheet.addRow([
-        r.plantID,
-        r.plantName,
-        formatDisplayDate(r.operationDate),
-        r.units,
-        r.dgRunHours,
-        r.dieselUsed,
-        r.unitsPerHour
-      ]);
+      dataRow.push(formatIndian(dg?.dgRunHours));
+      dataRow.push(formatIndian(dg?.dieselUsed));
 
     });
 
-    const buffer = await workbook.xlsx.writeBuffer();
+    sheet.addRow(dataRow);
 
-    saveAs(new Blob([buffer]), "DG_Report.xlsx");
+  });
 
-  };
+  /* ================= STYLE ================= */
+
+  sheet.eachRow((row,rowNumber)=>{
+
+    row.eachCell((cell)=>{
+
+      if(rowNumber > 3){
+        cell.font = {
+          name:"Times New Roman",
+          size:11
+        };
+      }
+
+      cell.alignment = {
+        horizontal:"center",
+        vertical:"middle",
+        wrapText:true
+      };
+
+      cell.border = {
+        top:{style:"thin"},
+        bottom:{style:"thin"},
+        left:{style:"thin"},
+        right:{style:"thin"}
+      };
+
+    });
+
+  });
+
+  /* ================= COLUMN WIDTH ================= */
+
+  sheet.columns = [
+    {width:6},
+    {width:12},
+    {width:28},
+    {width:8},
+    {width:18},
+    {width:10},
+    ...dates.flatMap(()=>[
+      {width:14},
+      {width:18}
+    ])
+  ];
+
+  /* ================= FREEZE HEADER ================= */
+
+  sheet.views = [{ state:"frozen", ySplit:5 }];
+
+  /* ================= DOWNLOAD ================= */
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  saveAs(
+    new Blob([buffer]),
+    "DG_Report.xlsx"
+  );
+
+};
 
   /* ================= EXPORT PDF ================= */
 
   const exportPDF = async () => {
 
-    const doc = new jsPDF();
+  const doc = new jsPDF("landscape","mm","a4");
 
-    const logo = await imageToBase64(companyLogo);
+  const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.addImage(logo,"PNG",10,6,25,12);
+  const logo = await imageToBase64(companyLogo);
 
-    doc.text("MVR TECHNOLOGY",105,14,{align:"center"});
-    doc.text("FSTP RAJASTHAN",105,20,{align:"center"});
-    doc.text("DG Diesel Consumption Report",105,26,{align:"center"});
+  /* ================= LOGO ================= */
 
-    const columns = [
-      "Plant ID",
-      "Plant Name",
-      "Date",
-      "Units",
-      "DG Run Hrs",
-      "Diesel Used",
-      "Units/Hr"
+  doc.addImage(logo,"PNG",10,6,25,12);
+
+  /* ================= HEADER ================= */
+
+  doc.setFont("times","bold");
+  doc.setFontSize(18);
+  doc.setTextColor(200,0,0);
+
+  doc.text("MVR TECHNOLOGY",pageWidth/2,14,{align:"center"});
+
+  doc.setFontSize(12);
+  doc.setTextColor(0,0,0);
+
+  doc.text("FSTP RAJASTHAN",pageWidth/2,20,{align:"center"});
+
+  doc.setFontSize(11);
+
+  doc.text("DG Report",pageWidth/2,26,{align:"center"});
+
+  /* ================= TABLE HEADER ================= */
+
+  const tableColumn = [
+    "S.No",
+    "Plant ID",
+    "Plant Name",
+    "KLD",
+    "District",
+    "Zone"
+  ];
+
+  dates.forEach(d=>{
+    tableColumn.push(`${formatDisplayDate(d)} DG Run Hours`);
+    tableColumn.push(`${formatDisplayDate(d)} Diesel consumed`);
+  });
+
+  /* ================= TABLE ROWS ================= */
+
+  const tableRows = [];
+
+  const pdfPlants =
+  selectedPlantIds.length > 0
+    ? plantDateMap.filter(r =>
+        selectedPlantIds.includes(r.plant.plantID)
+      )
+    : plantDateMap;
+
+pdfPlants.forEach((row,i)=>{
+
+    const p = row.plant;
+
+    const dataRow = [
+      i+1,
+      p.plantID,
+      p.plantName,
+      p.kld,
+      p.district,
+      p.zones
     ];
 
-    const rows = finalData.map(r=>[
-      r.plantID,
-      r.plantName,
-      formatDisplayDate(r.operationDate),
-      formatIndian(r.units),
-      formatIndian(r.dgRunHours),
-      formatIndian(r.dieselUsed),
-      formatIndian(r.unitsPerHour)
-    ]);
+    dates.forEach(date=>{
 
-    autoTable(doc,{
-      startY:32,
-      head:[columns],
-      body:rows
+      const dg = row.values[date];
+
+      dataRow.push(formatIndian(dg?.dgRunHours));
+      dataRow.push(formatIndian(dg?.dieselUsed));
+
     });
 
-    doc.save("DG_Report.pdf");
+    tableRows.push(dataRow);
 
-  };
+  });
+
+  /* ================= TABLE ================= */
+
+  autoTable(doc,{
+    startY:32,
+    head:[tableColumn],
+    body:tableRows,
+    styles:{
+      font:"times",
+      fontSize:8,
+      halign:"center",
+      valign:"middle"
+    },
+    headStyles:{
+      fillColor:[55,65,81],
+      textColor:255,
+      fontStyle:"bold"
+    }
+  });
+
+  /* ================= DOWNLOAD ================= */
+
+  doc.save("DG_Report.pdf");
+
+};
+
+const handlePlantSelect = (plantId) => {
+
+  setSelectedPlantIds(prev => {
+
+    if (prev.includes(plantId)) {
+      return prev.filter(id => id !== plantId);
+    }
+
+    return [...prev, plantId];
+
+  });
+
+};
+
 
   /* ================= UI ================= */
 
@@ -411,9 +717,43 @@ className="border p-2 rounded text-xs"
 </select>
 </div>
 </div>
-
+<div>
+<label className="text-xs font-bold">DG Usage</label>
+<div className="flex gap-2 mt-1">
+<Filter size={16}/>
+<select
+value={dgFilter}
+onChange={(e)=>setDgFilter(e.target.value)}
+className="border p-2 rounded text-xs"
+>
+<option value="ALL">All Plants</option>
+<option value="USED">DG Used Plants</option>
+<option value="NOT_USED">DG Not Used Plants</option>
+</select>
+</div>
+</div>
 <div className="flex gap-4 items-end">
+<button
+onClick={() => setPreviewMode(true)}
+disabled={selectedPlantIds.length === 0}
+className={`px-4 py-2 rounded text-xs font-semibold ${
+  selectedPlantIds.length === 0
+    ? "bg-gray-400 text-white cursor-not-allowed"
+    : "bg-indigo-600 text-white"
+}`}
+>
+Generate Report
+</button>
 
+<button
+onClick={()=>{
+  setPreviewMode(false);
+  setSelectedPlantIds([]);
+}}
+className="bg-gray-500 text-white px-4 py-2 rounded text-xs font-semibold"
+>
+Reset
+</button>
 <button
 onClick={exportExcel}
 className="bg-green-600 text-white px-4 py-2 rounded text-xs font-semibold"
@@ -435,7 +775,7 @@ Export PDF
 
 {/* KPI */}
 
-<div className="grid md:grid-cols-4 gap-4">
+<div className="grid md:grid-cols-5 gap-4">
 
 {overview.map(k=>(
 <div key={k.label} className="border rounded-xl p-4 bg-slate-50">
@@ -459,6 +799,7 @@ Export PDF
 
 <tr>
 
+<th rowSpan={2} className="border p-2">Select</th>
 <th rowSpan={2} className="border p-2">S.No</th>
 <th rowSpan={2} className="border p-2">Plant ID</th>
 <th rowSpan={2} className="border p-2">Plant Name</th>
@@ -497,9 +838,17 @@ return (
 
 <tr key={plant.plantID}>
 
+<td className="border p-2 text-center">
+<input
+type="checkbox"
+checked={selectedPlantIds.includes(plant.plantID)}
+onChange={() => handlePlantSelect(plant.plantID)}
+/>
+</td>
+
 <td className="border p-2 text-center">{i+1}</td>
 <td className="border p-2 text-center">{plant.plantID}</td>
-<td className="border p-2">{plant.plantName}</td>
+<td className="border p-2 text-center">{plant.plantName}</td>
 <td className="border p-2 text-center">{plant.kld}</td>
 <td className="border p-2 text-center">{plant.district}</td>
 <td className="border p-2 text-center">{plant.zones}</td>
