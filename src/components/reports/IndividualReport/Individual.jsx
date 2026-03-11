@@ -1463,9 +1463,9 @@ const downloadZoneSummaryExcel = async () => {
   <td rowSpan={2} className="border text-center">{show(op.dgReadingAm)}</td>
   <td rowSpan={2} className="border text-center">{show(op.dgReadingPm)}</td>
 <td rowSpan={2} className="border text-center">
-  {kmDiff(op.dgReadingAm, op.dgReadingPm) != null
-    ? Number(kmDiff(op.dgReadingAm, op.dgReadingPm)).toFixed(1)
-    : "0.0"}
+  {kmDiff(op.dgReadingAm, op.dgReadingPm) === "-"
+    ? "-"
+    : Number(kmDiff(op.dgReadingAm, op.dgReadingPm)).toFixed(1)}
 </td>
 
   {/* Vehicle 1 */}
@@ -1510,10 +1510,10 @@ const downloadZoneSummaryExcel = async () => {
           <td rowSpan={2} className="border text-center">
             {show(op.dgDiesalPercentagePm)}
           </td>
-       <td rowSpan={2} className="border text-center">
-  {diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm) != null
-    ? Number(diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm)).toFixed(1)
-    : "0.0"}
+<td rowSpan={2} className="border text-center">
+  {diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm) === "-"
+    ? "-"
+    : Number(diffReverse(op.dgDiesalPercentageAm, op.dgDiesalPercentagePm)).toFixed(1)}
 </td>
 
           {/* Vehicle 2 */}
