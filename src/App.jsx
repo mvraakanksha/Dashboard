@@ -36,7 +36,7 @@ const MonthlyReportPage = lazy(() => import('../src/components/reports/monthly&p
 const CustomizedReport = lazy(() => import('../src/components/reports/customized/CustomizedReport'));
 const Individual = lazy(() => import('../src/components/reports/IndividualReport/Individual'));
 const AttendanceReport = lazy(() => import('../src/components/reports/AttendanceReport/AttendanceReport'));
-const WaterReport = lazy(() => import('../src/components/reports/AttendanceReport/AttendanceReport'));
+const WaterReport = lazy(() => import('../src/components/reports/waterType/WaterReport'));
 const EmployeeDetails =  lazy(() => import('../src/components/reports/EmpDetails/EmployeeDetails'));
 
 const Performance = lazy(() => import('./components/reports/monthly&performance/Performance'));

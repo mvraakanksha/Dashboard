@@ -68,7 +68,28 @@ export default function WaterReport() {
 
     return counts;
   }, [filteredPlants]);
-const totalFilteredPlants = filteredPlants.length;
+const totalPlants = useMemo(() => {
+  return plants.filter(p =>
+    selectedZone === "All" || String(p.zones) === String(selectedZone)
+  ).length;
+}, [plants, selectedZone]);
+
+const summaryParts = [`Total Plants: ${totalPlants}`];
+
+if (waterTypes.normal) {
+  summaryParts.push(`Normal Water Plants: ${waterCounts.normal}`);
+}
+
+if (waterTypes.salt) {
+  summaryParts.push(`Salt Water Plants: ${waterCounts.salt}`);
+}
+
+if (waterTypes.noBorewell) {
+  summaryParts.push(`No Borewell Plants: ${waterCounts.noBorewell}`);
+}
+
+const summaryText = summaryParts.join(" | ");
+
   /* ===== PDF DOWNLOAD ===== */
   const downloadTablePdf = async () => {
     const doc = new jsPDF("portrait", "mm", "a4");
@@ -93,12 +114,12 @@ const totalFilteredPlants = filteredPlants.length;
     doc.text("Water Report", pageWidth / 2, 24, { align: "center" });
 
     doc.setFontSize(10);
-    doc.text(
-      `Zone: ${selectedZone}|Total: ${totalFilteredPlants} | Normal: ${waterCounts.normal} | Salt: ${waterCounts.salt} | No Borewell: ${waterCounts.noBorewell}`,
-      pageWidth / 2,
-      28,
-      { align: "center" }
-    );
+doc.text(
+ `Zone: ${selectedZone} | ${summaryText}`,
+  pageWidth / 2,
+  28,
+  { align: "center" }
+);
   // 🔹 Divider Line
   // doc.setDrawColor(200);
   // doc.line(6, 30, pageWidth - 6, 24);
@@ -206,9 +227,8 @@ const downloadTableExcel = async () => {
   setHeaderStyle("A3", 12);
 
   /* SUMMARY */
-  sheet.getCell("A4").value =
-    `Zone: ${selectedZone} | Total Plants: ${totalFilteredPlants} | Normal: ${waterCounts.normal} | Salt: ${waterCounts.salt} | No Borewell: ${waterCounts.noBorewell}`;
-
+sheet.getCell("A4").value =
+`Zone: ${selectedZone} | ${summaryText}`;
   setHeaderStyle("A4", 11);
 
   /* ===== TABLE HEADER ===== */
@@ -400,6 +420,7 @@ const downloadTableExcel = async () => {
       <div className="bg-slate-50 p-4 rounded-lg shadow text-sm font-semibold flex flex-wrap gap-6">
         <span className="text-indigo-700">
     Total Plants: {totalFilteredPlants}
+    Total Plants: {totalPlants}
   </span>
         {waterTypes.normal && (
           <span>Normal Water Plants: {waterCounts.normal}</span>
