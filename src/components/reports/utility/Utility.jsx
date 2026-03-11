@@ -776,7 +776,8 @@ import React, { useState } from "react";
 import WaterBill from "./WaterBill";
 import VehicleFuel from "./VehicleFuel";
 import DgReport from "./DGReport";
-import PowerBill from "./PowerBill";
+import PowerBill from './PowerBill';
+import PowerBillIndetail from "./PowerBillIndetail";
 
 const Utility = () => {
 
@@ -839,6 +840,8 @@ return ( <div className="p-4">
   {/* Conditional Rendering */}
   {activeTab === "water" && <WaterBill />}
   {activeTab === "fuel" && <VehicleFuel />}
+{activeTab === "dg" && <DgReport/>   }
+   {activeTab === "power" && <PowerBillIndetail/>   }
 
 </div>
 
