@@ -396,18 +396,21 @@ const logoId = wb.addImage({
   extension: "png",
 });
 
-// LEFT LOGO
-// calculate exact height of row1 + row2
-const headerHeight = ws.getRow(1).height + ws.getRow(2).height;
-
-ws.addImage(companyLogoId, {
-  tl: { col: 0, row: 0 },
-  ext: { width: 80, height: headerHeight }
-});
-
-/* ================= HEADER TEXT BESIDE LOGO ================= */
+/* ================= HEADER ROW HEIGHT ================= */
 ws.getRow(1).height = 32;
 ws.getRow(2).height = 26;
+
+/* ================= HEADER LOGO ================= */
+const headerHeight = ws.getRow(1).height + ws.getRow(2).height;
+
+/* Keep width proportional to height */
+const logoHeight = headerHeight;
+const logoWidth = logoHeight * 2;   // adjust ratio depending on logo shape
+
+ws.addImage(companyLogoId, {
+  tl: { col: 0.2, row: 0.15 },   // small space from left & top
+  ext: { width: logoWidth, height: logoHeight }
+});
 
 // MAIN TITLE
 ws.getCell("B1").value = "MVR TECHNOLOGY";
