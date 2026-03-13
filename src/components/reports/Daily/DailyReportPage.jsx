@@ -194,8 +194,8 @@ const processedData = Object.entries(plantMaster)
     });
    
     // --- Fetching Logic ---
-    // 1. Fetch Plant Master Data on mount
-  useEffect(() => {
+// 1. Fetch Plant Master Data on mount
+useEffect(() => {
   const fetchPlantMaster = async () => {
     try {
       const list = await getAllPlants();
@@ -203,15 +203,19 @@ const processedData = Object.entries(plantMaster)
 
       const newPlantMap = {};
 
-list.forEach(item => {
+list.forEach((item) => {
 
-  // ✅ permanent power logic (same as first file)
-  if (!item.permanentPower) return;
+  // ✅ show plants only if BOTH are completed
+  if (!(item.permanentPower && item.mnit)) return;
 
-  const completionDate = item.permanentPowerDateOfCompletion;
-  if (!completionDate) return;
+  // completion dates must exist
+  if (!item.permanentPowerDateOfCompletion || !item.mnitDateOfCompletion) return;
 
-  if (new Date(selectedDate) < new Date(completionDate)) return;
+  // selected date must be after both completion dates
+  if (
+    new Date(selectedDate) < new Date(item.permanentPowerDateOfCompletion) ||
+    new Date(selectedDate) < new Date(item.mnitDateOfCompletion)
+  ) return;
 
   const id = getBest(item.plantID, item.plantId, item.id, item.plant_id);
   if (id == null) return;
@@ -222,14 +226,12 @@ list.forEach(item => {
     name: String(getBest(item.plantName, item.name, item.plant_name, item.plant) || ""),
     district: String(getBest(item.district, item.stateCode, item.District) || ""),
     kld: String(getBest(item.kld, item.KLD) || ""),
-
-    // ⭐ IMPORTANT — store zone
     zone: String(getBest(item.zone, item.zones, item.Zone) || "")
   };
-});
 
+});
       setPlantMaster(newPlantMap);
-     
+
     } catch (err) {
       console.warn("Plant master fetch failed:", err);
       setNotice("Warning: could not fetch plant master.");
@@ -586,52 +588,6 @@ const imageToBase64Compressed = (image, quality = 0.6, maxWidth = 800) => {
   });
 };
 
-// const drawFirstPageHeader = (
-//   doc,
-//   companyLogoBase64,
-//   logoBase64,
-//   reportDate,
-//   fetchedAt
-// ) => {
-//   const pageWidth = doc.internal.pageSize.getWidth();
-
-//   /* ===== LEFT: COMPANY LOGO ===== */
-// doc.addImage(companyLogoBase64, "JPEG", 15, 6, 20, 15);
-
-
-//   /* ===== CENTER: MAIN LOGO ===== */
-//   const centerLogoWidth = 90;
-//   const centerLogoHeight = 26;
-
-//   doc.addImage(
-//     logoBase64,
-//      "JPEG",
-//     pageWidth / 2 - centerLogoWidth / 2,
-//     6,
-//     centerLogoWidth,
-//     centerLogoHeight
-//   );
-
-//   /* ===== RIGHT: TEXT ===== */
-//   doc.setFont("times", "bold");
-//   doc.setFontSize(11);
-//   doc.setTextColor(0);
-//   doc.text(
-//     "DAILY PLANT OPERATIONS REPORT",
-//     pageWidth - 10,
-//     14,
-//     { align: "right" }
-//   );
-
-//   doc.setFont("times", "normal");
-//   doc.setFontSize(8);
-//   doc.text(`Report Date: ${reportDate}`, pageWidth - 10, 19, { align: "right" });
-//   doc.text(`Generated: ${fetchedAt}`, pageWidth - 10, 24, { align: "right" });
-
-//   /* ===== SEPARATOR ===== */
-//   doc.setLineWidth(0.4);
-//   doc.line(10, 32, pageWidth - 10, 32);
-// };
 
 const downloadPdf = async () => {
   if (!processedData.length) return alert("No data");
@@ -711,15 +667,6 @@ const downloadPdf = async () => {
 
     doc.text(`FSTP Daily Operation Report -  ${reportDate}`, tableCenterX, 24, { align: "center" });
   
-    // Report Date → table end
-  // doc.setFont("times", "normal");
-  // doc.setFontSize(8);
-  // doc.text(
-  //   `Report Date: ${reportDate}`,
-  //   tableEndX,
-  //   14,
-  //   { align: "right" }
-  // );
 
   /* =====================================================
      TABLE
