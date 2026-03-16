@@ -9,15 +9,7 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 // import companyLogo from '../reports/company_logo1.jpg'
 
-const getLastEnteredStock = (ops, stockKey) => {
-  if (!Array.isArray(ops)) return null;
 
-  for (let i = ops.length - 1; i >= 0; i--) {
-    const val = ops[i]?.operation?.[stockKey];
-    if (val !== null && val !== undefined) return val;
-  }
-  return null;
-};
 
 export default function StockReport() {
   
@@ -51,17 +43,6 @@ const [filters, setFilters] = useState({
     loadPlants();
   }, []);
 
-/* ================= AUTO SELECT PLANTS ================= */
-// useEffect(() => {
-//   if (!plants.length) return;
-
-//   const filtered =
-//     zone === "All"
-//       ? plants
-//       : plants.filter(p => String(p.zones) === String(zone));
-
-//   setSelectedPlants(filtered.map(p => p.plantID));
-// }, [plants, zone]);
 
   /* ---------------- FETCH OPERATIONS ---------------- */
   useEffect(() => {
@@ -84,6 +65,42 @@ const [filters, setFilters] = useState({
   /* ---------------- FILTER PLANTS BY ZONE + PLANT ---------------- */
 
 
+const getStockBySelectedDate = (ops, stockKey, selectedDate) => {
+  if (!Array.isArray(ops) || ops.length === 0) return null;
+
+  const selectedTime = new Date(selectedDate).setHours(0,0,0,0);
+
+  // sort by date
+  const sorted = [...ops].sort(
+    (a, b) =>
+      new Date(a.operation?.operationDate) -
+      new Date(b.operation?.operationDate)
+  );
+
+  let previousStock = null;
+
+  for (let i = 0; i < sorted.length; i++) {
+    const opDate = new Date(sorted[i]?.operation?.operationDate);
+    if (isNaN(opDate)) continue;
+
+    const opTime = opDate.setHours(0,0,0,0);
+    const val = sorted[i]?.operation?.[stockKey];
+
+    if (opTime > selectedTime) break;
+
+    // if selected day has value → return immediately
+    if (opTime === selectedTime && val !== null && val !== undefined) {
+      return val;
+    }
+
+    if (val !== null && val !== undefined) {
+      previousStock = val;
+    }
+  }
+
+  return previousStock;
+};
+
   /* ---------------- BUILD STOCK DATA ---------------- */
 const stockData = useMemo(() => {
   return plants
@@ -96,11 +113,12 @@ const stockData = useMemo(() => {
         plantId: p.plantID,
         plantName: p.plantName,
         zone: p.zones,
-        pelletsStock: getLastEnteredStock(plantOps, "pilletsStock"),
-        polymerStock: getLastEnteredStock(plantOps, "polymerStock")
+        pelletsStock: getStockBySelectedDate(plantOps, "pilletsStock", date),
+  polymerStock: getStockBySelectedDate(plantOps, "polymerStock", date)
+
       };
     });
-}, [plants, ops, selectedPlants]);
+}, [plants, ops, selectedPlants, date]);
 
 useEffect(() => {
   if (!reportGenerated) return;
