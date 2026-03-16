@@ -410,13 +410,13 @@ const entryLabel = useMemo(() => {
 
   if (sortBy === "used") {
     return materialType === "pellets"
-      ? "Plants Using Pellets"
-      : "Plants Using Polymer";
+      ? "Entries"
+      : "Entries ";
   }
 
   return materialType === "pellets"
-    ? "Plants With Pellets Stock"
-    : "Plants With Polymer Stock";
+    ? "Entries"
+    : "Entries";
 
 }, [materialType, sortBy]);
   // const barColor =
