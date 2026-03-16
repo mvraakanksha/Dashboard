@@ -406,17 +406,7 @@ return(
 
 </div>
 
-<button
-  onClick={generate}
-  className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-bold shadow-lg transition
-  ${reportStatus === "done"
-    ? "bg-green-600 hover:bg-green-700"
-    : "bg-indigo-600 hover:bg-indigo-900 text-white"}`}
->
 
-  {reportStatus === "done" ? "✓ Report Generated" : "Generate Report"}
-
-</button>
 
 </div>
 
@@ -611,6 +601,19 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
 </div>
 )}
 
+</div>
+
+{/* BUTTON AREA */}
+<div className="flex justify-end mt-4">
+  <button
+    onClick={generate}
+    className={`flex items-center gap-2 px-8 py-3 rounded-2xl font-bold shadow-lg transition
+    ${reportStatus === "done"
+      ? "bg-green-900 hover:bg-green-700 text-white"
+      : "bg-blue-700 hover:bg-blue-900 text-white"}`}
+  >
+    {reportStatus === "done" ? "✓ Report Generated" : "Generate Report"}
+  </button>
 </div>
 
 {/* TABLE AREA */}
