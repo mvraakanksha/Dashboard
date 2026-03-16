@@ -279,6 +279,22 @@ const avgProcessed =
 
   const chartWidth = Math.max(zonePlants.length * 80, 1000);
 
+  /* ---------------- ENTRY COUNTS ---------------- */
+
+// entries for Received / Tank graph
+const receivedEntryCount = useMemo(() => {
+  const key = receivedMode === "received" ? "received" : "tankLevel";
+
+  return chartData.filter(d => Number(d[key]) > 0).length;
+}, [chartData, receivedMode]);
+
+// entries for Processed / Biochar graph
+const processedEntryCount = useMemo(() => {
+  const key = processedMode === "processed" ? "processed" : "biochar";
+
+  return chartData.filter(d => Number(d[key]) > 0).length;
+}, [chartData, processedMode]);
+
 const downloadReceivedPDF = () => {
   const doc = new jsPDF();
 
@@ -392,11 +408,17 @@ const downloadProcessedPDF = () => {
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
       <div className="lg:col-span-3 p-4 rounded-xl shadow-md bg-white">
         <div className="flex justify-between items-center mb-3">
+  <div className="flex items-center gap-3">
   <h3 className="text-blue-800 font-semibold uppercase text-xs tracking-wider">
     {receivedMode === "received"
       ? "Received Sludge Analytics"
       : "Tank Level Monitoring"}
   </h3>
+
+  <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+    Entries: {receivedEntryCount}
+  </span>
+</div>
 
   <div className="flex items-center gap-3">
     {/* MODE TOGGLE */}
@@ -543,11 +565,17 @@ const downloadProcessedPDF = () => {
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mt-6">
       <div className="lg:col-span-3 p-4 rounded-xl shadow-md bg-white">
 <div className="flex justify-between items-center mb-3">
+  <div className="flex items-center gap-3">
   <h3 className="text-blue-800 font-semibold uppercase text-xs tracking-wider">
     {processedMode === "processed"
       ? "Sludge Processed Volume"
       : "Biochar Production Yield"}
   </h3>
+
+  <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+    Entries: {processedEntryCount}
+  </span>
+</div>
 
   <div className="flex items-center gap-3">
     {/* MODE TOGGLE */}

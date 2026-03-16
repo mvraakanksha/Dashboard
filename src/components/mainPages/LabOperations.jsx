@@ -324,6 +324,38 @@ const sortLabelMap = {
 
 const dynamicSortLabel = sortLabelMap[secondGraph] || "Metric";
 
+/* ---------------- ENTRY COUNTS ---------------- */
+
+// count plants that actually have flow bars
+const flowEntryCount = useMemo(() => {
+  return chartData.filter(d => Number(d.cumulativeFlow) > 0).length;
+}, [chartData]);
+
+// count plants that have lab bars depending on selected graph
+const labEntryCount = useMemo(() => {
+
+  if (secondGraph === "cod_bod") {
+    return chartData.filter(
+      d => Number(d.cod) > 0 || Number(d.bod) > 0
+    ).length;
+  }
+
+  if (secondGraph === "tn_tss") {
+    return chartData.filter(
+      d => Number(d.tn) > 0 || Number(d.tss) > 0
+    ).length;
+  }
+
+  if (secondGraph === "temp_ph") {
+    return chartData.filter(
+      d => Number(d.temperature) > 0 || Number(d.ph) > 0
+    ).length;
+  }
+
+  return 0;
+
+}, [chartData, secondGraph]);
+
   /* ================================================= */
   return (
   <div className="min-h-screen bg-gradient-to-br from-[#CFE2FF] to-[#013B88] p-6">
@@ -374,9 +406,15 @@ const dynamicSortLabel = sortLabelMap[secondGraph] || "Metric";
     <div className="bg-white rounded-xl shadow-lg p-3 mb-6">
    <div className="flex items-center justify-between mb-3">
 
-  <h3 className="font-bold text-blue-900 text-lg">
-    Cumulative Flow (L)
-  </h3>
+  <div className="flex items-center gap-3">
+    <h3 className="font-bold text-blue-900 text-lg">
+      Cumulative Flow (L)
+    </h3>
+
+    <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+      Entries: {flowEntryCount}
+    </span>
+  </div>
 
   {/* SORT */}
   <div className="flex items-center gap-2">
@@ -454,9 +492,15 @@ const dynamicSortLabel = sortLabelMap[secondGraph] || "Metric";
   <div className="flex items-center justify-between mb-2">
 
   {/* LEFT TITLE */}
+  <div className="flex items-center gap-3">
   <h3 className="font-bold text-blue-900">
     Lab Parameters
   </h3>
+
+  <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+    Entries: {labEntryCount}
+  </span>
+</div>
 
   {/* RIGHT SIDE */}
   <div className="flex items-center gap-4">

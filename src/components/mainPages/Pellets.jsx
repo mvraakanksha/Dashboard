@@ -388,7 +388,37 @@ const selectedKey = useMemo(() => {
     : "polymerStock";
 }, [materialType, sortBy]);
 
+/* ---------------- ENTRY COUNT ---------------- */
+const entryCount = useMemo(() => {
+  if (!sortedChartData?.length) return 0;
 
+  return sortedChartData.filter((p) => {
+    const value = p[selectedKey];
+
+    // ignore null or zero → no visible bar
+    return value !== null && value !== undefined && Number(value) > 0;
+  }).length;
+
+}, [sortedChartData, selectedKey]);
+
+/* ---------------- ENTRY LABEL ---------------- */
+const entryLabel = useMemo(() => {
+
+  if (sortBy === "plantId") {
+    return "Plants With Data";
+  }
+
+  if (sortBy === "used") {
+    return materialType === "pellets"
+      ? "Plants Using Pellets"
+      : "Plants Using Polymer";
+  }
+
+  return materialType === "pellets"
+    ? "Plants With Pellets Stock"
+    : "Plants With Polymer Stock";
+
+}, [materialType, sortBy]);
   // const barColor =
   //   materialType === "pellets" ? "#800000" : "#003366";
 
@@ -592,7 +622,18 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
 
       {/* ================= GRAPH ================= */}
     <div className="p-6 rounded-[2rem] border bg-white border-slate-100 shadow-xl">
+{/* GRAPH HEADER */}
+<div className="flex items-center justify-between mb-3">
 
+  <h3 className="font-bold text-blue-900 text-lg flex items-center gap-3">
+    Material Analytics
+
+    <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+      {entryLabel}: {entryCount}
+    </span>
+  </h3>
+
+</div>
 
   {/* 🔼 SORT CONTROL */}
 <div className="flex justify-end mb-3">

@@ -245,6 +245,28 @@ const chartData = useMemo(() => {
   const avgExport = chartData.length ? totalExport / chartData.length : 0;
   const totalRunHours = chartData.reduce((s, p) => s + p.runHours, 0);
   const avgRunHours = chartData.length ? totalRunHours / chartData.length : 0;
+  /* ---------------- ENTRY COUNT ---------------- */
+
+const entryCount = useMemo(() => {
+  if (!chartData?.length) return 0;
+
+  switch (sortBy) {
+    case "export":
+      return chartData.filter(d => d.exportPower > 0).length;
+
+    case "run":
+      return chartData.filter(d => d.runHours > 0).length;
+
+    case "id":
+      return chartData.filter(
+        d => d.importPower > 0 || d.exportPower > 0 || d.runHours > 0
+      ).length;
+
+    case "import":
+    default:
+      return chartData.filter(d => d.importPower > 0).length;
+  }
+}, [chartData, sortBy]);
   const KPICard = ({ label, value, unit, theme, icon, isDark, subLabel }) => (
   <div
     className={`group relative overflow-hidden p-4 rounded-xl border
@@ -348,7 +370,18 @@ const chartData = useMemo(() => {
     </div>
 
     {/* GRAPH */}
-    <div className="bg-white rounded-2xl shadow-lg p-6">
+   {/* GRAPH */}
+<div className="bg-white rounded-2xl shadow-lg p-6">
+
+  <div className="flex items-center gap-3 mb-3">
+    <h3 className="font-bold text-blue-900 text-lg">
+      Power Analytics
+    </h3>
+
+    <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+      Entries: {entryCount}
+    </span>
+  </div>
       <div className="overflow-x-auto">
         <div style={{ width: chartData.length * 90, minWidth: "100%", height: 450 }}>
           <BarChart

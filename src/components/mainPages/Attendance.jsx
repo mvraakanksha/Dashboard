@@ -264,7 +264,15 @@ const allPlantsData = useMemo(() => {
   }
 }, [allPlantsData, attendanceSortMode]);
 
+/* ---------------- ENTRY COUNT ---------------- */
+const entryCount = useMemo(() => {
+  if (!sortedAttendanceData?.length) return 0;
 
+  return sortedAttendanceData.filter(
+    p => Number(p.presentUnits) > 0
+  ).length;
+
+}, [sortedAttendanceData]);
   /* ---------- KPIs ---------- */
 /* ---------- KPIs (CORRECT LOGIC) ---------- */
 
@@ -484,7 +492,18 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
 </div>
 
             {/* GRAPH SECTION WITH LABELS */}
-            <div className="p-4 sm:p-6 rounded-3xl border bg-white border-slate-100 shadow-xl">
+           {/* GRAPH SECTION WITH LABELS */}
+<div className="p-4 sm:p-6 rounded-3xl border bg-white border-slate-100 shadow-xl">
+
+  <div className="flex items-center gap-3 mb-3">
+    <h3 className="font-bold text-blue-900 text-lg">
+      Attendance Overview
+    </h3>
+
+    <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+      Entries: {entryCount}
+    </span>
+  </div>
                             <div className="flex justify-end mb-3">
   <div className="flex-col justify-end">
     <span className="text-xs font-semibold text-slate-500">

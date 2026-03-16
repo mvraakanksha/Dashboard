@@ -514,6 +514,28 @@ const totalPrivateSludge = useMemo(() => {
     }
   }, [chartData, vehicleSortMode]);
 
+/* ---------------- ENTRY COUNT ---------------- */
+const entryCount = useMemo(() => {
+  if (!sortedChartData?.length) return 0;
+
+  switch (vehicleSortMode) {
+
+    case "v1":
+      return sortedChartData.filter(p => p.bar1 > 0).length;
+
+    case "v2":
+      return sortedChartData.filter(p => p.bar2 > 0).length;
+
+    case "distance":
+      return sortedChartData.filter(p => (p.bar1 + p.bar2) > 0).length;
+
+    case "id":
+    default:
+      return sortedChartData.filter(
+        p => p.bar1 > 0 || p.bar2 > 0
+      ).length;
+  }
+}, [sortedChartData, vehicleSortMode]);
 
     const loadAndCompressImage = (
       src,
@@ -1219,9 +1241,15 @@ return (
 
       {/* 🔹 TITLE + SORT (Top Right like Attendance) */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-blue-900 text-lg">
-          Vehicle Movement
-        </h3>
+        <div className="flex items-center gap-3">
+  <h3 className="font-bold text-blue-900 text-lg">
+    Vehicle Movement
+  </h3>
+
+  <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+    Entries: {entryCount}
+  </span>
+</div>
 
 <div className="flex items-end gap-3 mb-4">
   <div className="flex flex-col">
