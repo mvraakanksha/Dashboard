@@ -119,6 +119,48 @@ const [billFilter, setBillFilter] = useState("ALL");
 
   },[fuelData,selectedZone]);
 
+
+const calculateMileage = (records) => {
+
+  if (!records || records.length === 0) return [];
+
+  const sorted = [...records].sort(
+    (a, b) => new Date(a.lastFuelFilledDate) - new Date(b.lastFuelFilledDate)
+  );
+
+  const result = [];
+
+  sorted.forEach((curr, index) => {
+
+    if (index === 0) {
+      result.push({
+        ...curr,
+        mileage: null
+      });
+      return;
+    }
+
+    const prev = sorted[index - 1];
+
+    const distance =
+      (curr.currentOdometerReading || 0) -
+      (prev.currentOdometerReading || 0);
+
+    const fuel = Number(curr.filledLiters) || 0;
+
+    const mileage = fuel > 0 ? distance / fuel : 0;
+
+    result.push({
+      ...curr,
+      distanceTravelled: distance,
+      mileage: mileage.toFixed(2)
+    });
+
+  });
+
+  return result;
+};
+
   /* DATE FILTER PER VEHICLE */
 
  const finalData = filteredPlants.map(p => {
@@ -129,7 +171,9 @@ const [billFilter, setBillFilter] = useState("ALL");
 
     const records = p.vehicleMap[vehicleNumber] || [];
 
-    const dateFiltered = records.filter(f => {
+const mileageRecords = calculateMileage(records);
+
+const dateFiltered = mileageRecords.filter(f => {
 
       const d = new Date(f.lastFuelFilledDate);
 
@@ -183,6 +227,8 @@ const [billFilter, setBillFilter] = useState("ALL");
     ];
 
   },[finalData]);
+
+
 
   const exportRows = useMemo(() => {
 
@@ -573,7 +619,7 @@ const exportPDF = async () => {
           vehicleNumber,
           {
             content: "No Fuel Records",
-            colSpan: 3,
+            colSpan: 4,
             styles: {
               halign: "center",
               fontStyle: "bold"
@@ -760,6 +806,7 @@ const exportPDF = async () => {
               <th className="border p-2 text-center">Fuel Filled Date</th>
               <th className="border p-2 text-center">Quantity (Liters)</th>
               <th className="border p-2 text-center">Odometer Reading</th>
+              <th className="border p-2 text-center">Mileage (Km/L)</th>
             </tr>
 
           </thead>
@@ -799,7 +846,7 @@ const exportPDF = async () => {
 
                     <td className="border p-2 text-center">{vehicleNumber}</td>
 
-                    <td colSpan={3} className="border p-2 text-center text-slate-500 font-semibold">
+                    <td colSpan={4} className="border p-2 text-center text-slate-500 font-semibold">
                       No Fuel Records
                     </td>
 
@@ -844,6 +891,10 @@ const exportPDF = async () => {
                     <td className="border p-2 text-center">
                       {f.currentOdometerReading ?? "-"}
                     </td>
+
+<td className="border p-2 text-center">
+ {f.mileage || "-"}
+</td>
 
                   </tr>
                 );
