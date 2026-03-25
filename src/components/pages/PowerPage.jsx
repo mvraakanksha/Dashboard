@@ -137,6 +137,7 @@ export default function PowerPage() {
   const [plant, setPlant] = useState(null);
   const [fromDate, setFromDate] = useState(formatDate(subtractDays(new Date(), 10)));
   const [toDate, setToDate] = useState(formatDate(new Date()));
+  const today = new Date().toISOString().split("T")[0];
   const [data, setData] = useState([]);
   const [anySolarExists, setAnySolarExists] = useState(false);
 
@@ -285,6 +286,7 @@ export default function PowerPage() {
     <label className="text-xs font-semibold">To</label>
     <input
       type="date"
+      max={today}
       value={toDate}
       onChange={(e) => setToDate(e.target.value)}
       className="border p-2 rounded w-full"

@@ -146,6 +146,7 @@ const [plant, setPlant] = useState(null);
 
   const [fromDate, setFromDate] = useState(tenDaysBack);
   const [toDate, setToDate] = useState(today);
+  
 
 
 
@@ -335,6 +336,7 @@ useEffect(() => {
     <label className="text-xs font-semibold text-gray-700">To</label>
     <input
       type="date"
+      max={today}
       value={toDate}
       onChange={(e) => setToDate(e.target.value)}
       className="border p-2 rounded w-full"

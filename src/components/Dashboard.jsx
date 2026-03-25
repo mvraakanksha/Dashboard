@@ -14,7 +14,7 @@ import VehicleDashboard from "./dashboardPages/VehicleDashboard";
 import { getAllPlants } from "../services/plantService";
 import { getOperationsByDate } from "../services/operationService";
 import { getVehicleOperationsByDate } from "../services/vehicleService";
-import { getEmployeeOperationsByDate } from "../services/employeeService";
+import {  getEmployeesByPlant , getEmployeeOperationsByDate } from "../services/employeeService";
 
 
 const formatValue = (val) => {
@@ -164,7 +164,8 @@ useEffect(() => {
   // 2. Fetch Dashboard Data based on Global Filters
   useEffect(() => {
     const fetchDashboardData = async () => {
-
+  const today = new Date().toISOString().split("T")[0];
+  const selectedDate = date; 
       let hasLowPelletsStock = false;
       let hasLowPolymerStock = false;
 
@@ -189,31 +190,22 @@ const filteredPlants = filteredByZone;
 
           
 
-       const permanentPowerCount =
+  const permanentPowerCount =
   filteredPlants.filter((p) => {
     if (!p.permanentPower) return false;
 
     const completionDate = p.permanentPowerDateOfCompletion;
     if (!completionDate) return false;
 
-    const selectedISO = new Date(date).toISOString().split("T")[0];
     const completedISO = new Date(completionDate).toISOString().split("T")[0];
 
-    return selectedISO >= completedISO;
+    return today >= completedISO; // ✅ ONLY TODAY
   }).length;
-  
 
-          const mnitCount =
-  filteredPlants.filter(p => p.mnit === true).length;
-
-const solarCount =
-  filteredPlants.filter(p => p.solar === true).length;
-
-const internetCount =
-  filteredPlants.filter(p => p.internet === true).length;
-
-const codbodCount =
-  filteredPlants.filter(p => !!p.codAndBodSenserDate).length;
+const mnitCount = filteredPlants.filter(p => p.mnit === true).length;
+const solarCount = filteredPlants.filter(p => p.solar === true).length;
+const internetCount = filteredPlants.filter(p => p.internet === true).length;
+const codbodCount = filteredPlants.filter(p => !!p.codAndBodSenserDate).length;
 
 
         const plantIds = new Set(filteredPlants.map(p => String(p.plantID)));
@@ -222,7 +214,7 @@ const codbodCount =
         const plantCount = totalPlants || 1;
 
         // Sludge / Energy Operations
-        const opsData = await getOperationsByDate(date);
+       const opsData = await getOperationsByDate(selectedDate);
 
         let totalReceived = 0, totalProcessed = 0, totalTank = 0, totalBiochar = 0,
             totalRunHours = 0, totalPowerImport = 0, totalSolarExport = 0,
@@ -280,7 +272,7 @@ if (operation.polymerStock != null) {
 
 
         // Vehicle Operations
-        const vData = await getVehicleOperationsByDate(date);
+       const vData = await getVehicleOperationsByDate(selectedDate);
 
         let totalDistance = 0, totalTrips = 0;
         const movedVehiclesSet = new Set();
@@ -294,18 +286,52 @@ if (operation.polymerStock != null) {
           }
           totalTrips += Number(v.vehicleOp?.noOfTrips || 0);
         });
+// Attendance
 
-        // Attendance
-        const attData = await getEmployeeOperationsByDate(date);
+// 🔹 1. FIRST fetch attendance
+const attData = await getEmployeeOperationsByDate(selectedDate);
 
-        let presentUnits = 0;
-        attData.forEach((a) => {
-          if (!plantIds.has(String(a.plantId))) return;
-          const am = a.plantOp?.attendanceAm, pm = a.plantOp?.attendancePm;
-          if (am && pm) presentUnits += 1;
-          else if (am || pm) presentUnits += 0.5;
-        });
-        const totalEmployees = filteredPlants.reduce((s, p) => s + (p.noOfEmployees || 0), 0);
+// 🔹 2. THEN fetch employees
+const employeePromises = [...plantIds].map(id => getEmployeesByPlant(id));
+const employeeResults = await Promise.all(employeePromises);
+
+// 🔹 flatten
+let employees = employeeResults.flat().filter(Boolean);
+
+// 🔹 remove duplicates
+const uniqueMap = new Map();
+employees.forEach(emp => {
+  uniqueMap.set(emp.employeeId, emp);
+});
+const uniqueEmployees = Array.from(uniqueMap.values());
+
+// 🔹 selected date
+const selectedISO = new Date(selectedDate).toISOString().split("T")[0];
+
+// 🔹 TOTAL EMPLOYEES (based on selected date)
+const totalEmployees = uniqueEmployees.filter(emp => {
+  if (!emp.dateOfJoining) return false;
+
+  const joiningISO = new Date(emp.dateOfJoining).toISOString().split("T")[0];
+
+  return joiningISO <= selectedISO;
+}).length;
+
+// 🔹 3. THEN calculate present
+let presentUnits = 0;
+
+attData.forEach((a) => {
+  if (!plantIds.has(String(a.plantId))) return;
+
+  const am = a.plantOp?.attendanceAm;
+  const pm = a.plantOp?.attendancePm;
+
+  if (am && pm) presentUnits += 1;
+  else if (am || pm) presentUnits += 0.5;
+});
+
+// 🔹 FINAL
+const totalAttendance = `${presentUnits}/${totalEmployees}`;
 
  
         setKpis({

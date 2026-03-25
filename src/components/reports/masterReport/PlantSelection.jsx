@@ -206,7 +206,8 @@ const [vehiclesMap,setVehiclesMap]=useState({});
 const [employeesMap,setEmployeesMap]=useState({});
 const [reportStatus, setReportStatus] = useState("generate");
 const [enableTyreDetails,setEnableTyreDetails] = useState(false);
-
+const [statusFilter, setStatusFilter] = useState("All");
+const [previewStatusFilter, setPreviewStatusFilter] = useState("All");
 useEffect(()=>{
 getAllPlants().then(res=>{
 const data=Array.isArray(res)?res:[];
@@ -223,11 +224,21 @@ const zones = useMemo(()=>{
 const toggle=(list,setList,id)=>setList(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
 /* ===== VISIBLE PLANTS (zone filtered) ===== */
-const visiblePlants = useMemo(()=>{
-return plants.filter(
-p => zoneFilter === "All" || String(p.zones) === zoneFilter
-);
-},[plants,zoneFilter]);
+const visiblePlants = useMemo(() => {
+  return plants.filter(p => {
+    const zoneMatch =
+      zoneFilter === "All" || String(p.zones) === zoneFilter;
+
+    const statusValue = p.permanentPower; // 👈 CHANGE FIELD if needed
+
+    const statusMatch =
+      statusFilter === "All" ||
+      (statusFilter === "Yes" && statusValue === true) ||
+      (statusFilter === "No" && statusValue === false);
+
+    return zoneMatch && statusMatch;
+  });
+}, [plants, zoneFilter, statusFilter]);
 
 /* ===== SELECT ALL LOGIC ===== */
 const allSelected =
@@ -630,23 +641,51 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
 
   {/* RIGHT ACTION */}
   {!config ? (
-    <select
-      value={zoneFilter}
-      onChange={e=>setZoneFilter(e.target.value)}
-      className="border px-4 py-2 rounded-xl"
-    >
-      <option value="All">All Zones</option>
-      {zones.map(z=>(
-        <option key={z} value={z}>Zone {z}</option>
-      ))}
-    </select>
+    <div className="flex gap-3">
+
+  {/* ZONE FILTER */}
+  <select
+    value={zoneFilter}
+    onChange={e => setZoneFilter(e.target.value)}
+    className="border px-4 py-2 rounded-xl"
+  >
+    <option value="All">All Zones</option>
+    {zones.map(z => (
+      <option key={z} value={z}>Zone {z}</option>
+    ))}
+  </select>
+
+  {/* STATUS FILTER */}
+  <select
+    value={statusFilter}
+    onChange={e => setStatusFilter(e.target.value)}
+    className="border px-4 py-2 rounded-xl"
+  >
+    <option value="All">All Status</option>
+    <option value="Yes">Yes</option>
+    <option value="No">No</option>
+  </select>
+
+</div>
+    
   ) : (
 <div className="flex items-center gap-3">
+
+  {/* STATUS FILTER */}
+  <select
+    value={previewStatusFilter}
+    onChange={(e) => setPreviewStatusFilter(e.target.value)}
+    className="border px-3 py-2 rounded-lg text-sm"
+  >
+    <option value="All">All Status</option>
+    <option value="Yes">Yes Only</option>
+    <option value="No">No Only</option>
+  </select>
 
   {/* PDF */}
   <button
     onClick={()=>PlantPdf(config)}
-    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-md transition active:scale-95"
+    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold"
   >
     PDF
   </button>
@@ -654,7 +693,7 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
   {/* EXCEL */}
   <button
     onClick={()=>PlantExcel(config)}
-    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md transition active:scale-95"
+    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold"
   >
     Excel
   </button>
@@ -662,9 +701,9 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
   {/* BACK */}
   <button
     onClick={()=>onGenerate(null)}
-    className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold shadow-sm transition"
+    className="px-5 py-2.5 rounded-xl border bg-white"
   >
-    ← Back to Selection
+    ← Back
   </button>
 
 </div>
@@ -826,7 +865,25 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
     </thead>
 
     <tbody className="divide-y divide-slate-200">
-      {config.plants.map((p, index) => (
+     {config.plants
+  .filter(p => {
+  const statusValue = p.permanentPower;
+
+  // normalize value
+  const normalized =
+    statusValue === true ||
+    statusValue === "YES" ||
+    statusValue === "Yes" ||
+    statusValue === 1 ||
+    statusValue === "true";
+
+  if (previewStatusFilter === "All") return true;
+  if (previewStatusFilter === "Yes") return normalized === true;
+  if (previewStatusFilter === "No") return normalized === false;
+
+  return true;
+})
+  .map((p, index) => (
         <tr key={p.plantID} className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
           {/* BASE DATA */}
           <td className="px-3 py-3 text-center text-slate-500 font-medium">{index + 1}</td>

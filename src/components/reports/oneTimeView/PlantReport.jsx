@@ -846,6 +846,13 @@ if (selectedCard === "CAMERA") {
     `Plant_Report_${selectedCard}.xlsx`
   );
 };
+
+const handleReset = () => {
+   setYesNoFilter("ALL");
+  setFromDate("");
+  setToDate(""); 
+};
+
   /* ================= UI ================= */
   return (
     <div className="space-y-6 p-6">
@@ -1007,12 +1014,14 @@ if (selectedCard === "CAMERA") {
       <input
         type="date"
         value={fromDate}
+        
         onChange={(e) => setFromDate(e.target.value)}
         className="border rounded-lg p-2 text-sm"
       />
 
       <input
         type="date"
+        max={today} 
         value={toDate}
         onChange={(e) => setToDate(e.target.value)}
         className="border rounded-lg p-2 text-sm"
@@ -1061,6 +1070,14 @@ if (selectedCard === "CAMERA") {
   >
     Excel
   </button>
+  <button
+  onClick={handleReset}
+  className="bg-gray-500 hover:bg-gray-600
+             text-white px-4 py-2 rounded-lg
+             text-sm font-semibold shadow"
+>
+  Reset
+</button>
 </div>
 
   </div>

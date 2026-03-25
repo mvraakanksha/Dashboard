@@ -182,6 +182,7 @@ export default function VehiclePage() {
     formatDate(subtractDays(new Date(), 10))
   );
   const [toDate, setToDate] = useState(formatDate(new Date()));
+  const today = new Date().toISOString().split("T")[0];
   const [daywiseData, setDaywiseData] = useState([]);
 const [operationsData, setOperationsData] = useState([]);
 
@@ -503,6 +504,7 @@ const vehicle2Trips = daywiseData.reduce(
       <label className="text-xs font-semibold text-gray-700">To</label>
       <input
         type="date"
+        max={today}
         value={toDate}
         onChange={(e) => setToDate(e.target.value)}
         className="border p-2 rounded-md w-full"

@@ -10,6 +10,9 @@ import {
 import WaveCircle from "./WaveCircle";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+// import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
 import { 
   Droplets, 
@@ -22,6 +25,7 @@ import {
 } from "lucide-react";
 import { getAllPlants } from "../../services/plantService";
 import { getOperationsByDate } from "../../services/operationService";
+import companyLogo from '../reports/company_logo1.jpg'
 /* ================= UTILS ================= */
 const formatIndianNumber = (num) => {
   if (num === 0) return "0";
@@ -295,6 +299,29 @@ const processedEntryCount = useMemo(() => {
   return chartData.filter(d => Number(d[key]) > 0).length;
 }, [chartData, processedMode]);
 
+const addCompanyHeader = (doc, reportTitle) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  /* ===== LOGO ===== */
+  doc.addImage(companyLogo, "JPEG", 8, 6, 25, 15);
+
+  /* ===== COMPANY NAME ===== */
+  doc.setFont("times", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(200, 0, 0);
+  doc.text("MVR TECHNOLOGY", pageWidth / 2, 14, { align: "center" });
+
+  /* ===== SUBTITLE ===== */
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  doc.text("FSTP RAJASTHAN", pageWidth / 2, 21, { align: "center" });
+
+  /* ===== REPORT TITLE ===== */
+  doc.setFontSize(12);
+  doc.setFont("times", "bold");
+  doc.text(reportTitle, pageWidth / 2, 27, { align: "center" });
+};
+
 const downloadReceivedPDF = () => {
   const doc = new jsPDF();
 
@@ -312,6 +339,8 @@ const downloadReceivedPDF = () => {
     reportTitle = "Sludge Tanklevel Report";
   }
 
+  addCompanyHeader(doc, reportTitle);
+
   const tableData = receivedSorted.map((item, index) => [
     index + 1,
     item.plantID,
@@ -320,11 +349,8 @@ const downloadReceivedPDF = () => {
     item[selectedKey],
   ]);
 
-  doc.setFontSize(14);
-  doc.text(reportTitle, 14, 15);
-
   autoTable(doc, {
-    startY: 22,
+    startY: 35, // 👈 IMPORTANT (below header)
     head: [["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel]],
     body: tableData,
   });
@@ -349,6 +375,8 @@ const downloadProcessedPDF = () => {
     reportTitle = "Sludge Biochar Report";
   }
 
+  addCompanyHeader(doc, reportTitle);
+
   const tableData = processedSorted.map((item, index) => [
     index + 1,
     item.plantID,
@@ -357,18 +385,144 @@ const downloadProcessedPDF = () => {
     item[selectedKey],
   ]);
 
-  doc.setFontSize(14);
-  doc.text(reportTitle, 14, 15);
-
   autoTable(doc, {
-    startY: 22,
+    startY: 35,
     head: [["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel]],
     body: tableData,
   });
 
   doc.save(`${reportTitle}.pdf`);
 };
+const downloadExcel = async (type) => {
+  let data = [];
+  let selectedKey;
+  let selectedLabel;
+  let fileName;
+  let reportTitle;
 
+  if (type === "received") {
+    if (receivedMode === "received") {
+      selectedKey = "received";
+      selectedLabel = "Sludge Received (L)";
+      reportTitle = "Sludge Received Report";
+      fileName = "Sludge_Received_Report.xlsx";
+    } else {
+      selectedKey = "tankLevel";
+      selectedLabel = "Tank Level (L)";
+      reportTitle = "Sludge Tanklevel Report";
+      fileName = "Sludge_Tanklevel_Report.xlsx";
+    }
+    data = receivedSorted;
+  }
+
+  if (type === "processed") {
+    if (processedMode === "processed") {
+      selectedKey = "processed";
+      selectedLabel = "Sludge Processed (L)";
+      reportTitle = "Sludge Processed Report";
+      fileName = "Sludge_Processed_Report.xlsx";
+    } else {
+      selectedKey = "biochar";
+      selectedLabel = "Biochar Produced (Kg)";
+      reportTitle = "Sludge Biochar Report";
+      fileName = "Sludge_Biochar_Report.xlsx";
+    }
+    data = processedSorted;
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Report");
+
+  /* ===== LOGO ===== */
+  const imageId = workbook.addImage({
+    base64: await fetch(companyLogo)
+      .then(res => res.blob())
+      .then(blob => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      })),
+    extension: "jpeg",
+  });
+
+  sheet.addImage(imageId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: 120, height: 60 },
+  });
+
+  /* ===== COMPANY NAME ===== */
+  sheet.mergeCells("A1:E1");
+  const companyCell = sheet.getCell("A1");
+  companyCell.value = "MVR TECHNOLOGY";
+  companyCell.font = {  name: "Times New Roman",size: 16, bold: true, color: { argb: "FF0000" } };
+  companyCell.alignment = { vertical: "middle", horizontal: "center" };
+
+  /* ===== SUBTITLE ===== */
+  sheet.mergeCells("A2:E2");
+  const subCell = sheet.getCell("A2");
+  subCell.value = "FSTP RAJASTHAN";
+  subCell.font = {  name: "Times New Roman",size: 12, bold: true };
+  subCell.alignment = { horizontal: "center" };
+
+  /* ===== REPORT TITLE ===== */
+  sheet.mergeCells("A3:E3");
+  const titleCell = sheet.getCell("A3");
+  titleCell.value = reportTitle;
+  titleCell.font = { name: "Times New Roman",size: 12, bold: true };
+  titleCell.alignment = { horizontal: "center" };
+
+  /* ===== TABLE HEADERS ===== */
+  const headers = ["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel];
+  const headerRow = sheet.addRow(headers);
+
+  headerRow.eachCell((cell) => {
+    cell.font = { name: "Times New Roman",bold: true };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" },
+    };
+  });
+
+  /* ===== TABLE DATA ===== */
+  data.forEach((item, index) => {
+    const row = sheet.addRow([
+      index + 1,
+      item.plantID,
+      item.name,
+      item.kld,
+      item[selectedKey],
+    ]);
+
+    row.eachCell((cell) => {
+      cell.font = {
+    name: "Times New Roman"
+  };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      };
+    });
+  });
+
+  /* ===== COLUMN WIDTH ===== */
+  sheet.columns = [
+    { width: 8 },
+    { width: 12 },
+    { width: 25 },
+    { width: 10 },
+    { width: 20 },
+  ];
+
+  /* ===== DOWNLOAD ===== */
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), fileName);
+};
 
   // UI ----------------
  return (
@@ -462,8 +616,15 @@ const downloadProcessedPDF = () => {
     onClick={() => downloadReceivedPDF()}
     className="bg-blue-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-blue-700"
   >
-    Download PDF
+    PDF
   </button>
+
+  <button
+ onClick={() => downloadExcel("received")}
+  className="bg-green-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-green-700"
+>
+  Excel
+</button>
 </div>
   </div>
 </div>
@@ -619,8 +780,15 @@ const downloadProcessedPDF = () => {
     onClick={() => downloadProcessedPDF()}
     className="bg-blue-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-blue-700"
   >
-    Download PDF
+    PDF
   </button>
+<button
+  onClick={() => downloadExcel("processed")}
+  className="bg-green-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-green-700"
+>
+   Excel
+</button>
+
 </div>
   </div>
 </div>

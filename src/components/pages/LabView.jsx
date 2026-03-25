@@ -239,6 +239,7 @@ export default function LabView() {
     formatDate(subtractDays(new Date(), 10))
   );
   const [toDate, setToDate] = useState(formatDate(new Date()));
+  const today = new Date().toISOString().split("T")[0];
   const [daywiseData, setDaywiseData] = useState([]);
 
 const fetchDaywise = async () => {
@@ -402,7 +403,7 @@ useEffect(() => {
       {/* FILTER */}
       <div className="bg-white rounded-xl shadow p-4 flex gap-4 mb-6">
         <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-        <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+        <input type="date" max={today} value={toDate} onChange={(e) => setToDate(e.target.value)} />
         <button onClick={fetchDaywise} className="bg-blue-700 text-white px-6 rounded">
           GET
         </button>

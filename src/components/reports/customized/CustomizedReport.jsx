@@ -733,15 +733,21 @@ const filteredPlants = useMemo(() => {
   });
 }, [plants, zoneFilter, infraFilters]);
 
-const initialized = useRef(false);
+// const initialized = useRef(false);
 
+// useEffect(() => {
+//   if (!initialized.current && filteredPlants.length) {
+//     setSelectedPlants(filteredPlants.map(p => p.plantID));
+//     initialized.current = true;
+//   }
+// }, [filteredPlants]);
 useEffect(() => {
-  if (!initialized.current && filteredPlants.length) {
-    setSelectedPlants(filteredPlants.map(p => p.plantID));
-    initialized.current = true;
-  }
-}, [filteredPlants]);
-
+  setSelectedPlants(filteredPlants.map(p => p.plantID));
+}, [zoneFilter, filteredPlants]);
+useEffect(() => {
+  setShowPreview(false);
+  setPreviewData(null);
+}, [zoneFilter, reportTypes]);
 
 /* ================= HELPER TOGGLES (ADD HERE) ================= */
 
@@ -815,7 +821,8 @@ const handlePreview = async () => {
 
 
   
-  const cacheKey = JSON.stringify({
+const cacheKey = JSON.stringify({
+  zone: zoneFilter, // ✅ ADD THIS LINE
   plants: selectedPlants,
   from: dateRange.from,
   to: dateRange.to,
@@ -823,7 +830,6 @@ const handlePreview = async () => {
     m => `${m.module}:${m.metric}`
   )
 });
-
 const getVehicleMasterCached = async (plantID) => {
   if (!vehicleMasterCacheRef.current[plantID]) {
     vehicleMasterCacheRef.current[plantID] =

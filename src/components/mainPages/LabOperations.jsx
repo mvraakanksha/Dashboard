@@ -571,7 +571,7 @@ const labEntryCount = useMemo(() => {
               <XAxis
                 dataKey="label"
                 interval={0}
-                height={30}
+                height={70}
                 tick={(props) => (
                   <ClickableTick
                     {...props}
@@ -622,6 +622,52 @@ const labEntryCount = useMemo(() => {
           </ResponsiveContainer>
         </div>
       </div>
+{/* LEGEND */}
+<div className="flex items-center justify-center gap-6 mt-4 text-[13px] font-semibold text-[#003f8a]">
+
+  {secondGraph === "cod_bod" && (
+    <>
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#6AA6FF] rounded-sm" />
+        COD
+      </span>
+
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#0047B3] rounded-sm" />
+        BOD
+      </span>
+    </>
+  )}
+
+  {secondGraph === "tn_tss" && (
+    <>
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#885cafff] rounded-sm" />
+        TN
+      </span>
+
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#1a9cb3ff] rounded-sm" />
+        TSS
+      </span>
+    </>
+  )}
+
+  {secondGraph === "temp_ph" && (
+    <>
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#FF9800] rounded-sm" />
+        Temperature
+      </span>
+
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#9C27B0] rounded-sm" />
+        pH
+      </span>
+    </>
+  )}
+
+</div>
 
       <p className="text-center text-sm font-bold text-[#333] mt-4">
         Plants
