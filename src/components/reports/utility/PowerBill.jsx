@@ -37,8 +37,7 @@ const TODAY = new Date().toISOString().slice(0, 7);
 
 const BarValueLabel = ({ x, y, width, value, fill }) => {
 
-  if (value === null || value === undefined) return null;
-
+ if (value == null) return null;
   return (
     <text
       x={x + width / 2}
@@ -53,8 +52,104 @@ const BarValueLabel = ({ x, y, width, value, fill }) => {
   );
 };
 
-const PowerTooltip = ({ active, payload }) => {
+// const PowerTooltip = ({ active, payload }) => {
 
+//   if (!active || !payload || !payload.length) return null;
+
+//   const row = payload[0].payload;
+
+//   const power = Number(row.totalPower || 0);
+//   const solar = Number(row.totalSolar || 0);
+//   const net = Number(row.netUnits || 0);
+//   const bill = Number(row.billUnits || 0);
+
+// const Amount  = Number(row.amount || 0);
+
+//   const start = row.startDate;
+// const end = row.endDate;
+
+//   return (
+//     <div className="bg-white border border-slate-200 shadow-xl rounded-lg p-4 text-xs w-64">
+
+// <p className="font-bold text-blue-900 mb-2 text-sm">
+//   {row.plantID ?? "-"} - {row.plant ?? "-"} - {row.kld ?? "-"} KLD
+// </p>
+//       <div className="space-y-1">
+
+//         <div className="flex justify-between">
+//           <span className="font-semibold text-slate-600">
+//             Total Power Consumed
+//           </span>
+//           <span className="font-bold text-red-600">
+//             {power.toLocaleString("en-IN")} Kwh
+//           </span>
+//         </div>
+
+//         <div className="flex justify-between">
+//           <span className="font-semibold text-slate-600">
+//             Solar Generated
+//           </span>
+//           <span className="font-bold text-green-600">
+//             {solar.toLocaleString("en-IN")} Kwh
+//           </span>
+//         </div>
+// {start !== "-" && end !== "-" && (
+//   <div className="flex justify-between">
+//     <span className="font-semibold text-slate-600">
+//       Cycle
+//     </span>
+//     <span className="font-bold text-slate-800">
+//       {formatDisplayDate(start)} - {formatDisplayDate(end)}
+//     </span>
+//   </div>
+// )}
+
+//         <div className="flex justify-between">
+//           <span className="font-semibold text-slate-600">
+//             Net Consumption
+//           </span>
+//           <span className="font-bold text-red-700">
+//             {net.toLocaleString("en-IN")} Kwh
+//           </span>
+//         </div>
+
+//         {row.billDate && (
+//           <div className="flex justify-between">
+//             <span className="font-semibold text-slate-600">
+//               Bill Date
+//             </span>
+//             <span className="font-bold text-slate-800">
+//               {formatDisplayDate(row.billDate)}
+//             </span>
+//           </div>
+//         )}
+
+
+//         <div className="flex justify-between">
+//           <span className="font-semibold text-slate-600">
+//             Bill Units
+//           </span>
+//           <span className="font-bold text-blue-600">
+//             {bill.toLocaleString("en-IN")} Kwh
+//           </span>
+
+//         </div>
+//         <div className="flex justify-between">
+//           <span className="font-semibold text-slate-600">
+//             Bill Amount
+//           </span>
+//           <span className="font-bold text-blue-600">
+//             {Amount.toLocaleString("en-IN")} Rs
+//           </span>
+          
+//         </div>
+
+//       </div>
+//     </div>
+//   );
+// };
+
+const PowerTooltip = ({ active, payload }) => {
   if (!active || !payload || !payload.length) return null;
 
   const row = payload[0].payload;
@@ -63,53 +158,30 @@ const PowerTooltip = ({ active, payload }) => {
   const solar = Number(row.totalSolar || 0);
   const net = Number(row.netUnits || 0);
   const bill = Number(row.billUnits || 0);
+  const amount = Number(row.amount || 0);
+
+  const billDate = row.billDate;
+
+  const start = row.startDate;
+  const end = row.endDate;
 
   return (
     <div className="bg-white border border-slate-200 shadow-xl rounded-lg p-4 text-xs w-64">
+      
+      <p className="font-bold text-blue-900 mb-2 text-sm">
+        {row.plantID ?? "-"} - {row.plant ?? "-"} - {row.kld ?? "-"} KLD
+      </p>
 
-<p className="font-bold text-blue-900 mb-2 text-sm">
-  {row.plantID ?? "-"} - {row.plant ?? "-"} - {row.kld ?? "-"} KLD
-</p>
       <div className="space-y-1">
 
         <div className="flex justify-between">
           <span className="font-semibold text-slate-600">
-            Total Power Consumed
+            Bill Received Date
           </span>
-          <span className="font-bold text-red-600">
-            {power.toLocaleString("en-IN")} Kwh
-          </span>
-        </div>
-
-        <div className="flex justify-between">
-          <span className="font-semibold text-slate-600">
-            Solar Generated
-          </span>
-          <span className="font-bold text-green-600">
-            {solar.toLocaleString("en-IN")} Kwh
+          <span className="font-bold text-slate-800">
+            {billDate ? formatDisplayDate(billDate) : "-"}
           </span>
         </div>
-
-        <div className="flex justify-between">
-          <span className="font-semibold text-slate-600">
-            Net Consumption
-          </span>
-          <span className="font-bold text-red-700">
-            {net.toLocaleString("en-IN")} Kwh
-          </span>
-        </div>
-
-        {row.billDate && (
-          <div className="flex justify-between">
-            <span className="font-semibold text-slate-600">
-              Bill Date
-            </span>
-            <span className="font-bold text-slate-800">
-              {formatDisplayDate(row.billDate)}
-            </span>
-          </div>
-        )}
-
 
         <div className="flex justify-between">
           <span className="font-semibold text-slate-600">
@@ -120,6 +192,14 @@ const PowerTooltip = ({ active, payload }) => {
           </span>
         </div>
 
+        <div className="flex justify-between">
+          <span className="font-semibold text-slate-600">
+            Bill Amount
+          </span>
+          <span className="font-bold text-green-600">
+            ₹ {amount.toLocaleString("en-IN")}
+          </span>
+        </div>
 
       </div>
     </div>
@@ -135,6 +215,7 @@ export default function PowerBill() {
 const [selectedPlant, setSelectedPlant] = useState(null);
 const [zone, setZone] = useState("All");
 const [view, setView] = useState("graph"); // graph | table
+const [operationsMap, setOperationsMap] = useState({});
 
   /* ================= MONTH RANGE ================= */
 
@@ -205,27 +286,136 @@ const filteredPlants = useMemo(() => {
 
   useEffect(() => {
 
-    const fetchOperations = async () => {
+  if (!plants.length) return;
 
-      const { start, end } = getMonthRange(month);
+  const fetchData = async () => {
 
-      try {
+    const billMap = {};
+    const opsMap = {};
 
-        const res = await getOperationsByDateRange(start, end);
+    const selectedMonth = new Date(month + "-01").getMonth();
 
-        setOperations(res || []);
+    await Promise.all(
 
-      } catch (err) {
+      plants.map(async (p) => {
 
-        console.error(err);
+        try {
 
-      }
+          const bills = await getPowerBillDetailsByPlant(p.plantID);
+          if (!bills?.length) return;
 
+          const sorted = [...bills].sort(
+            (a,b)=> new Date(a.lastBillDate) - new Date(b.lastBillDate)
+          );
+
+          for (let i=1;i<sorted.length;i++) {
+
+            const prev = sorted[i-1];
+            const curr = sorted[i];
+
+            const billMonth = new Date(curr.lastBillDate).getMonth();
+
+            if (billMonth === selectedMonth + 1) {
+
+              const start = prev.lastBillDate;
+              const end = curr.lastBillDate;
+
+              billMap[p.plantID] = {
+                ...curr,
+                startDate: start,
+                endDate: end
+              };
+
+              const ops = await getOperationsByDateRange(start,end);
+
+              opsMap[p.plantID] = ops?.filter(
+                o => o.plantId === p.plantID
+              ) || [];
+
+              break;
+            }
+
+          }
+
+        } catch(e){}
+
+      })
+    );
+
+    setPowerBills(billMap);
+    setOperationsMap(opsMap);
+
+  };
+
+  fetchData();
+
+}, [plants, month]);
+
+const aggregated = useMemo(() => {
+
+  const map = {};
+
+  Object.keys(operationsMap).forEach(pid => {
+
+    const ops = operationsMap[pid];
+    if (!ops || ops.length === 0) return;
+
+    // ensure operations are sorted by date
+    const sorted = [...ops].sort(
+      (a,b)=> new Date(a.operation.operationDate) - new Date(b.operation.operationDate)
+    );
+
+    const startOp = sorted[0].operation;
+    const endOp = sorted[sorted.length - 1].operation;
+
+    const consumption =
+      (endOp.powerReadingPmImport ?? 0) -
+      (startOp.powerReadingAmImport ?? 0);
+
+    const solarExport =
+      (endOp.powerReadingPmExport ?? 0) -
+      (startOp.powerReadingAmExport ?? 0);
+
+    const netConsumption =
+      solarExport > consumption
+        ? 0
+        : consumption - solarExport;
+
+    map[pid] = {
+      inputPower: Math.max(consumption, 0),
+      exportPower: Math.max(solarExport, 0),
+      netPower: Math.max(netConsumption, 0)
     };
 
-    fetchOperations();
+  });
 
-  }, [month]);
+  return map;
+
+}, [operationsMap]);
+
+  // useEffect(() => {
+
+  //   const fetchOperations = async () => {
+
+  //     const { start, end } = getMonthRange(month);
+
+  //     try {
+
+  //       const res = await getOperationsByDateRange(start, end);
+
+  //       setOperations(res || []);
+
+  //     } catch (err) {
+
+  //       console.error(err);
+
+  //     }
+
+  //   };
+
+  //   fetchOperations();
+
+  // }, [month]);
 
   /* ================= FETCH POWER BILLS ================= */
 
@@ -283,50 +473,50 @@ useEffect(() => {
 }, [plants, month]);
   /* ================= AGGREGATE POWER ================= */
 
-const aggregated = useMemo(() => {
+// const aggregated = useMemo(() => {
 
-  const map = {};
+//   const map = {};
 
-  operations.forEach(({ plantId, operation }) => {
+//   operations.forEach(({ plantId, operation }) => {
 
-    if (!map[plantId]) {
-      map[plantId] = {
-        inputPower: 0,
-          exportPower: 0
-      };
-    }
+//     if (!map[plantId]) {
+//       map[plantId] = {
+//         inputPower: 0,
+//           exportPower: 0
+//       };
+//     }
 
-    const imp =
-      operation.powerReadingAmImport != null &&
-      operation.powerReadingPmImport != null
-        ? Math.max(
-            operation.powerReadingPmImport -
-            operation.powerReadingAmImport,
-            0
-          )
-        : 0;
+//     const imp =
+//       operation.powerReadingAmImport != null &&
+//       operation.powerReadingPmImport != null
+//         ? Math.max(
+//             operation.powerReadingPmImport -
+//             operation.powerReadingAmImport,
+//             0
+//           )
+//         : 0;
 
-    map[plantId].inputPower += Number(imp.toFixed(1));
+//     map[plantId].inputPower += Number(imp.toFixed(1));
 
-         const exp =
-      operation.powerReadingAmExport != null &&
-      operation.powerReadingPmExport != null
-        ? Math.max(
-            operation.powerReadingPmExport -
-            operation.powerReadingAmExport,
-            0
-          )
-        : 0;
+//          const exp =
+//       operation.powerReadingAmExport != null &&
+//       operation.powerReadingPmExport != null
+//         ? Math.max(
+//             operation.powerReadingPmExport -
+//             operation.powerReadingAmExport,
+//             0
+//           )
+//         : 0;
 
-    map[plantId].exportPower += Number(exp.toFixed(1));
+//     map[plantId].exportPower += Number(exp.toFixed(1));
 
 
-  });
+//   });
 
   
-  return map;
+//   return map;
 
-}, [operations]);
+// }, [operations]);
   /* ================= GRAPH DATA ================= */
 
 const chartData = useMemo(() => {
@@ -336,25 +526,32 @@ const chartData = useMemo(() => {
     const agg = aggregated[p.plantID] || {};
     const bill = powerBills[p.plantID] || {};
 
-const input = Number(agg.inputPower || 0);
-const solar = Number(agg.exportPower || 0);
+    const input = Number(agg.inputPower || 0);
+    const solar = Number(agg.exportPower || 0);
 
-const netConsumption = Math.max(input - solar, 0);
+    const netConsumption = Number(agg.netPower || 0);
 
-return {
-  
-  plant: p.plantName,
-  plantID : p.plantID,
-  kld: p.kld,
+    return {
+      plant: p.plantName,
+      plantID: p.plantID,
+      kld: p.kld,
 
-  netUnits: Number(netConsumption.toFixed(1)),
-  billUnits: Number((bill.totalNoOfUnits || 0).toFixed(1)),
+      netUnits: Number(netConsumption.toFixed(1)),
+      billUnits: bill.totalNoOfUnits != null
+  ? Number(bill.totalNoOfUnits.toFixed(1))
+  : null,
+  amount: Number(bill.totalBillAmount || 0),  
+      totalPower: Number(input.toFixed(1)),
+      totalSolar: Number(solar.toFixed(1)),
 
-  totalPower: Number(input.toFixed(1)),
-  totalSolar: Number(solar.toFixed(1)),
+      billDate: bill?.lastBillDate || "-",
 
-  billDate: bill?.lastBillDate || "-"
-};
+      // ⭐ ADD THESE
+      startDate: bill?.startDate || "-",
+      endDate: bill?.endDate || "-"
+
+    };
+
   });
 
 }, [filteredPlants, aggregated, powerBills]);
@@ -391,38 +588,70 @@ const tableData = useMemo(() => {
 
   /* ================= KPI CALCULATIONS ================= */
 
+// const stats = useMemo(() => {
+
+//   let netPower = 0;
+//   let billUnits = 0;
+//   let billAmount = 0;
+
+//   filteredPlants.forEach(p => {
+
+//     const agg = aggregated[p.plantID] || {};
+//     const bill = powerBills[p.plantID] || {};
+//     const acg = powerBills[p.pl]
+//     const input = Number(agg.inputPower || 0);
+//     const solar = Number(agg.exportPower || 0);
+
+//     const net = Math.max(input - solar, 0);
+
+//     netPower += net;
+//     billUnits += bill.totalNoOfUnits || 0;
+//     billAmount += bill.totalBillAmount || 0;
+
+//   });
+
+//   return {
+
+//     netPower,
+//     billUnits,
+    
+//     difference: billUnits - netPower,
+//     billAmount
+
+//   };
+
+// }, [filteredPlants, aggregated, powerBills]);
+
+
 const stats = useMemo(() => {
 
-  let netPower = 0;
   let billUnits = 0;
   let billAmount = 0;
+  let plantsWithBills = 0;
 
   filteredPlants.forEach(p => {
 
-    const agg = aggregated[p.plantID] || {};
     const bill = powerBills[p.plantID] || {};
 
-    const input = Number(agg.inputPower || 0);
-    const solar = Number(agg.exportPower || 0);
+    if (bill.totalNoOfUnits != null) {
+      billUnits += bill.totalNoOfUnits;
+      plantsWithBills++;
+    }
 
-    const net = Math.max(input - solar, 0);
-
-    netPower += net;
-    billUnits += bill.totalNoOfUnits || 0;
     billAmount += bill.totalBillAmount || 0;
 
   });
 
+  const avgUnits =
+    plantsWithBills > 0 ? billUnits / plantsWithBills : 0;
+
   return {
-
-    netPower,
     billUnits,
-    difference: billUnits - netPower,
-    billAmount
-
+    billAmount,
+    avgUnits
   };
 
-}, [filteredPlants, aggregated, powerBills]);
+}, [filteredPlants, powerBills]);
 
   /* ================= UI ================= */
 
@@ -436,7 +665,7 @@ const stats = useMemo(() => {
 <div className="flex justify-between items-center">
 
 <h2 className="text-xl font-bold text-blue-900">
-  Monthly Power Consumption vs Power Bill {zone !== "All" && ` - Zone ${zone}`}
+  Monthly Power Consumption {zone !== "All" && ` - Zone ${zone}`}
 </h2>
 
 <div className="flex items-center gap-3">
@@ -490,33 +719,39 @@ const stats = useMemo(() => {
 
 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 
-  <KpiCard
+  {/* <KpiCard
     label="Net Power Consumption"
     value={`${stats.netPower.toFixed(1)} Kwh`}
     icon={<Zap size={18} />}
     bg="#DBEAFE"
-  />
+  /> */}
 
-  <KpiCard
-    label="Bill Power Units"
-    value={`${stats.billUnits.toFixed(1)} Kwh`}
-    icon={<Zap size={18} />}
-    bg="#DCFCE7"
-  />
+<KpiCard
+  label="Total Bill Power Units"
+  value={`${stats.billUnits.toFixed(1)} Kwh`}
+  icon={<Zap size={18} />}
+  bg="#DCFCE7"
+/>
 
-  <KpiCard
+<KpiCard
+  label="Average Bill Units"
+  value={`${stats.avgUnits.toFixed(1)} Kwh`}
+  icon={<TrendingUp size={18} />}
+  bg="#DBEAFE"
+/>
+
+<KpiCard
+  label="Total Bill Amount"
+  value={`₹ ${stats.billAmount.toLocaleString("en-IN")}`}
+  icon={<Receipt size={18} />}
+  bg="#FEF3C7"
+/>
+  {/* <KpiCard
     label="Difference"
     value={`${stats.difference.toFixed(1)} Kwh`}
     icon={<AlertTriangle size={18} />}
     bg="#FEE2E2"
-  />
-
-  <KpiCard
-    label="Total Bill Amount"
-    value={`₹ ${stats.billAmount.toLocaleString("en-IN")}`}
-    icon={<Receipt size={18} />}
-    bg="#FEF3C7"
-  />
+  /> */}
 
 </div>
 
@@ -560,7 +795,7 @@ const stats = useMemo(() => {
         fontSize={11}
         fontWeight={700}
         fill={hasSolar ? "#197039" : "#dc2626"}
-        style={{ cursor: "pointer", textDecoration: "underline" }}
+        // style={{ cursor: "pointer", textDecoration: "underline" }}
         transform={`rotate(-30 ${x} ${y + 10})`}
   
       >
@@ -582,9 +817,9 @@ const stats = useMemo(() => {
 
         {/* INPUT POWER */}
 
-          <Bar dataKey="netUnits" fill="#af0000" barSize={22}>
+          {/* <Bar dataKey="netUnits" fill="#af0000" barSize={22}>
             <LabelList content={(p) => <BarValueLabel {...p} fill="#af0000" />} />
-          </Bar>
+          </Bar> */}
 
           <Bar dataKey="billUnits" fill="#2563eb" barSize={22}>
             <LabelList content={(p) => <BarValueLabel {...p} fill="#2563eb" />} />
@@ -595,26 +830,42 @@ const stats = useMemo(() => {
   </div>
 
   {/* LEGEND */}
-
-<div className="flex flex-wrap justify-center gap-4 mt-4 font-bold text-sm">
+<div className="flex items-center gap-4 text-xs mt-2 justify-center">
 
   <div className="flex items-center gap-2">
-    <span className="w-4 h-4 bg-[#af0000] rounded" />
-    Net Power Consumption (Import − Export) Kwh
+    <span className="w-3 h-3 rounded bg-green-600"></span>
+    Solar Completed
   </div>
 
   <div className="flex items-center gap-2">
-    <span className="w-4 h-4 bg-[#2563eb] rounded" />
-    Bill Power Units (Kwh)
+    <span className="w-3 h-3 rounded bg-red-600"></span>
+    Solar Not Completed
   </div>
 
 </div>
+
+<div className="flex flex-wrap justify-center gap-4 mt-4 font-bold text-sm">
+
+  {/* <div className="flex items-center gap-2">
+    <span className="w-4 h-4 bg-[#af0000] rounded" />
+    Net Power Consumption (Import − Export) Kwh
+  </div> */}
+
+  <div className="flex items-center gap-2">
+    <span className="w-4 h-4 bg-[#2563eb] rounded" />
+   Power  Bill Units (Kwh)
+  </div>
+
+</div>
+
 
   <p className="text-center text-sm font-bold mt-4">
     Plants
   </p>
 </div>
+
 )}
+
 
 
 {view === "table" && (
@@ -630,12 +881,15 @@ const stats = useMemo(() => {
 <th className="border px-3 py-2">Plant Name</th>
 <th className="border px-3 py-2">KLD</th>
 <th className="border px-3 py-2">Zone</th>
-<th className="border px-3 py-2">Consumed Power</th>
+
+{/* <th className="border px-3 py-2">Consumed Power</th>
 <th className="border px-3 py-2">Solar Generated</th>
-<th className="border px-3 py-2">Net Consumption</th>
+<th className="border px-3 py-2">Net Consumption</th> */}
+
+<th className="border px-3 py-2">Bill Date</th>
 <th className="border px-3 py-2">Bill Units</th>
 <th className="border px-3 py-2">Bill Amount</th>
-<th className="border px-3 py-2">Bill Date</th>
+
 
 </tr>
 </thead>
@@ -652,7 +906,8 @@ const stats = useMemo(() => {
 <td className="border px-3 py-2">{row.plantName}</td>
 <td className="border px-3 py-2">{row.kld}</td>
 <td className="border px-3 py-2">{row.zone}</td>
-<td className="border px-3 py-2">
+
+{/* <td className="border px-3 py-2">
 {row.input.toLocaleString("en-IN")}
 </td>
 
@@ -662,7 +917,12 @@ const stats = useMemo(() => {
 
 <td className="border px-3 py-2 font-semibold text-red-600">
 {row.net.toLocaleString("en-IN")}
+</td> */}
+
+<td className="border px-3 py-2">
+{formatDisplayDate(row.billDate)}
 </td>
+
 
 <td className="border px-3 py-2 text-blue-600">
 {row.billUnits}
@@ -672,9 +932,6 @@ const stats = useMemo(() => {
 {row.billAmount === "-" ? "-" : `₹ ${row.billAmount}`}
 </td>
 
-<td className="border px-3 py-2">
-{formatDisplayDate(row.billDate)}
-</td>
 
 </tr>
 

@@ -45,6 +45,7 @@ const DetailTooltip = ({ active, payload, mode }) => {
 
       <div className="space-y-1">
 
+        {/* Units */}
         <div className="flex justify-between">
           <span className="font-semibold text-slate-600">Units</span>
           <span className="font-bold text-blue-600">
@@ -52,24 +53,26 @@ const DetailTooltip = ({ active, payload, mode }) => {
           </span>
         </div>
 
-        {mode === "monthly" && (
-          <>
-            <div className="flex justify-between">
-              <span className="font-semibold text-slate-600">Bill Amount</span>
-              <span className="font-bold text-green-600">
-                {row.amount != null
-                  ? `₹ ${row.amount.toLocaleString("en-IN")}`
-                  : "-"}
-              </span>
-            </div>
+        {/* Amount for BOTH modes */}
+        <div className="flex justify-between">
+          <span className="font-semibold text-slate-600">
+            {mode === "yearly" ? "Total Amount" : "Bill Amount"}
+          </span>
+          <span className="font-bold text-green-600">
+            {row.amount != null
+              ? `₹ ${row.amount.toLocaleString("en-IN")}`
+              : "-"}
+          </span>
+        </div>
 
-            <div className="flex justify-between">
-              <span className="font-semibold text-slate-600">Bill Date</span>
-              <span className="font-bold text-slate-800">
-                {formatDisplayDate(row.billDate) ?? "-"}
-              </span>
-            </div>
-          </>
+        {/* Bill Date only for monthly */}
+        {mode === "monthly" && (
+          <div className="flex justify-between">
+            <span className="font-semibold text-slate-600">Bill Date</span>
+            <span className="font-bold text-slate-800">
+              {formatDisplayDate(row.billDate) ?? "-"}
+            </span>
+          </div>
         )}
 
       </div>
@@ -437,14 +440,14 @@ for(let i=1;i<sorted.length;i++){
     <>
       <KpiCard
         label="Total Power Units"
-        value={`${yearlyStats.totalUnits.toLocaleString("en-IN")} kWh`}
+        value={`${yearlyStats.totalUnits.toLocaleString("en-IN")} Kwh`}
         icon={<Zap size={18} />}
         bg="#DBEAFE"
       />
 
       <KpiCard
         label="Avg Units per Plant"
-        value={`${yearlyStats.avgUnits.toFixed(1)} kWh`}
+        value={`${yearlyStats.avgUnits.toFixed(1)} Kwh`}
         icon={<Zap size={18} />}
         bg="#DCFCE7"
       />
@@ -579,6 +582,7 @@ for(let i=1;i<sorted.length;i++){
         >
           <LabelList
             position="top"
+             fill="#2563eb"
             formatter={(v)=>{
               if(v===null) return "-";
               return Math.round(v).toLocaleString("en-IN");
@@ -594,15 +598,34 @@ for(let i=1;i<sorted.length;i++){
 
 
   {/* LEGEND */}
-
-  <div className="flex flex-wrap justify-center gap-4 mt-4 font-bold text-sm">
+  
+{/* Show solar status only when NOT monthly */}
+{/* Show solar status only when yearly */}
+{mode === "yearly" && (
+  <div className="flex items-center gap-4 text-xs mt-2 justify-center">
 
     <div className="flex items-center gap-2">
-      <span className="w-4 h-4 bg-[#2563eb] rounded" />
-      Power Consumption Units (Kwh)
+      <span className="w-3 h-3 rounded bg-green-600"></span>
+      Solar Completed
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="w-3 h-3 rounded bg-red-600"></span>
+      Solar Not Completed
     </div>
 
   </div>
+)}
+
+<div className="flex flex-wrap justify-center gap-4 mt-4 font-bold text-sm">
+
+  <div className="flex items-center gap-2">
+    <span className="w-4 h-4 bg-[#2563eb] rounded" />
+    Power Bill Units (Kwh)
+  </div>
+
+</div>
+
 
   <p className="text-center text-sm font-bold mt-4">
     {mode === "yearly" ? "Plants" : "Months"}

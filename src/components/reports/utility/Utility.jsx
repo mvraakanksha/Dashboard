@@ -776,8 +776,8 @@ import React, { useState } from "react";
 import WaterBill from "./WaterBill";
 import VehicleFuel from "./VehicleFuel";
 import DgReport from "./DGReport";
-import PowerBill from './PowerBill';
-import PowerBillIndetail from "./PowerBillIndetail";
+
+import PowerBill from "./PowerBill";
 
 const Utility = () => {
 
@@ -841,7 +841,7 @@ return ( <div className="p-4">
   {activeTab === "water" && <WaterBill />}
   {activeTab === "fuel" && <VehicleFuel />}
 {activeTab === "dg" && <DgReport/>   }
-   {activeTab === "power" && <PowerBillIndetail/>   }
+   {activeTab === "power" && <PowerBill/>  }
 
 </div>
 
