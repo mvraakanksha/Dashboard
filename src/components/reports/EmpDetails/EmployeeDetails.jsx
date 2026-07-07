@@ -26,15 +26,32 @@ const formatDate = (date) => {
   // gives DD/MM/YYYY
 };
 
+const isNewJoiner = (doj) => {
+  if (!doj) return false;
+
+  const d = new Date(doj);
+  const today = new Date();
+
+  return (
+    d.getMonth() === today.getMonth() &&
+    d.getFullYear() === today.getFullYear()
+  );
+};
 
 export default function EmployeeDetails() {
   const [plants, setPlants] = useState([]);
   const [employeesMap, setEmployeesMap] = useState({});
-  const [selectedDesignations, setSelectedDesignations] = useState([]);
+
   const [selectedPlants, setSelectedPlants] = useState([]);
   const [zoneFilter, setZoneFilter] = useState("All");
   const [showReport, setShowReport] = useState(false);
   const [loading, setLoading] = useState(false);
+const [selectedDesignations, setSelectedDesignations] = useState(DESIGNATIONS);
+
+
+const orderedDesignations = useMemo(() => {
+  return DESIGNATIONS.filter(d => selectedDesignations.includes(d));
+}, [selectedDesignations]);
 
   /* ================= LOAD PLANTS ================= */
   useEffect(() => {
@@ -149,7 +166,7 @@ const backToSelection = () => {
    const roleCounts = useMemo(() => {
   const counts = {};
 
-  selectedDesignations.forEach(d => {
+  orderedDesignations.forEach(d => {
     counts[d] = 0;
   });
 
@@ -204,7 +221,7 @@ const buildReportRows = () => {
     if (!plant) return;
 
     if (!isMultiRole) {
-      selectedDesignations.forEach(d => {
+      orderedDesignations.forEach(d => {
         const emps = getByDesignation(id, d);
 
         rows.push([
@@ -212,7 +229,7 @@ const buildReportRows = () => {
           `${plant.plantID}/${plant.kld}`,
           plant.plantName,
           emps.map(e=>e.employeeId).join(", "),
-          emps.map(e=>e.employeeName).join(", "),
+          emps.map(e=>`${e.employeeName}${isNewJoiner(e.dateOfJoining) ? " (NEW)" : ""}`).join(", "),
          emps.map(e => formatDate(e.dateOfJoining)).join(", "),
           emps.map(e=>e.mobileNo).join(", ")
         ]);
@@ -221,7 +238,7 @@ const buildReportRows = () => {
       return;
     }
 
-    selectedDesignations.forEach(d=>{
+    orderedDesignations.forEach(d=>{
       const emps = getByDesignation(id,d);
 
       emps.forEach(e=>{
@@ -231,7 +248,7 @@ const buildReportRows = () => {
           plant.plantName,
           d,
           e.employeeId,
-          e.employeeName,
+          `${e.employeeName}${isNewJoiner(e.dateOfJoining) ? " (NEW)" : ""}`,
           formatDate(e.dateOfJoining),
           e.mobileNo
         ]);
@@ -303,19 +320,19 @@ doc.addImage(logo, "PNG", 14, 8, 35, 20);
   /* ===== SUMMARY ===== */
   doc.setFontSize(10);
 
-  doc.text(
-    `Total Plants: ${selectedPlants.length} | Total Employees: ${totalEmployees}`,
-    148,
-    36,
-    { align: "center" }
-  );
+let topSummary = `Total Plants: ${selectedPlants.length} | Total Employees: ${totalEmployees}`;
 
-let roleStats = selectedDesignations
+if (orderedDesignations.includes("Driver")) {
+  topSummary += ` | Total Vehicles: ${totalVehiclesCount}`;
+}
+
+doc.text(topSummary, 148, 36, { align: "center" });
+
+let roleStats = orderedDesignations
   .map(d => `${d}: ${roleCounts[d] || 0}`)
   .join(" | ");
 
-// ✅ Add Total Vehicles if Driver selected
-if (selectedDesignations.includes("Driver")) {
+if (orderedDesignations.includes("Driver")) {
   roleStats += ` | Total Vehicles: ${totalVehiclesCount}`;
 }
 
@@ -327,7 +344,7 @@ doc.text(roleStats, 148, 42, { align: "center" });
   if (isMultiRole) {
     headers.push("Designation", "Emp Id", "Name", "DOJ", "Mobile");
   } else {
-    selectedDesignations.forEach(d =>
+    orderedDesignations.forEach(d =>
       headers.push(`${d} ID`, `${d} Name`, "DOJ", "Mobile")
     );
   }
@@ -343,12 +360,12 @@ doc.text(roleStats, 148, 42, { align: "center" });
     if (!isMultiRole) {
       const row = [s++, `${plant.plantID}/${plant.kld}`, plant.plantName];
 
-      selectedDesignations.forEach(d => {
+      orderedDesignations.forEach(d => {
         const emps = getByDesignation(id, d);
 
        row.push(
   emps.map(e => e.employeeId).join(", ") || "-",
-  emps.map(e => e.employeeName).join(", ") || "-",
+  emps.map(e => `${e.employeeName}${isNewJoiner(e.dateOfJoining) ? " (NEW)" : ""}`).join(", ") || "-",
   emps.map(e => formatDate(e.dateOfJoining)).join(", ") || "-",
   emps.map(e => e.mobileNo).join(", ") || "-"
 );
@@ -361,7 +378,7 @@ doc.text(roleStats, 148, 42, { align: "center" });
 
     const plantEmployees = [];
 
-    selectedDesignations.forEach(d => {
+    orderedDesignations.forEach(d => {
       getByDesignation(id, d).forEach(e =>
         plantEmployees.push({ d, ...e })
       );
@@ -388,7 +405,7 @@ doc.text(roleStats, 148, 42, { align: "center" });
         idx === 0 ? plant.plantName : "",
         e.d,
         e.employeeId,
-        e.employeeName,
+        `${e.employeeName}${isNewJoiner(e.dateOfJoining) ? " (NEW)" : ""}`,
       formatDate(e.dateOfJoining),
         e.mobileNo,
       ]);
@@ -438,6 +455,27 @@ const imageToBase64 = async (url) => {
   });
 };
 
+const applyCellStyle = (row) => {
+  row.eachCell((cell) => {
+    cell.font = {
+      name: "Times New Roman",
+      size: 11
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+};
 
 const downloadExcel = async () => {
   const workbook = new ExcelJS.Workbook();
@@ -462,6 +500,227 @@ const downloadExcel = async () => {
     zoneMap[plant.zones].push(plant);
   });
 
+let allSheet = null;
+
+if (zoneFilter === "All") {
+  allSheet = workbook.addWorksheet("All_Zones");
+}
+
+  /* ================= ALL ZONES SHEET ================= */
+if (allSheet) {
+const sheet = allSheet;
+
+/* HEADER HEIGHT */
+sheet.getRow(1).height = 30;
+sheet.getRow(2).height = 22;
+sheet.getRow(3).height = 20;
+
+/* LOGO */
+sheet.addImage(leftLogoId, {
+  tl: { col: 0, row: 0 },
+  ext: { width: 90, height: 55 }
+});
+
+const lastColLetter = "H";
+
+/* MERGE */
+sheet.mergeCells(`A1:${lastColLetter}1`);
+sheet.mergeCells(`A2:${lastColLetter}2`);
+sheet.mergeCells(`A3:${lastColLetter}3`);
+sheet.mergeCells(`A4:${lastColLetter}4`);
+sheet.mergeCells(`A5:${lastColLetter}5`);
+
+/* HEADER STYLE */
+const setHeaderStyleAll = (cellRef, size = 12) => {
+  const cell = sheet.getCell(cellRef);
+  cell.alignment = { horizontal: "center", vertical: "middle" };
+  cell.font = { name: "Times New Roman", bold: true, size };
+};
+
+/* TITLE */
+sheet.getCell("A1").value = "MVR TECHNOLOGY";
+sheet.getCell("A1").font = {
+  name: "Times New Roman",
+  bold: true,
+  size: 18,
+  color: { argb: "FFB31818" }
+};
+
+sheet.getCell("A2").value = "FSTP RAJASTHAN";
+setHeaderStyleAll("A2");
+
+sheet.getCell("A3").value = "EMPLOYEE DETAILS - All Zones";
+setHeaderStyleAll("A3");
+
+/* ===== SUMMARY ===== */
+sheet.getCell("A4").value =
+  `Total Plants: ${selectedPlants.length} | Total Employees: ${totalEmployees} | Total Vehicles: ${totalVehiclesCount}`;
+setHeaderStyleAll("A4");
+
+/* ROLE COUNTS */
+let roleSummaryAll = orderedDesignations
+  .map(d => `${d}: ${roleCounts[d] || 0}`)
+  .join(" | ");
+
+sheet.getCell("A5").value = roleSummaryAll;
+setHeaderStyleAll("A5");
+
+/* ===== TABLE HEADER ===== */
+const headerRowIndex = 7;
+
+const headers = ["S.No", "Plant ID / KLD", "Plant Name"];
+
+if (isMultiRole) {
+  headers.push("Designation", "Emp Id", "Name", "DOJ", "Mobile");
+} else {
+  orderedDesignations.forEach(d =>
+    headers.push(`${d} ID`, `${d} Name`, "DOJ", "Mobile")
+  );
+}
+
+const headerRow = sheet.getRow(headerRowIndex);
+headerRow.values = headers;
+
+/* STYLE HEADER */
+headerRow.eachCell(cell => {
+cell.font = {
+  name: "Times New Roman",
+  bold: true
+};
+  cell.alignment = { horizontal: "center", vertical: "middle" };
+  cell.border = {
+    top: { style: "thin" },
+    bottom: { style: "thin" },
+    left: { style: "thin" },
+    right: { style: "thin" }
+  };
+});
+
+/* ===== COLUMN WIDTH ===== */
+sheet.columns = [
+  { width: 8 },
+  { width: 18 },
+  { width: 28 },
+  { width: 18 },
+  { width: 18 },
+  { width: 25 },
+  { width: 15 },
+  { width: 18 }
+];
+
+/* ===== DATA ===== */
+let rowIndex = headerRowIndex + 1;
+let s = 1;
+
+selectedPlants.forEach(id => {
+  const plant = plants.find(p => p.plantID === id);
+  if (!plant) return;
+
+  const plantEmployees = [];
+
+  if (isMultiRole) {
+    orderedDesignations.forEach(d => {
+      getByDesignation(id, d).forEach(e =>
+        plantEmployees.push({ d, ...e })
+      );
+    });
+  }
+
+  /* SINGLE ROLE */
+  if (!isMultiRole) {
+    const row = sheet.getRow(rowIndex);
+
+    const base = [s++, `${plant.plantID}/${plant.kld}`, plant.plantName];
+
+    orderedDesignations.forEach(d => {
+      const emps = getByDesignation(id, d);
+
+      base.push(emps.map(e => e.employeeId).join(", ") || "-");
+
+      base.push(
+        emps.length
+          ? {
+              richText: emps.flatMap((e, i) => {
+                const arr = [{ text: e.employeeName }];
+                if (isNewJoiner(e.dateOfJoining)) {
+                  arr.push({
+                    text: " (NEW)",
+                    font: {
+    name: "Times New Roman",
+    color: { argb: "FF16A34A" },
+    bold: true
+  }
+                  });
+                }
+                if (i !== emps.length - 1) arr.push({ text: ", " });
+                return arr;
+              })
+            }
+          : "-"
+      );
+
+      base.push(
+        emps.map(e => formatDate(e.dateOfJoining)).join(", ") || "-"
+      );
+
+      base.push(
+        emps.map(e => e.mobileNo).join(", ") || "-"
+      );
+    });
+
+    row.values = base;
+    applyCellStyle(row);
+
+    rowIndex++;
+    return;
+  }
+
+  /* MULTI ROLE */
+  if (!plantEmployees.length) {
+    const row = sheet.addRow([
+      "-",
+      `${plant.plantID}/${plant.kld}`,
+      plant.plantName,
+      "No employees"
+    ]);
+    applyCellStyle(row);
+    rowIndex++;
+    return;
+  }
+
+  const startRow = rowIndex;
+
+  plantEmployees.forEach((e, idx) => {
+    const row = sheet.addRow([
+      s++,
+      idx === 0 ? `${plant.plantID}/${plant.kld}` : "",
+      idx === 0 ? plant.plantName : "",
+      e.d,
+      e.employeeId,
+      isNewJoiner(e.dateOfJoining)
+        ? {
+            richText: [
+              { text: e.employeeName },
+              { text: " (NEW)", font: { color: { argb: "FF16A34A" }, bold: true } }
+            ]
+          }
+        : e.employeeName,
+      formatDate(e.dateOfJoining),
+      e.mobileNo
+    ]);
+
+    applyCellStyle(row);
+    rowIndex++;
+  });
+sheet.getCell("A1").alignment = {
+  horizontal: "center",
+  vertical: "middle"
+};
+  const endRow = rowIndex - 1;
+  sheet.mergeCells(`B${startRow}:B${endRow}`);
+  sheet.mergeCells(`C${startRow}:C${endRow}`);
+});
+}
   /* ===== CREATE ZONE SHEETS ===== */
   for (const [zone, zonePlants] of Object.entries(zoneMap)) {
     const sheet = workbook.addWorksheet(`Zone_${zone}`);
@@ -512,23 +771,49 @@ sheet.getCell("A2").value = `FSTP RAJASTHAN`;
 setHeaderStyle("A2", 12);
 
 /* REPORT TITLE */
-sheet.getCell("A3").value = `EMPLOYEE DETAILS `;
+sheet.getCell("A3").value = `EMPLOYEE DETAILS - Zone ${zone}`;
+
 setHeaderStyle("A3", 12);
 
+
+const zonePlantIds = zonePlants.map(p => p.plantID);
+
+const zoneEmployees = zonePlantIds.reduce((sum, id) => {
+  return sum + (employeesMap[id]?.length || 0);
+}, 0);
+
+const zoneVehicles = zonePlants.reduce(
+  (sum, p) => sum + (p.noOfVehicle || 0),
+  0
+);
+
+const zoneRoleCounts = {};
+
+orderedDesignations.forEach(d => {
+  zoneRoleCounts[d] = 0;
+
+  zonePlantIds.forEach(id => {
+    const list = employeesMap[id] || [];
+    list.forEach(emp => {
+      if (emp.designation === d) zoneRoleCounts[d]++;
+    });
+  });
+});
+
 /* SUMMARY ROW */
-sheet.getCell("A4").value =
-  `Total Plants: ${selectedPlants.length} | Total Employees : ${totalEmployees}`;
-setHeaderStyle("A4", 11);
+let excelSummary = `Total Plants: ${selectedPlants.length} | Total Employees : ${totalEmployees}`;
 
-/* ROLE COUNTS */
-let roleSummary = selectedDesignations
-  .map(d => `${d}: ${roleCounts[d] || 0}`)
-  .join(" | ");
-
-// ✅ Add Total Vehicles if Driver selected
-if (selectedDesignations.includes("Driver")) {
-  roleSummary += ` | Total Vehicles: ${totalVehiclesCount}`;
+if (orderedDesignations.includes("Driver")) {
+  excelSummary += ` | Total Vehicles: ${totalVehiclesCount}`;
 }
+
+sheet.getCell("A4").value =
+`Total Plants: ${zonePlants.length} | Total Employees: ${zoneEmployees} | Total Vehicles: ${zoneVehicles}`;
+setHeaderStyle("A4", 11);
+/* ROLE COUNTS */
+let roleSummary = orderedDesignations
+  .map(d => `${d}: ${zoneRoleCounts[d] || 0}`)
+  .join(" | ");
 
 sheet.getCell("A5").value = roleSummary;
 setHeaderStyle("A5", 11);
@@ -542,7 +827,7 @@ setHeaderStyle("A5", 11);
     if (isMultiRole) {
       headers.push("Designation", "Emp Id", "Name", "DOJ", "Mobile");
     } else {
-      selectedDesignations.forEach((d) =>
+      orderedDesignations.forEach((d) =>
         headers.push(`${d} ID`, `${d} Name`, "DOJ", "Mobile")
       );
     }
@@ -556,7 +841,7 @@ const columnWidths = [8, 18, 28]; // S.No, Plant ID, Plant Name
 if (isMultiRole) {
   columnWidths.push(18, 18, 25, 15, 18);
 } else {
-  selectedDesignations.forEach(() => {
+  orderedDesignations.forEach(() => {
     columnWidths.push(18, 25, 15, 18);
   });
 }
@@ -576,17 +861,17 @@ sheet.columns = [
   { width: 18 }   // Mobile
 ];
 
-    headerRow.eachCell((cell) => {
-       cell.font = { name: "Times New Roman", bold: true };
-      cell.font = { bold: true };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.border = {
-        top: { style: "thin" },
-        bottom: { style: "thin" },
-        left: { style: "thin" },
-        right: { style: "thin" }
-      };
-    });
+headerRow.eachCell((cell) => {
+  cell.font = { name: "Times New Roman", bold: true };
+  cell.alignment = { horizontal: "center", vertical: "middle" };
+
+  cell.border = {
+    top: { style: "thin" },
+    bottom: { style: "thin" },
+    left: { style: "thin" },
+    right: { style: "thin" }
+  };
+});
 
     /* ===== DATA (same logic as preview) ===== */
     let rowIndex = headerRowIndex + 1;
@@ -596,7 +881,7 @@ sheet.columns = [
       const plantEmployees = [];
 
       if (isMultiRole) {
-        selectedDesignations.forEach((d) => {
+        orderedDesignations.forEach((d) => {
           getByDesignation(plant.plantID, d).forEach((e) =>
             plantEmployees.push({ d, ...e })
           );
@@ -604,25 +889,80 @@ sheet.columns = [
       }
 
       /* SINGLE ROLE */
-      if (!isMultiRole) {
-        const row = sheet.getRow(rowIndex);
+if (!isMultiRole) {
+  const row = sheet.getRow(rowIndex);
 
-        const base = [s++, `${plant.plantID}/${plant.kld}`, plant.plantName];
+  const base = [
+    s++,
+    `${plant.plantID}/${plant.kld}`,
+    plant.plantName
+  ];
 
-        selectedDesignations.forEach((d) => {
-          const emps = getByDesignation(plant.plantID, d);
-          base.push(
-            emps.map((e) => e.employeeId).join(", ") || "-",
-            emps.map((e) => e.employeeName).join(", ") || "-",
-            emps.map((e) => formatDate(e.dateOfJoining)).join(", ") || "-",
-            emps.map((e) => e.mobileNo).join(", ") || "-"
-          );
-        });
+  orderedDesignations.forEach((d) => {
+    const emps = getByDesignation(plant.plantID, d);
 
-        row.values = base;
-        rowIndex++;
-        return;
-      }
+    /* EMP IDS */
+    base.push(emps.map(e => e.employeeId).join(", ") || "-");
+
+    /* EMP NAMES (WITH GREEN NEW) */
+    if (emps.length) {
+      base.push({
+        richText: emps.flatMap((e, i) => {
+          const arr = [
+            { text: e.employeeName }
+          ];
+
+          if (isNewJoiner(e.dateOfJoining)) {
+            arr.push({
+              text: " (NEW)",
+              font: { color: { argb: "FF16A34A" }, bold: true }
+            });
+          }
+
+          if (i !== emps.length - 1) {
+            arr.push({ text: ", " });
+          }
+
+          return arr;
+        })
+      });
+    } else {
+      base.push("-");
+    }
+
+    /* DOJ */
+    base.push(
+      emps.map(e => formatDate(e.dateOfJoining)).join(", ") || "-"
+    );
+
+    /* MOBILE */
+    base.push(
+      emps.map(e => e.mobileNo).join(", ") || "-"
+    );
+  });
+
+  row.values = base;
+applyCellStyle(row);
+
+  /* ✅ APPLY STYLE */
+  row.eachCell((cell) => {
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+
+  rowIndex++;
+  return;
+}
 
       /* NO EMP */
       if (!plantEmployees.length) {
@@ -630,7 +970,8 @@ sheet.columns = [
     "-", // ⭐ S.NO as dash
     `${plant.plantID}/${plant.kld}`,
     plant.plantName,
-    "No employees"
+    "No employees",
+    
   ]);
 
   rowIndex++;
@@ -638,22 +979,55 @@ sheet.columns = [
 }
 
 
+
       /* MULTI ROLE */
       const startRow = rowIndex;
 
-      plantEmployees.forEach((e, idx) => {
-        sheet.addRow([
-          s++,
-          idx === 0 ? `${plant.plantID}/${plant.kld}` : "",
-          idx === 0 ? plant.plantName : "",
-          e.d,
-          e.employeeId,
-          e.employeeName,
-         formatDate(e.dateOfJoining),
-          e.mobileNo
-        ]);
-        rowIndex++;
-      });
+plantEmployees.forEach((e, idx) => {
+
+  const row = sheet.addRow([
+    s++,
+    idx === 0 ? `${plant.plantID}/${plant.kld}` : "",
+    idx === 0 ? plant.plantName : "",
+    e.d,
+    e.employeeId,
+
+    /* ✅ NAME WITH GREEN (NEW) */
+    isNewJoiner(e.dateOfJoining)
+      ? {
+          richText: [
+            { text: e.employeeName },
+            {
+              text: " (NEW)",
+              font: { color: { argb: "FF16A34A" }, bold: true }
+            }
+          ]
+        }
+      : e.employeeName,
+
+    formatDate(e.dateOfJoining),
+    e.mobileNo
+  ]);
+applyCellStyle(row);
+
+  /* ✅ APPLY STYLE */
+  row.eachCell((cell) => {
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+
+  rowIndex++;
+});
 
       const endRow = rowIndex - 1;
 
@@ -837,19 +1211,19 @@ sheet.columns = [
                   flex flex-wrap gap-6 text-sm font-semibold">
 
     <div>Total Plants: {selectedPlants.length}</div>
-    <div>Total Employees : {totalEmployees}</div>
-
-    {selectedDesignations.map(d => (
+<div>
+  Total Employees : {totalEmployees}
+  {orderedDesignations.includes("Driver") && (
+    <> | Total Vehicles: {totalVehiclesCount}</>
+  )}
+</div>
+{orderedDesignations.map(d => (
   <React.Fragment key={d}>
     <div>
       {d}: {roleCounts[d] || 0}
     </div>
 
-    {d === "Driver" && (
-      <div>
-        Total Vehicles: {totalVehiclesCount}
-      </div>
-    )}
+
   </React.Fragment>
 ))}
   </div>
@@ -875,7 +1249,7 @@ sheet.columns = [
   <th className="border p-2 text-center">Plant Name</th>
 
   {!isMultiRole ? (
-    selectedDesignations.map(d => (
+    orderedDesignations.map(d => (
       <React.Fragment key={d}>
         <th className="border p-2">{d} Emp Id</th>
         <th className="border p-2">{d} Name</th>
@@ -900,23 +1274,50 @@ sheet.columns = [
   const plant = plants.find(p => p.plantID === id);
   if (!plant) return null;
 
-  /* ===== SINGLE ROLE MODE (YOUR CURRENT STYLE) ===== */
+  /* ===== SINGLE ROLE MODE ===== */
   if (!isMultiRole) {
     return (
       <tr key={id}>
-          <td className="border text-center">{serial++}</td>
+        <td className="border text-center">{serial++}</td>
         <td className="border text-center">{plant.plantID}/{plant.kld}</td>
         <td className="border text-center">{plant.plantName}</td>
 
-        {selectedDesignations.map(d => {
+        {orderedDesignations.map(d => {
           const emps = getByDesignation(id, d);
 
           return (
             <React.Fragment key={d}>
-              <td className="border text-center">{emps.map(e=>e.employeeId).join(", ")||"-"}</td>
-              <td className="border text-center">{emps.map(e=>e.employeeName).join(", ")||"-"}</td>
-              <td className="border text-center">{emps.map(e=>formatDate(e.dateOfJoining)).join(", ")||"-"}</td>
-              <td className="border text-center">{emps.map(e=>e.mobileNo).join(", ")||"-"}</td>
+
+              {/* ✅ EMP ID */}
+              <td className="border text-center">
+                {emps.map(e => e.employeeId).join(", ") || "-"}
+              </td>
+
+              {/* ✅ EMP NAME (FIXED NEW LOGIC) */}
+              <td className="border text-center">
+                {emps.length
+                  ? emps.map((e, i) => (
+                      <span key={e.employeeId}>
+                        {e.employeeName}
+                        {isNewJoiner(e.dateOfJoining) && (
+                          <span className="text-green-600 font-semibold"> (NEW)</span>
+                        )}
+                        {i !== emps.length - 1 && ", "}
+                      </span>
+                    ))
+                  : "-"}
+              </td>
+
+              {/* DOJ */}
+              <td className="border text-center">
+                {emps.map(e => formatDate(e.dateOfJoining)).join(", ") || "-"}
+              </td>
+
+              {/* MOBILE */}
+              <td className="border text-center">
+                {emps.map(e => e.mobileNo).join(", ") || "-"}
+              </td>
+
             </React.Fragment>
           );
         })}
@@ -924,67 +1325,72 @@ sheet.columns = [
     );
   }
 
-  /* ===== MULTI ROLE MODE (VERTICAL) ===== */
-/* ===== MULTI ROLE MODE (MERGED) ===== */
-const plantEmployees = [];
+  /* ===== MULTI ROLE MODE ===== */
+  const plantEmployees = [];
 
-selectedDesignations.forEach(d => {
-  const emps = getByDesignation(id, d);
-  emps.forEach(e => {
-    plantEmployees.push({ designation: d, ...e });
+  orderedDesignations.forEach(d => {
+    const emps = getByDesignation(id, d);
+    emps.forEach(e => {
+      plantEmployees.push({ designation: d, ...e });
+    });
   });
-});
 
-if (!plantEmployees.length) {
-  return (
-    <tr key={id}>
-      {/* ✅ Serial should increment */}
+  if (!plantEmployees.length) {
+    return (
+      <tr key={id}>
+        <td className="border text-center">{serial++}</td>
+        <td className="border text-center font-semibold">
+          {plant.plantID}/{plant.kld}
+        </td>
+        <td className="border text-center">
+          {plant.plantName}
+        </td>
+        <td className="border text-center text-slate-900" colSpan={5}>
+          No employees
+        </td>
+      </tr>
+    );
+  }
+
+  return plantEmployees.map((e, index) => (
+    <tr key={`${id}-${e.employeeId}`}>
+
       <td className="border text-center">{serial++}</td>
 
-      <td className="border text-center font-semibold">
-        {plant.plantID}/{plant.kld}
+      {index === 0 && (
+        <>
+          <td rowSpan={plantEmployees.length} className="border text-center font-semibold">
+            {plant.plantID}/{plant.kld}
+          </td>
+
+          <td rowSpan={plantEmployees.length} className="border text-center">
+            {plant.plantName}
+          </td>
+        </>
+      )}
+
+      <td className="border text-center">{e.designation}</td>
+      <td className="border text-center">{e.employeeId}</td>
+
+      {/* ✅ FIXED NAME COLUMN */}
+      <td className="border text-center">
+        {e.employeeName}
+        {isNewJoiner(e.dateOfJoining) && (
+          <span className="text-green-600 font-semibold"> (NEW)</span>
+        )}
       </td>
 
       <td className="border text-center">
-        {plant.plantName}
+        {formatDate(e.dateOfJoining)}
       </td>
 
-      <td className="border text-center text-slate-900" colSpan={5}>
-        No employees
-      </td>
+      <td className="border text-center">{e.mobileNo}</td>
+
     </tr>
-  );
-}
-
-
-return plantEmployees.map((e, index) => (
-  <tr key={`${id}-${e.employeeId}`}>
-
-    <td className="border text-center">{serial++}</td>
-
-    {index === 0 && (
-      <>
-        <td rowSpan={plantEmployees.length} className="border text-center font-semibold">
-          {plant.plantID}/{plant.kld}
-        </td>
-
-        <td rowSpan={plantEmployees.length} className="border text-center">
-          {plant.plantName}
-        </td>
-      </>
-    )}
-
-    <td className="border text-center">{e.designation}</td>
-    <td className="border text-center">{e.employeeId}</td>
-    <td className="border text-center">{e.employeeName}</td>
-    <td className="border text-center">{formatDate(e.dateOfJoining)}</td>
-    <td className="border text-center">{e.mobileNo}</td>
-  </tr>
-));
-
-
+  ));
 })}
 </tbody>
+
 </table>
 
     )}

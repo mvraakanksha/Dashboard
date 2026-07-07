@@ -52,3 +52,16 @@ export const getAttendanceMetrics = async (date) => {
     absent,
   };
 };
+
+//History Employees
+export const getDeletedEmployeesByPlantAndDate = (plantId, date) => {
+  if (!plantId || !date) throw new Error("PlantId & Date required");
+  return apiFetch(`/historyEmployees/employees/${plantId}/date/${date}`);
+};
+//History Employees Operations
+export const getEmployeeOperationsByDateRangeFull = (from, to) => {
+  if (!from || !to) throw new Error("From & To required");
+  return apiFetch(
+    `/historyEmployees/employee-operations?startDate=${from}&endDate=${to}`
+  );
+};

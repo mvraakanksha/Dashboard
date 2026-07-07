@@ -6,7 +6,8 @@ import {
   YAxis,
   Tooltip,
   LabelList,
-  CartesianGrid
+  CartesianGrid,
+  ResponsiveContainer
 } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { Zap } from "lucide-react";
@@ -72,7 +73,7 @@ const formatDDMMYYYY = (dateStr) => {
 };
 
 /* ================= TOOLTIP ================= */
-const PowerTooltip = ({ active, payload, label }) => {
+const PowerTooltip = ({ active, payload, label, selectedPlants = [], }) => {
   if (!active || !payload || payload.length === 0) return null;
 
   const row = payload[0].payload;
@@ -101,8 +102,12 @@ const PowerTooltip = ({ active, payload, label }) => {
           <p className="font-semibold text-red-700">
             Power Consumption : {importItem.value.toFixed(2)} Kwh
           </p>
-          <p>AM: {row.amImp ?? "-"}</p>
-          <p>PM: {row.pmImp ?? "-"}</p>
+       <p>
+  AM: {row.amImp != null ? Number(row.amImp).toFixed(2) : "-"}
+</p>
+<p>
+  PM: {row.pmImp != null ? Number(row.pmImp).toFixed(2) : "-"}
+</p>
         </div>
       )}
 
@@ -111,8 +116,12 @@ const PowerTooltip = ({ active, payload, label }) => {
           <p className="font-semibold text-green-700">
             Solar Power Generated : {exportItem.value.toFixed(2)} Kwh
           </p>
-          <p>AM: {row.amExp ?? "-"}</p>
-          <p>PM: {row.pmExp ?? "-"}</p>
+         <p>
+  AM: {row.amExp != null ? Number(row.amExp).toFixed(2) : "-"}
+</p>
+<p>
+  PM: {row.pmExp != null ? Number(row.pmExp).toFixed(2) : "-"}
+</p>
         </div>
       )}
 
@@ -128,7 +137,7 @@ const PowerTooltip = ({ active, payload, label }) => {
 };
 
 /* ================= PAGE ================= */
-export default function Power({ date, zone }) {
+export default function Power({ date, zone, selectedPlants = [], }) {
  
   const navigate = useNavigate();
 
@@ -181,38 +190,67 @@ const theme = {
   /* 🔽 SORTED BY POWER CONSUMPTION (DESCENDING) */
 const rawChartData = useMemo(() => {
   return plants
-   .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => {
-      const op = operations.find(o => o.plantId === p.plantID)?.operation;
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
+    .map((p) => {
+      const op = operations.find(
+        (o) => o.plantId === p.plantID
+      )?.operation;
 
       const importPower =
-        op?.powerReadingAmImport != null && op?.powerReadingPmImport != null
-          ? Math.max(op.powerReadingPmImport - op.powerReadingAmImport, 0)
+        op?.powerReadingAmImport != null &&
+        op?.powerReadingPmImport != null
+          ? Math.max(
+              op.powerReadingPmImport -
+                op.powerReadingAmImport,
+              0
+            )
           : 0;
 
       const exportPower =
-        op?.powerReadingAmExport != null && op?.powerReadingPmExport != null
-          ? Math.max(op.powerReadingPmExport - op.powerReadingAmExport, 0)
+        op?.powerReadingAmExport != null &&
+        op?.powerReadingPmExport != null
+          ? Math.max(
+              op.powerReadingPmExport -
+                op.powerReadingAmExport,
+              0
+            )
           : 0;
 
-      const runHours = op?.plantRunningHrs ?? 0;
+      const runHours =
+        op?.plantRunningHrs ?? 0;
 
       return {
         label: p.plantName,
         plantId: p.plantID,
-        kld:p.kld,
-         powerCompletedOn: p.permanentPowerDateOfCompletion, 
-         solarCompletedOn: p.solarDateOfCompletion,
+        kld: p.kld,
+        powerCompletedOn:
+          p.permanentPowerDateOfCompletion,
+        solarCompletedOn:
+          p.solarDateOfCompletion,
+
         importPower: +importPower.toFixed(2),
         exportPower: +exportPower.toFixed(2),
         runHours: +runHours.toFixed(2),
+
         amImp: op?.powerReadingAmImport,
         pmImp: op?.powerReadingPmImport,
         amExp: op?.powerReadingAmExport,
         pmExp: op?.powerReadingPmExport
       };
     });
-}, [plants, operations, zone]);
+}, [plants, operations, zone, selectedPlants]);
+
+
 const chartData = useMemo(() => {
   const data = [...rawChartData];
 
@@ -369,7 +407,6 @@ const entryCount = useMemo(() => {
       </div>
     </div>
 
-    {/* GRAPH */}
    {/* GRAPH */}
 <div className="bg-white rounded-2xl shadow-lg p-6">
 
@@ -382,52 +419,88 @@ const entryCount = useMemo(() => {
       Entries: {entryCount}
     </span>
   </div>
-      <div className="overflow-x-auto">
-        <div style={{ width: chartData.length * 90, minWidth: "100%", height: 450 }}>
-          <BarChart
-            width={chartData.length * 90}
-            height={450}
-            data={chartData}
-            margin={{ top: 30, right: 30, left: 70, bottom: 80 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="label"
-              interval={0}
-              height={70}
-              tick={(props) => (
-                <ClickableTick
-                  {...props}
-                  plantMap={plantMap}
-                  onPlantClick={openPlantView}
-                />
-              )}
+   <div className="overflow-x-auto">
+  <div
+    style={{
+      width:
+        chartData.length > 10
+          ? chartData.length * 120
+          : "100%",
+      height: 420,
+    }}
+  >
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={chartData}
+        margin={{
+          top: 40,
+          right: 30,
+          left: 80,
+          bottom: 80,
+        }}
+   barCategoryGap={55}
+      >
+        <CartesianGrid strokeDasharray="3 3" />
+
+        <XAxis
+          dataKey="label"
+          interval={0}
+          height={50}
+          tick={(props) => (
+            <ClickableTick
+              {...props}
+              plantMap={plantMap}
+              onPlantClick={openPlantView}
             />
-            <YAxis
-              label={{
-                value: "Power (Kwh) / Run Hours",
-                angle: -90,
-                position: "insideLeft",
-                dy: 80
-              }}
-            />
-            <Tooltip content={<PowerTooltip />} />
+          )}
+        />
 
-            <Bar dataKey="importPower" fill="#af0000" barSize={22}>
-              <LabelList content={(p) => <BarValueLabel {...p} fill="#af0000" />} />
-            </Bar>
+        <YAxis
+          label={{
+            value: "Power (Kwh) / Run Hours",
+            angle: -90,
+            position: "insideLeft",
+            offset: -20,
+            dy: 60,
+            fontWeight: "bold",
+          }}
+        />
 
-            <Bar dataKey="exportPower" fill="#018f20" barSize={22}>
-              <LabelList content={(p) => <BarValueLabel {...p} fill="#018f20" />} />
-            </Bar>
+        <Tooltip content={<PowerTooltip />} />
 
-            <Bar dataKey="runHours" fill="#1e40af" barSize={22}>
-              <LabelList content={(p) => <BarValueLabel {...p} fill="#1e40af" />} />
-            </Bar>
-          </BarChart>
-        </div>
-      </div>
+        <Bar
+          dataKey="importPower"
+          fill="#af0000"
+          barSize={24}
+        
+          label={
+            <BarValueLabel fill="#af0000" />
+          }
+        />
 
+        <Bar
+          dataKey="exportPower"
+          fill="#018f20"
+          barSize={24}
+          
+          label={
+            <BarValueLabel fill="#018f20" />
+          }
+        />
+
+        <Bar
+          dataKey="runHours"
+          fill="#1e40af"
+          barSize={24}
+          
+          label={
+            <BarValueLabel fill="#1e40af" />
+          }
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  </div>
+</div>
       {/* LEGEND */}
       <div className="flex flex-wrap justify-center gap-4 mt-4 font-bold text-sm">
         <div className="flex items-center gap-2">

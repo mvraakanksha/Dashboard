@@ -186,7 +186,7 @@ const getInsuranceAlert = (expiryDate, selectedDate) => {
 /* ================================================= */
 /* VEHICLE COMPONENT */
 /* ================================================= */
-export default function Vehicle({ date, zone })
+export default function Vehicle({ date, zone, selectedPlants = [], })
  {
   const navigate = useNavigate();
 
@@ -250,10 +250,19 @@ useEffect(() => {
 
   /* ---------------- ZONE FILTERED DATA ---------------- */
 const filteredPlants = useMemo(() => {
-  return plants.filter(
-    (p) => zone === "All" || String(p.zones) === String(zone)
-  );
-}, [plants, zone]);
+  return plants.filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
+
+    const plantMatch =
+      selectedPlants.length === 0 ||
+      selectedPlants.includes(p.plantID);
+
+    return zoneMatch && plantMatch;
+  });
+}, [plants, zone, selectedPlants]);
+
 
 useEffect(() => {
   if (!filteredPlants.length) return;

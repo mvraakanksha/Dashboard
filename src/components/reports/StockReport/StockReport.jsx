@@ -203,7 +203,7 @@ const finalFilteredData = useMemo(() => {
       if (
         filters.polymerLowStock &&
         row.polymerStock > 0 &&
-        row.polymerStock <= 10
+        row.polymerStock <= 20
       )
         match = true;
 
@@ -732,7 +732,7 @@ const resetFilters = () => {
                   setFilters({ ...filters, polymerLowStock: e.target.checked })
                 }
               />
-              Low Stock (≤ 10 Kg)
+              Low Stock (≤ 20 Kg)
             </label>
           </div>
         )}
@@ -871,7 +871,7 @@ const resetFilters = () => {
     const polymerColor =
       row.polymerStock === 0
         ? "text-red-600"
-        : row.polymerStock !== null && row.polymerStock <= 10
+        : row.polymerStock !== null && row.polymerStock <= 20
         ? "text-yellow-600"
         : "text-green-600";
 

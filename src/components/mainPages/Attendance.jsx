@@ -9,7 +9,10 @@ import { Users, UserCheck, UserMinus, Activity } from "lucide-react";
 import { getAllPlants } from "../../services/plantService";
 import {
   getEmployeesByPlant,
-  getEmployeeOperationsByDate
+  getEmployeeOperationsByDate,
+  getDeletedEmployeesByPlantAndDate,
+  getEmployeeOperationsByDateRangeFull
+
 } from "../../services/employeeService";
 
 /* ---------------- UTIL ---------------- */
@@ -79,34 +82,59 @@ const CustomTooltip = ({ active, payload, label, isDark }) => {
   if (!active || !payload?.length) return null;
   const plant = payload[0].payload;
 
-  return (
-    <div className={`p-2 rounded shadow-lg border text-xs ${
-      isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"
-    }`}>
-      <p className="font-bold text-blue-500 mb-1">PID: {plant.plantId} - {plant.label} - {plant.kld} KLD</p>
-      {plant.employees.map((e) => {
-        const op = plant.attendance.find(x => x.employeeId === e.employeeId);
+return (
+  <div
+    className={`p-2 rounded shadow-lg border text-xs ${
+      isDark
+        ? "bg-slate-800 border-slate-700 text-white"
+        : "bg-white border-slate-200 text-slate-800"
+    }`}
+  >
+    <p className="font-bold text-blue-500 mb-1">
+      PID: {plant.plantId} - {plant.label} - {plant.kld} KLD
+    </p>
+
+    {plant.employees
+      .filter((e) => {
+        if (!e.dateOfJoining) return false;
+
+        // ✅ exclude future joiners
+        if (e.dateOfJoining > plant.date) return false;
+
+        // ✅ exclude employees already left
+        if (e.dateOfLeaving && e.dateOfLeaving < plant.date) return false;
+
+        return true;
+      })
+      .map((e) => {
+        const key = `${e.employeeId}_${e.dateOfJoining}`;
+        const op = plant.attendanceMap?.[key];
+
         return (
-          <p key={e.employeeId} className="border-t pt-1 mt-1">
-            {e.designation}:
+          <p key={key} className="border-t pt-1 mt-1">
+            <span className="font-medium">{e.designation}</span>:
             <span className="font-semibold">
-              {" "}AM {mark(op?.plantOp?.attendanceAm)} | PM {mark(op?.plantOp?.attendancePm)}
+              {" "}AM {mark(op?.plantOp?.attendanceAm)} | PM{" "}
+              {mark(op?.plantOp?.attendancePm)}
             </span>
           </p>
         );
       })}
-    </div>
-  );
+  </div>
+);
+
 };
 
 
 /* ================= MAIN ================= */
-export default function Attendance({ isDark, date, zone }) {
+export default function Attendance({ isDark, date, zone, selectedPlants }) {
   const navigate = useNavigate();
 
   const [plants, setPlants] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [attendanceOps, setAttendanceOps] = useState([]);
+const [historyOps, setHistoryOps] = useState([]);
+
 const [attendanceSortMode, setAttendanceSortMode] =
   useState("attendanceDesc");
 
@@ -158,6 +186,8 @@ useEffect(() => {
           )
         )
       );
+const history = await getEmployeeOperationsByDateRangeFull(date, date);
+setHistoryOps(history);
 
       setEmployees(employeesData.flat());
     } catch (err) {
@@ -172,45 +202,137 @@ useEffect(() => {
   return () => abortRef.current?.abort();
 }, [date]);
 
+const isEmployeeValid = (emp, selectedDate) => {
+  if (!emp.dateOfJoining) return false;
 
+  const doj = emp.dateOfJoining;
+  const dol = emp.dateOfLeaving;
+
+  if (doj > selectedDate) return false;
+
+  if (dol && dol < selectedDate) return false;
+
+  return true;
+};
   /* ---------- CALCULATE PER PLANT ---------- */
 const employeesByPlant = useMemo(() => {
   const map = {};
-  employees.forEach(e => {
-    (map[e.plantId] ||= []).push(e);
+
+employees.forEach(e => {
+  if (!isEmployeeValid(e, date)) return;
+
+  const key = `${e.employeeId}_${e.dateOfJoining}`;
+
+  map[e.plantId] ||= [];
+
+  if (!map[e.plantId].some(
+    x => `${x.employeeId}_${x.dateOfJoining}` === key
+  )) {
+    map[e.plantId].push(e);
+  }
+});
+  // 🔥 ADD EXIT EMPLOYEES FROM HISTORY
+  historyOps.forEach(op => {
+    const emp = {
+      employeeId: op.employeeId,
+      plantId: op.plantId,
+      employeeName: op.employeeName,
+      designation: op.designation,
+      dateOfJoining: op.dateOfJoining,
+      dateOfLeaving: op.dateOfLeaving
+    };
+
+    if (!isEmployeeValid(emp, date)) return;
+
+    const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+map[op.plantId] ||= [];
+
+if (!map[op.plantId].some(e => `${e.employeeId}_${e.dateOfJoining}` === key)) {
+  map[op.plantId].push(emp);
+}
   });
+
   return map;
-}, [employees]);
+}, [employees, historyOps, date]);
 
 const attendanceByPlant = useMemo(() => {
   const map = {};
-  attendanceOps.forEach(o => {
+attendanceOps.forEach(o => {
+  const empList = employeesByPlant[o.plantId] || [];
+
+  const isValid = empList.some(
+    e => e.employeeId === o.employeeId
+  );
+
+  if (isValid) {
     (map[o.plantId] ||= []).push(o);
-  });
+  }
+});
   return map;
 }, [attendanceOps]);
 
+// const empLookup = useMemo(() => {
+//   const map = {};
+
+//   employees.forEach(e => {
+//     map[e.employeeId] = e;
+//   });
+
+//   historyOps.forEach(e => {
+//     map[e.employeeId] = e;
+//   });
+
+//   return map;
+// }, [employees, historyOps]);
 
 /* ---------- ATTENDANCE MAP ---------- */
 const attendanceMap = useMemo(() => {
   const map = {};
-  attendanceOps.forEach(o => {
-    map[o.employeeId] = o;
-  });
-  return map;
-}, [attendanceOps]);
 
+  // ACTIVE
+attendanceOps.forEach(o => {
+  const empList = employeesByPlant[o.plantId] || [];
+
+  empList.forEach(emp => {
+    if (emp.employeeId === o.employeeId) {
+      const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+      map[key] = o;
+    }
+  });
+});
+historyOps.forEach(o => {
+  const key = `${o.employeeId}_${o.dateOfJoining}`;
+
+  const validOp = (o.operations || []).find(op => {
+    if (!o.dateOfLeaving) return true;
+
+    return op.operationDate <= o.dateOfLeaving;
+  });
+
+  if (validOp) {
+    map[key] = {
+      plantOp: validOp
+    };
+  }
+});
+  return map;
+}, [attendanceOps, historyOps]);
 
 
 const calculatePlant = useCallback(
   (plantId) => {
     const emps = employeesByPlant[plantId] || [];
-    const ops  = attendanceByPlant[plantId] || [];
+    const ops = attendanceByPlant[plantId] || [];
 
     let presentUnits = 0;
 
     emps.forEach(emp => {
-      const rec = ops.find(o => o.employeeId === emp.employeeId);
+     const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+const rec = attendanceMap[key];
+
+      if (!isEmployeeValid(emp, date)) return;
+
+      if (emp.dateOfLeaving && emp.dateOfLeaving < date) return;
 
       if (
         rec?.plantOp?.attendanceAm === true &&
@@ -226,18 +348,33 @@ const calculatePlant = useCallback(
       }
     });
 
-    return { presentUnits, employees: emps, attendance: ops };
+    return {
+      presentUnits,
+      employees: emps,
+      attendance: ops   // ✅ FIX
+    };
   },
-  [employeesByPlant, attendanceByPlant]
+  [employeesByPlant, attendanceMap, attendanceByPlant, date]
 );
 
 
   /* ---------- BUILD CHART DATA ---------- */
 const allPlantsData = useMemo(() => {
   return plants
-    .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => {
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
+    .map((p) => {
       const stats = calculatePlant(p.plantID);
+
       return {
         label: p.plantName,
         plantId: p.plantID,
@@ -245,10 +382,22 @@ const allPlantsData = useMemo(() => {
         presentUnits: stats.presentUnits,
         employees: stats.employees,
         attendance: stats.attendance,
-        totalEmployees: p.noOfEmployees ?? stats.employees.length
+        attendanceMap,
+        date,
+
+        totalEmployees: stats.employees.filter((e) =>
+          isEmployeeValid(e, date)
+        ).length,
       };
     });
-}, [plants, zone, calculatePlant]);
+}, [
+  plants,
+  zone,
+  selectedPlants,
+  calculatePlant,
+  attendanceMap,
+  date,
+]);
 
 
   const sortedAttendanceData = useMemo(() => {
@@ -278,99 +427,175 @@ const entryCount = useMemo(() => {
 
 const zonePlantIds = useMemo(() => {
   return plants
-    .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => p.plantID);
-}, [plants, zone]);
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
+    .map((p) => p.plantID);
+}, [plants, zone, selectedPlants]);
 
 const zoneEmployees = useMemo(() => {
-  return employees.filter(e =>
-    zonePlantIds.includes(e.plantId)
-  );
-}, [employees, zonePlantIds]);
-
+  return zonePlantIds.flatMap(pid => employeesByPlant[pid] || []);
+}, [employeesByPlant, zonePlantIds]);
 
 /* ---------- DESIGNATION SUMMARY ---------- */
 /* ---------- DESIGNATION SUMMARY (CORRECT HALF DAY LOGIC) ---------- */
 const designationSummary = useMemo(() => {
   const summary = {};
 
-  const zonePlantIds = plants
-    .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => p.plantID);
+const zonePlantIds = plants
+  .filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
 
-  const zoneEmployees = employees.filter(e =>
-    zonePlantIds.includes(e.plantId)
-  );
+    const plantMatch =
+      selectedPlants.length === 0 ||
+      selectedPlants.includes(p.plantID);
 
-  zoneEmployees.forEach(emp => {
-    const rec = attendanceMap[emp.employeeId];
+    return zoneMatch && plantMatch;
+  })
+  .map((p) => p.plantID);
 
-    if (!summary[emp.designation]) {
-      summary[emp.designation] = { present: 0, absent: 0 };
+const zoneEmployees = zonePlantIds.flatMap(
+  pid => employeesByPlant[pid] || []
+);
+
+zoneEmployees.forEach(emp => {
+  if (!isEmployeeValid(emp, date)) return;
+
+  const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+  const rec = attendanceMap[key];
+
+  if (!summary[emp.designation]) {
+    summary[emp.designation] = { present: 0, absent: 0 };
+  }
+
+  // 🔥 DEFAULT: fully absent
+  let presentValue = 0;
+
+  // ✅ Only calculate if valid record exists
+  if (rec?.plantOp) {
+    const opDate = rec.plantOp.operationDate;
+
+    // 🔥 Ignore operations AFTER leaving
+    if (emp.dateOfLeaving && opDate > emp.dateOfLeaving) {
+      presentValue = 0;
+    } else {
+      if (
+        rec.plantOp.attendanceAm === true &&
+        (rec.plantOp.attendancePm === null ||
+         rec.plantOp.attendancePm === true)
+      ) {
+        presentValue = 1;
+      } else if (
+        rec.plantOp.attendanceAm === true ||
+        rec.plantOp.attendancePm === true
+      ) {
+        presentValue = 0.5;
+      }
     }
+  }
 
-    let presentValue = 0;
-
-    // FULL DAY
-    if (
-      rec?.plantOp?.attendanceAm === true &&
-      (rec?.plantOp?.attendancePm === null ||
-       rec?.plantOp?.attendancePm === true)
-    ) {
-      presentValue = 1;
-    }
-    // HALF DAY
-    else if (
-      rec?.plantOp?.attendanceAm === true ||
-      rec?.plantOp?.attendancePm === true
-    ) {
-      presentValue = 0.5;
-    }
-
-    summary[emp.designation].present += presentValue;
-    summary[emp.designation].absent += (1 - presentValue);
-  });
+  summary[emp.designation].present += presentValue;
+  summary[emp.designation].absent += (1 - presentValue);
+});
 
   return summary;
-}, [employees, attendanceMap, plants, zone]);
+}, [
+  employees,
+  attendanceMap,
+  plants,
+  zone,
+  selectedPlants,
+  employeesByPlant,
+  date,
+]);
 
 const strengthSummary = useMemo(() => {
   const summary = {};
 
+  // init all designations
   DESIGNATION_ORDER.forEach(d => {
     summary[d] = 0;
   });
 
+  // ✅ only zone plants
+const zonePlantIds = plants
+  .filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
+
+    const plantMatch =
+      selectedPlants.length === 0 ||
+      selectedPlants.includes(p.plantID);
+
+    return zoneMatch && plantMatch;
+  })
+  .map((p) => p.plantID);
+
+  const zoneEmployees = zonePlantIds.flatMap(
+    pid => employeesByPlant[pid] || []
+  );
+
   zoneEmployees.forEach(emp => {
+    if (!isEmployeeValid(emp, date)) return;
+
     if (summary.hasOwnProperty(emp.designation)) {
       summary[emp.designation] += 1;
     }
   });
 
   return summary;
-}, [zoneEmployees]);
+}, [
+  employeesByPlant,
+  plants,
+  zone,
+  selectedPlants,
+  date,
+]);
 
 const totalEmployees = zoneEmployees.length;
 
 const totalPresent = zoneEmployees.reduce((sum, emp) => {
-  const rec = attendanceMap[emp.employeeId];
+  if (!isEmployeeValid(emp, date)) return sum;
 
-  if (
-    rec?.plantOp?.attendanceAm === true &&
-    (rec?.plantOp?.attendancePm === null ||
-     rec?.plantOp?.attendancePm === true)
-  ) {
-    return sum + 1;
+  const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+  const rec = attendanceMap[key];
+
+  let presentValue = 0; // ✅ default absent
+
+  if (rec?.plantOp) {
+    const opDate = rec.plantOp.operationDate;
+
+    if (emp.dateOfLeaving && opDate > emp.dateOfLeaving) {
+      presentValue = 0;
+    } else {
+      if (
+        rec.plantOp.attendanceAm === true &&
+        (rec.plantOp.attendancePm === null ||
+         rec.plantOp.attendancePm === true)
+      ) {
+        presentValue = 1;
+      } else if (
+        rec.plantOp.attendanceAm === true ||
+        rec.plantOp.attendancePm === true
+      ) {
+        presentValue = 0.5;
+      }
+    }
   }
 
-  if (
-    rec?.plantOp?.attendanceAm === true ||
-    rec?.plantOp?.attendancePm === true
-  ) {
-    return sum + 0.5;
-  }
+  return sum + presentValue;
 
-  return sum;
 }, 0);
 
 const totalAbsent = totalEmployees - totalPresent;

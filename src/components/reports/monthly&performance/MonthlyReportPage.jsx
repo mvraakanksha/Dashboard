@@ -98,6 +98,7 @@ export default function MonthlyReportPage() {
 const [refreshKey, setRefreshKey] = useState(0);
 const [plants, setPlants] = useState([]);
 const [zoneFilter, setZoneFilter] = useState("All");
+const [phaseFilter, setPhaseFilter] = useState("All");
 
   /* ================= LOAD PLANTS ================= */
 useEffect(() => {
@@ -106,19 +107,31 @@ getAllPlants().then((list) => {
 
   const map = {};
   (list || []).forEach((p) => {
-  map[p.plantID] = {
+map[p.plantID] = {
   name: p.plantName,
   district: p.district,
   kld: p.kld,
-  permanentPowerDate: p.permanentPowerDateOfCompletion, // styling
-  mnitDate: p.mnitDateOfCompletion,                     // ⭐ visibility
+  permanentPowerDate: p.permanentPowerDateOfCompletion,
+  mnitDate: p.mnitDateOfCompletion,
   zone: p.zones,
+  phase: p.plantPhase,
 };
   });
 
   setPlantMaster(map);
 });
 }, []);
+const getMonthDates = (monthStr) => {
+  const [year, month] = monthStr.split("-").map(Number);
+
+  const lastDay = new Date(year, month, 0).getDate();
+
+  return {
+    startDate: `${year}-${String(month).padStart(2, "0")}-01`,
+    endDate: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+    lastDay,
+  };
+};
 
   const formattedMonth = formatMonthYear(month);
 
@@ -127,15 +140,12 @@ getAllPlants().then((list) => {
 
   setLoading(true);
   setRows([]);
-  const [year, monthNum] = month.split("-");
+const { startDate, endDate, lastDay } = getMonthDates(month);
 
-  // ✅ Start = first day of month
-  const startDate = `${year}-${monthNum}-01`;
-
-const monthStart = new Date(year, monthNum - 1, 1);
-const monthEndDate = new Date(year, monthNum, 0); // ⭐ last day (Google logic)
-const endDate = toYMD(new Date(year, monthNum, 1)); // first day next month
-
+console.log("Selected Month:", month);
+console.log("Start Date:", startDate);
+console.log("End Date:", endDate);
+console.log("Last Day:", lastDay);
 
   const temp = {};
 
@@ -276,11 +286,10 @@ const getOpeningSludge = (ops, startDate, endDate) => {
 const getClosingSludge = (ops, startDate, endDate) => {
   if (!ops?.length) return 0;
 
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+const start = new Date(startDate);
 
-  // ⭐ last day of selected month
-  const monthEnd = new Date(end.getFullYear(), end.getMonth(), 0);
+// selected month's actual last day
+const monthEnd = new Date(endDate);
 
   // ⭐ Build date map
   const map = {};
@@ -291,8 +300,7 @@ const getClosingSludge = (ops, startDate, endDate) => {
     const d = toYMD(op.operationDate);
 
     const time = new Date(d);
-    if (time < start || time >= end) return;
-
+ if (time < start || time > monthEnd) return;
     if (!map[d]) {
       map[d] = { am: null, pm: null };
     }
@@ -338,25 +346,33 @@ const oldSludge = getOpeningSludge(op.ops || [], startDate, endDate);
     const remaining = getClosingSludge(op.ops || [], startDate, endDate);
     const total = oldSludge + op.sludgeReceived;
 
-    return {
-      plantId: Number(pid),
-      district: meta.district,
-      name: meta.name,
-      kld: meta.kld,
-      zone: meta.zone,
-      permanentPowerDate: meta.permanentPowerDate,
-      mnitDate: meta.mnitDate,
-      sludgeReceived: op.sludgeReceived,
-      sludgeProcessed: op.sludgeProcessed,
-      oldSludge,
-      total,
-      remaining,
-    };
+   return {
+  plantId: Number(pid),
+  district: meta.district,
+  name: meta.name,
+  kld: meta.kld,
+  zone: meta.zone,
+  phase: meta.phase,
+  permanentPowerDate: meta.permanentPowerDate,
+  mnitDate: meta.mnitDate,
+  sludgeReceived: op.sludgeReceived,
+  sludgeProcessed: op.sludgeProcessed,
+  oldSludge,
+  total,
+  remaining,
+};
   })
-  .filter(r =>
+.filter((r) => {
+  const zoneMatch =
     zoneFilter === "All" ||
-    String(r.zone) === String(zoneFilter)
-  );
+    String(r.zone) === String(zoneFilter);
+
+  const phaseMatch =
+    phaseFilter === "All" ||
+    String(r.phase) === String(phaseFilter);
+
+  return zoneMatch && phaseMatch;
+});
 
   const [y, m] = month.split("-");
 const monthEnd = new Date(y, m, 0);
@@ -388,8 +404,7 @@ setRows(withStatus);
   }
 
   setLoading(false);
-}, [month, plantMaster, zoneFilter]);
-
+}, [month, plantMaster, zoneFilter, phaseFilter]);
 
 useEffect(() => {
   loadMonth();
@@ -500,98 +515,26 @@ doc.text(
   /* =====================================================
      TABLE
   ===================================================== */
-  autoTable(doc, {
-  startY: 27.8,
-  theme: "grid",
+/* ================= TABLE (uniform row height on every page) ================= */
+  const ROWS_PER_PAGE = 50;
+  const BOTTOM_MARGIN = 10;
+  const HEAD_HEIGHT = 9;
+  const SAFETY_BUFFER = 2;
 
-  pageBreak: "avoid",
-  rowPageBreak: "avoid",
-
-  tableWidth: tableWidth,
-  margin: { left: tableX },
-
-styles: {
-  font: "times",
-  fontSize: 4.6,          // 🔽 critical
-  cellPadding: 0.25,      // 🔽 critical
-  textColor: [0, 0, 0],
-  halign: "center",
-  valign: "middle",
-  lineWidth: 0.15,
-  overflow: "linebreak",
-},
-
-
-headStyles: {
-  fillColor: [211, 234, 200], // light green
-  textColor: [0, 0, 0],   // ✅ RED
-  fontStyle: "bold",
-  fontSize: 5.4,
-},
-
-//   didParseCell: function (data) {
-//   if (data.section === "body") {
-//     data.cell.styles.fillColor = [211, 234, 200]; // #D3EAC8
-//   }
-// },
-didParseCell: function (data) {
-  // Only body cells
-  if (data.section === "body") {
-    const rowIndex = data.row.index;   // row number
-    const colIndex = data.column.index; // column number
-
-    // Site Name column index = 4 (0-based)
-    if (colIndex === 4) {
-      const rowData = rows[rowIndex];
-
-      if (rowData?.noPower) {
-        data.cell.styles.fillColor = [229, 231, 235]; // grey
-        data.cell.styles.textColor = [0, 0, 0]; // dark black text
-      }
-    }
-  }
-},
-
-columnStyles: {
-  0: { cellWidth: 8 },   // S.No
-  1: { cellWidth: 12 },  // Plant ID
-  2: { cellWidth: 20 },  // District
-  3: { cellWidth: 10 },  // KLD
-  4: { cellWidth: 32 },  // Site Name
-  5: { cellWidth: 22 },
-  6: { cellWidth: 22 },
-  7: { cellWidth: 22 },
-  8: { cellWidth: 22 },
-  9: { cellWidth: 22 },
-},
-
-
-  bodyStyles: {
-    textColor: [0, 0, 0],
-  },
-
-footStyles: {
-  fillColor: [95, 143, 228],
-   textColor: [255, 255, 255], 
-  fontStyle: "bold",
-  fontSize: 6,
-  minCellHeight: 5,   // ✅ increases footer row height
-},
-
-  head: [[
+  const headDef = [[
     "SI NO",
     "Plant ID",
     "District",
     "KLD",
     "Site Name",
     "Sludge Received \n (in litres)",
-    oldSludgeHeader (month),
+    oldSludgeHeader(month),
     "Total Sludge\n (in liters)",
     "Sludge Processed \n (in liters)",
     "Remaining Sludge \n (in liters)",
-  ]],
+  ]];
 
-  body: rows.map((r, i) => [
+  const bodyRows = rows.map((r, i) => [
     i + 1,
     r.plantId,
     r.district,
@@ -602,24 +545,114 @@ footStyles: {
     formatNumber(r.total),
     formatNumber(r.sludgeProcessed),
     formatNumber(r.remaining),
-  ]),
+  ]);
 
-  foot: [[
+  const footDef = [[
     "TOTAL", "", "", "", "",
     formatNumber(totals.sludgeReceived),
     formatNumber(totals.oldSludge),
     formatNumber(totals.total),
     formatNumber(totals.sludgeProcessed),
     formatNumber(totals.remaining),
-  ]],
+  ]];
 
+  const chunks = [];
+  for (let i = 0; i < bodyRows.length; i += ROWS_PER_PAGE) {
+    chunks.push(bodyRows.slice(i, i + ROWS_PER_PAGE));
+  }
+  if (chunks.length === 0) chunks.push([]);
 
-});
+  const pageHeight = doc.internal.pageSize.getHeight();
 
+  // ⭐ Compute ONE fixed row height based on a full 50-row page,
+  //    using the continuation-page startY (10) since that's the
+  //    tightest case (least available space).
+  const referenceStartY = 27.8;
+  const referenceFootHeight = 6;
+  const referenceAvailableHeight =
+    pageHeight - referenceStartY - BOTTOM_MARGIN - referenceFootHeight - HEAD_HEIGHT - SAFETY_BUFFER;
+  const UNIFORM_ROW_HEIGHT = referenceAvailableHeight / ROWS_PER_PAGE;
+
+  chunks.forEach((chunkRows, chunkIndex) => {
+    const isFirstChunk = chunkIndex === 0;
+    const isLastChunk = chunkIndex === chunks.length - 1;
+    const startY = isFirstChunk ? 27.8 : 10;
+
+    if (!isFirstChunk) {
+      doc.addPage();
+    }
+
+    autoTable(doc, {
+      startY,
+      theme: "grid",
+      pageBreak: "auto",
+      rowPageBreak: "avoid",
+      tableWidth,
+      margin: { left: tableX },
+
+      styles: {
+        font: "times",
+        fontSize: 4.6,
+        cellPadding: 0.25,
+        textColor: [0, 0, 0],
+        halign: "center",
+        valign: "middle",
+        lineWidth: 0.15,
+        overflow: "linebreak",
+        minCellHeight: UNIFORM_ROW_HEIGHT, // ⭐ same fixed height, every page
+      },
+
+      headStyles: {
+        fillColor: [211, 234, 200],
+        textColor: [0, 0, 0],
+        fontStyle: "bold",
+        fontSize: 5.4,
+      },
+
+      didParseCell(data) {
+        if (data.section === "body" && data.column.index === 4) {
+          const globalIndex = chunkIndex * ROWS_PER_PAGE + data.row.index;
+          const rowData = rows[globalIndex];
+          if (rowData?.noPower) {
+            data.cell.styles.fillColor = [229, 231, 235];
+            data.cell.styles.textColor = [0, 0, 0];
+          }
+        }
+      },
+
+      columnStyles: {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 12 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 10 },
+        4: { cellWidth: 32 },
+        5: { cellWidth: 22 },
+        6: { cellWidth: 22 },
+        7: { cellWidth: 22 },
+        8: { cellWidth: 22 },
+        9: { cellWidth: 22 },
+      },
+
+      bodyStyles: {
+        textColor: [0, 0, 0],
+      },
+
+      footStyles: {
+        fillColor: [95, 143, 228],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 6,
+        minCellHeight: 5,
+      },
+
+      head: headDef,
+      body: chunkRows,
+      foot: isLastChunk ? footDef : undefined,
+    });
+  });
 
   doc.save(`Monthly Report_${formattedMonth}.pdf`);
 };
-
 
 const INDIAN_NUMBER_FORMAT = "#,##,##0";
 
@@ -930,7 +963,21 @@ return (
       <option key={z} value={z}>Zone {z}</option>
     ))}
 </select>
+<select
+  value={phaseFilter}
+  onChange={(e) => setPhaseFilter(e.target.value)}
+  className="border p-2 text-sm"
+>
+  <option value="All">All Phases</option>
 
+  {[...new Set(plants.map((p) => p.plantPhase).filter((v) => v != null))]
+    .sort((a, b) => Number(a) - Number(b))
+    .map((phase) => (
+      <option key={phase} value={phase}>
+        Phase {phase}
+      </option>
+    ))}
+</select>
         <input
           type="month"
           value={month}
