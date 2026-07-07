@@ -13,6 +13,7 @@ const [selectedHeadquarter, setSelectedHeadquarter] = useState([]);
 const [showDiscom, setShowDiscom] = useState(true);   // default visible
 const [showHeadquarter, setShowHeadquarter] = useState(false);
 const [selectedZone, setSelectedZone] = useState("all");
+const [selectedPhase, setSelectedPhase] = useState("All");
   const [showPermanentPower, setShowPermanentPower] = useState(false); // ✅ ADDED
 const DISCOM_OPTIONS = ["Jaipur", "Jodhpur", "Ajmer"];
 const useGroupedDiscom = selectedDiscom.length > 0;
@@ -51,9 +52,24 @@ const toggleHQ = (hq) => {
     return unique.sort((a, b) => a - b);
   }, [plants]);
 
+  /* ===== UNIQUE PHASE LIST ===== */
+  const phaseList = useMemo(() => {
+
+  const unique = [
+    ...new Set(
+      plants
+        .map((p) => p.plantPhase)
+        .filter((p) => p !== null && p !== undefined)
+    ),
+  ];
+
+  return unique.sort((a, b) => Number(a) - Number(b));
+
+}, [plants]);
   /* ===== FILTER LOGIC ===== */
 const filteredPlants = useMemo(() => {
-  return plants.filter(p => {
+
+  return plants.filter((p) => {
 
     const discomMatch =
       selectedDiscom.length === 0 ||
@@ -64,11 +80,31 @@ const filteredPlants = useMemo(() => {
       selectedHeadquarter.includes(p.headquarterName);
 
     const zoneMatch =
-      selectedZone === "all" || String(p.zones) === selectedZone;
+      selectedZone === "all" ||
+      String(p.zones) === String(selectedZone);
 
-    return discomMatch && hqMatch && zoneMatch;
+    const phaseMatch =
+      selectedPhase === "All" ||
+      String(p.plantPhase) === String(selectedPhase);
+
+    return (
+      discomMatch &&
+      hqMatch &&
+      zoneMatch &&
+      phaseMatch
+    );
+
   });
-}, [plants, selectedDiscom, selectedHeadquarter, selectedZone]);
+
+}, [
+  plants,
+  selectedDiscom,
+  selectedHeadquarter,
+  selectedZone,
+  selectedPhase
+]);
+
+const matchingPlants = filteredPlants.length;
 
 const groupedPlants = useMemo(() => {
   const groups = {};
@@ -150,13 +186,36 @@ const groupedPlants = useMemo(() => {
     doc.setTextColor(0);
     doc.text("FSTP RAJASTHAN", pageWidth / 2, 21, { align: "center" });
 
-    doc.setFont("times", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(70);
-    doc.text("Discom Details Report", pageWidth / 2, 27, { align: "center" });
+ /* ===== REPORT TITLE ===== */
 
-    doc.setDrawColor(180);
-    doc.line(6, 31, pageWidth - 6, 31);
+doc.setFont("times", "normal");
+doc.setFontSize(11);
+doc.setTextColor(70);
+
+doc.text(
+  "Discom Details Report",
+  pageWidth / 2,
+  27,
+  { align: "center" }
+);
+
+/* ===== FILTERS ===== */
+
+doc.setFont("times", "bold");
+doc.setFontSize(10);
+doc.setTextColor(40);
+
+doc.text(
+  `Zone : ${selectedZone}  |  Phase : ${selectedPhase}`,
+  pageWidth / 2,
+  33,
+  { align: "center" }
+);
+
+/* ===== DIVIDER ===== */
+
+doc.setDrawColor(180);
+doc.line(6, 37, pageWidth - 6, 37);
 
     /* ===== DYNAMIC TABLE HEAD ===== */
     const tableHead = [
@@ -244,7 +303,7 @@ if (!useGroupedDiscom) {
 }
 
     autoTable(doc, {
-      startY: 35,
+      startY: 41,
       margin: { left: 10, right: 10 },
       pageBreak: "auto",
       styles: {
@@ -326,6 +385,23 @@ subCell.alignment = { horizontal: "center", vertical: "middle" };
 sheet.mergeCells("A3:G3");
 const titleCell = sheet.getCell("A3");
 titleCell.value = "Discom Details Report";
+sheet.mergeCells("A4:G4");
+
+const filterCell = sheet.getCell("A4");
+
+filterCell.value =
+  `Zone : ${selectedZone}    |    Phase : ${selectedPhase}`;
+
+filterCell.font = {
+  name: "Times New Roman",
+  bold: true,
+  size: 11
+};
+
+filterCell.alignment = {
+  horizontal: "center",
+  vertical: "middle"
+};
 titleCell.font = {
   name: "Times New Roman",
   size: 11,
@@ -337,7 +413,7 @@ titleCell.alignment = { horizontal: "center", vertical: "middle" };
 TABLE HEADER
 ===================================================== */
 
-const startRow = 5;
+const startRow = 6;
 
 const headers = [
   "S.No",
@@ -584,6 +660,32 @@ saveAs(
             </select>
           </div>
 
+<div className="flex items-center gap-2">
+  <label className="text-sm font-semibold">
+    Phase:
+  </label>
+
+  <select
+    value={selectedPhase}
+    onChange={(e) => setSelectedPhase(e.target.value)}
+    className="border rounded-md px-3 py-1.5 text-sm bg-gray-50"
+  >
+    <option value="All">
+      All Phases
+    </option>
+
+    {phaseList.map((phase) => (
+      <option
+        key={phase}
+        value={String(phase)}
+      >
+        Phase {phase}
+      </option>
+    ))}
+  </select>
+</div>
+
+
           {/* ✅ PERMANENT POWER CHECKBOX ADDED */}
           <div className="flex items-center gap-2">
             <input
@@ -598,9 +700,12 @@ saveAs(
             </label>
           </div>
 
-          <div className="text-sm text-gray-600 font-medium">
-            Total Plants: {filteredPlants.length}
-          </div>
+         <div className="text-sm text-gray-600 font-medium">
+  Matching Plants:
+  <span className="ml-2 font-bold text-blue-700">
+    {matchingPlants}
+  </span>
+</div>
 
         </div>
  <div className="ml-auto flex gap-2">
