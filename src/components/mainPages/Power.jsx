@@ -101,8 +101,12 @@ const PowerTooltip = ({ active, payload, label }) => {
           <p className="font-semibold text-red-700">
             Power Consumption : {importItem.value.toFixed(2)} Kwh
           </p>
-          <p>AM: {row.amImp ?? "-"}</p>
-          <p>PM: {row.pmImp ?? "-"}</p>
+       <p>
+  AM: {row.amImp != null ? Number(row.amImp).toFixed(2) : "-"}
+</p>
+<p>
+  PM: {row.pmImp != null ? Number(row.pmImp).toFixed(2) : "-"}
+</p>
         </div>
       )}
 
@@ -111,8 +115,12 @@ const PowerTooltip = ({ active, payload, label }) => {
           <p className="font-semibold text-green-700">
             Solar Power Generated : {exportItem.value.toFixed(2)} Kwh
           </p>
-          <p>AM: {row.amExp ?? "-"}</p>
-          <p>PM: {row.pmExp ?? "-"}</p>
+         <p>
+  AM: {row.amExp != null ? Number(row.amExp).toFixed(2) : "-"}
+</p>
+<p>
+  PM: {row.pmExp != null ? Number(row.pmExp).toFixed(2) : "-"}
+</p>
         </div>
       )}
 

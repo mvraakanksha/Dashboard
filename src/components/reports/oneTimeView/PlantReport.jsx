@@ -203,6 +203,10 @@ if (selectedCard === "CAMERA") {
   value = !!p.cameraConfigurationDate;
   dateField = p.cameraConfigurationDate;
 }
+if (selectedCard === "ESSL") {
+  value = !!p.esslDevice;
+  dateField = p.esslDeviceDate;
+}
     if (selectedCard === "CTE") {
       value = p.cteCertified;
       dateField = p.cteIssuedDate;
@@ -253,6 +257,7 @@ gpsInstalled: zoneFilteredPlants.reduce((total, plant) => {
 }, 0),
 cameraConfigured: zoneFilteredPlants.filter(p => p.cameraConfigurationDate).length,
   // ✅ CTE / CTO
+  esslInstalled: zoneFilteredPlants.filter(p => !!p.esslDevice).length,
   cteCertified: zoneFilteredPlants.filter(p => p.cteCertified).length,
   cteIssued: zoneFilteredPlants.filter(p => p.cteIssuedDate).length,
   ctoCertified: zoneFilteredPlants.filter(p => p.ctoCertified).length,
@@ -855,143 +860,48 @@ const handleReset = () => {
 
   /* ================= UI ================= */
   return (
-    <div className="space-y-6 p-6">
+   <div className="w-full overflow-hidden">
 
-<div className="grid grid-cols-1 md:grid-cols-10 gap-4">
+   <div
+      className="flex flex-nowrap gap-4  overflow-x-auto custom-scrollbar snap-x snap-mandatory scroll-smooth w-full  px-2 pb-3"
+      onWheel={(e) => {
+        e.currentTarget.scrollLeft += e.deltaY;
+      }}
+    >
 
-  {selectedCard !== "CTE" &&
-   selectedCard !== "CTO" &&
-   selectedCard !== "CTE/CTO" ? (
-    <>
+  {[
+    { key: "ALL", title: "Total Plants", count: counts.total, icon: <Factory size={20} /> },
+    { key: "MNIT", title: "MNIT", count: counts.mnit, icon: <CheckCircle size={20} /> },
+    { key: "POWER", title: "Permanent Power", count: counts.power, icon: <Zap size={20} /> },
+    { key: "SOLAR", title: "Solar", count: counts.solar, icon: <Sun size={20} /> },
+    { key: "INTERNET", title: "Internet", count: counts.internet, icon: <Wifi size={20} /> },
+    { key: "CODBOD", title: "COD / BOD", count: counts.codBod, icon: <CheckCircle size={20} /> },
+    { key: "IPPHONES", title: "IP Phones", count: counts.ipPhones, icon: <CheckCircle size={20} /> },
+    { key: "TABS", title: "Tabs", count: counts.tabsReceived, icon: <CheckCircle size={20} /> },
+    { key: "CAMERA", title: "Cameras", count: counts.cameraConfigured, icon: <CheckCircle size={20} /> },
+    { key: "ESSL", title: "ESSL Device", count: counts.esslInstalled, icon: <CheckCircle size={20} /> },
+
+    // 👉 ADD THESE DIRECTLY (NO ARROW, NO BACK)
+    { key: "CTE", title: "CTE", count: counts.cteCertified, icon: <CheckCircle size={20} /> },
+    { key: "CTO", title: "CTO", count: counts.ctoCertified, icon: <CheckCircle size={20} /> },
+    { key: "CTE/CTO", title: "CTE / CTO", count: zoneFilteredPlants.filter(p => p.cteCertified && p.ctoCertified).length, icon: <LayoutDashboard size={20} /> }
+
+  ].map(card => (
+    <div key={card.key} className="snap-center shrink-0 w-[220px] transition-transform duration-300 hover:scale-105">
       <StatCard
-        title="Total Plants"
-        count={counts.total}
-        icon={<Factory size={20} />}
-        active={selectedCard === "ALL"}
-        onClick={() => setSelectedCard("ALL")}
+        title={card.title}
+        count={card.count}
+        icon={card.icon}
+        active={selectedCard === card.key}
+        onClick={() => setSelectedCard(card.key)}
       />
+    </div>
+  ))}
 
-      <StatCard
-        title="MNIT"
-        count={counts.mnit}
-        icon={<CheckCircle size={20} />}
-        active={selectedCard === "MNIT"}
-        onClick={() => setSelectedCard("MNIT")}
-      />
-
-      <StatCard
-        title="Permanent Power"
-        count={counts.power}
-        icon={<Zap size={20} />}
-        active={selectedCard === "POWER"}
-        onClick={() => setSelectedCard("POWER")}
-      />
-
-      <StatCard
-        title="Solar"
-        count={counts.solar}
-        icon={<Sun size={20} />}
-        active={selectedCard === "SOLAR"}
-        onClick={() => setSelectedCard("SOLAR")}
-      />
-
-      <StatCard
-        title="Internet"
-        count={counts.internet}
-        icon={<Wifi size={20} />}
-        active={selectedCard === "INTERNET"}
-        onClick={() => setSelectedCard("INTERNET")}
-      />
-
-      <StatCard
-        title="COD / BOD"
-        count={counts.codBod}
-        icon={<CheckCircle size={20} />}
-        active={selectedCard === "CODBOD"}
-        onClick={() => setSelectedCard("CODBOD")}
-      />
-<StatCard
-  title="IP Phones Received"
-  count={counts.ipPhones}
-  icon={<CheckCircle size={20} />}
-  active={selectedCard === "IPPHONES"}
-  onClick={() => setSelectedCard("IPPHONES")}
-/>
-
-<StatCard
-  title="Tabs Received"
-  count={counts.tabsReceived}
-  icon={<CheckCircle size={20} />}
-  active={selectedCard === "TABS"}
-  onClick={() => setSelectedCard("TABS")}
-/>
-
-{/* <StatCard
-  title="GPS Installed"
-  count={counts.gpsInstalled}
-  icon={<CheckCircle size={20} />}
-  active={selectedCard === "GPS"}
-  onClick={() => setSelectedCard("GPS")}
-/> */}
-
-<StatCard
-  title="Cameras Configured"
-  count={counts.cameraConfigured}
-  icon={<CheckCircle size={20} />}
-  active={selectedCard === "CAMERA"}
-  onClick={() => setSelectedCard("CAMERA")}
-/>
-      <StatCard
-        title="CTE / CTO"
-        count={zoneFilteredPlants.filter(p => p.cteCertified && p.ctoCertified).length}
-        icon={<LayoutDashboard size={20} />}
-        active={false}
-        onClick={() => setSelectedCard("CTE")}
-      />
-    </>
-  ) : (
-    <>
-      {/* CTE */}
-      <StatCard
-        title="CTE"
-        count={counts.cteCertified}
-        icon={<CheckCircle size={20} />}
-        active={selectedCard === "CTE"}
-        onClick={() => setSelectedCard("CTE")}
-      />
-
-      {/* CTO */}
-      <StatCard
-        title="CTO"
-        count={counts.ctoCertified}
-        icon={<CheckCircle size={20} />}
-        active={selectedCard === "CTO"}
-        onClick={() => setSelectedCard("CTO")}
-      />
-
-      {/* ⭐ NEW COMBINED CARD */}
-      <StatCard
-        title="CTE / CTO"
-        count={zoneFilteredPlants.filter(p => p.cteCertified && p.ctoCertified).length}
-        icon={<LayoutDashboard size={20} />}
-        active={selectedCard === "CTE/CTO"}
-        onClick={() => setSelectedCard("CTE/CTO")}
-      />
-
-      {/* BACK */}
-      <StatCard
-        title="← Back"
-        count=""
-        icon={<LayoutDashboard size={20} />}
-        active={false}
-        onClick={() => setSelectedCard("ALL")}
-      />
-    </>
-  )}
 </div>
 
       {/* TABLE */}
-      <div className="bg-white rounded-xl border overflow-x-auto p-4">
+      <div className="bg-white rounded-xl border overflow-x-auto mt-7 p-4">
 <div className="flex items-center justify-between mb-3 gap-4">
   {/* LEFT: HEADING + BACK */}
   <div className="flex items-center gap-3">
@@ -1194,6 +1104,7 @@ const handleReset = () => {
   </>
 )}
           {selectedCard === "CAMERA" && "Cameras Configured"}
+          {selectedCard === "ESSL" && "ESSL Device"}
         </th>
 
         <th className="border p-2 text-center">
@@ -1276,6 +1187,7 @@ const handleReset = () => {
             {selectedCard === "GPS" &&
   (gpsDataMap[p.plantID]?.gpsStatus ? "YES" : "NO")}
             {selectedCard === "CAMERA" && (p.cameraConfigurationDate ? "YES" : "NO")}
+            {selectedCard === "ESSL" && (p.esslDevice ? "YES" : "NO")}
           </td>
 
           <td className="border p-2 text-center">
@@ -1309,7 +1221,10 @@ const handleReset = () => {
     : "-")}
 
             {selectedCard === "CAMERA" &&
-              (p.cameraConfigurationDate ? formatDate(p.cameraConfigurationDate) : "-")}    
+              (p.cameraConfigurationDate ? formatDate(p.cameraConfigurationDate) : "-")}   
+
+              {selectedCard === "ESSL" &&
+  (p.esslDeviceDate ? formatDate(p.esslDeviceDate) : "-")} 
           </td>
         </>
       )}

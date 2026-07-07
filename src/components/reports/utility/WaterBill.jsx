@@ -38,6 +38,7 @@ const WaterBill = () => {
 const [plants, setPlants] = useState([]);
 const [waterBill, setWaterBill] = useState([]);
 const [selectedZone, setSelectedZone] = useState("ALL");
+const [selectedPhase, setSelectedPhase] = useState("ALL");
 const [dateRange, setDateRange] = useState({ from: "", to: "" });
 const [dateError, setDateError] = useState("");
 const [waterTypes, setWaterTypes] = useState([]);
@@ -85,14 +86,30 @@ const zones = useMemo(() => {
   ];
 }, [plants]);
 
-const filteredWaterBill =
-  selectedZone === "ALL"
-    ? waterBill
-    : waterBill.filter(
-        p =>
-          String(p.zones).toLowerCase().trim() ===
-          selectedZone.toLowerCase().trim()
-      );
+const phases = useMemo(() => {
+  const clean = plants
+    .map((p) => p.plantPhase)
+    .filter((p) => p !== null && p !== undefined);
+
+  return [
+    "ALL",
+    ...[...new Set(clean)].sort((a, b) => Number(a) - Number(b)),
+  ];
+}, [plants]);
+
+const filteredWaterBill = waterBill.filter((p) => {
+
+  const zoneMatch =
+    selectedZone === "ALL" ||
+    String(p.zones) === String(selectedZone);
+
+  const phaseMatch =
+    selectedPhase === "ALL" ||
+    String(p.plantPhase) === String(selectedPhase);
+
+  return zoneMatch && phaseMatch;
+
+});
 const finalData = filteredWaterBill
   // WATER TYPE FILTER
   .filter(p => {
@@ -676,7 +693,32 @@ ws.columns.forEach((column) => {
       </select>
     </div>
   </div>
+<div>
+  <label className="text-[10px] font-bold text-slate-500 uppercase">
+    Phase
+  </label>
 
+  <div className="flex items-center gap-2 mt-1">
+    <Filter size={16} />
+
+    <select
+      value={selectedPhase}
+      onChange={(e) => setSelectedPhase(e.target.value)}
+      className="border p-2 rounded text-xs"
+    >
+      {phases.map((phase) => (
+        <option
+          key={phase}
+          value={phase}
+        >
+          {phase === "ALL"
+            ? "All Phases"
+            : `Phase ${phase}`}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
 <div>
     <label className="text-[10px] font-bold text-slate-500 uppercase">Water Type</label>
       <div className="flex items-center gap-2 mt-1">

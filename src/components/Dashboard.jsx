@@ -14,8 +14,12 @@ import VehicleDashboard from "./dashboardPages/VehicleDashboard";
 import { getAllPlants } from "../services/plantService";
 import { getOperationsByDate } from "../services/operationService";
 import { getVehicleOperationsByDate } from "../services/vehicleService";
-import {  getEmployeesByPlant , getEmployeeOperationsByDate } from "../services/employeeService";
-
+import { calculateAttendanceKpis } from '../components/attendanceUtils';
+import {
+  getEmployeesByPlant,
+  getEmployeeOperationsByDate,
+  getEmployeeOperationsByDateRangeFull
+} from '../services/employeeService';
 
 const formatValue = (val) => {
   if (val === null || val === undefined) return "-";
@@ -135,7 +139,7 @@ const TelemetryRow = ({ leftLabel, leftValue, leftUnit, rightLabel, rightValue, 
 );
 
 // ================= MAIN DASHBOARD COMPONENT =================
-export default function Dashboard({ isDark, date, zone, setZones }) {
+export default function Dashboard({ isDark, date, zone, setZones}) {
   const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -286,54 +290,74 @@ if (operation.polymerStock != null) {
           }
           totalTrips += Number(v.vehicleOp?.noOfTrips || 0);
         });
-// Attendance
 
-// 🔹 1. FIRST fetch attendance
-const attData = await getEmployeeOperationsByDate(selectedDate);
 
-// 🔹 2. THEN fetch employees
-const employeePromises = [...plantIds].map(id => getEmployeesByPlant(id));
-const employeeResults = await Promise.all(employeePromises);
+        // 🔥 FETCH ATTENDANCE DATA
+const attendanceOps = await getEmployeeOperationsByDate(selectedDate);
 
-// 🔹 flatten
-let employees = employeeResults.flat().filter(Boolean);
+const employeesData = await Promise.all(
+  [...plantIds].map(id =>
+    getEmployeesByPlant(id).then(arr =>
+      arr.map(e => ({ ...e, plantId: id }))
+    )
+  )
+);
 
-// 🔹 remove duplicates
-const uniqueMap = new Map();
-employees.forEach(emp => {
-  uniqueMap.set(emp.employeeId, emp);
+const employees = employeesData.flat();
+
+const historyOps = await getEmployeeOperationsByDateRangeFull(selectedDate, selectedDate);
+
+// 🔥 CALCULATE
+const attendanceResult = calculateAttendanceKpis({
+   plants: filteredPlants,
+  employees,
+  attendanceOps,
+  historyOps,
+  date: selectedDate,
+  zone
 });
-const uniqueEmployees = Array.from(uniqueMap.values());
 
-// 🔹 selected date
-const selectedISO = new Date(selectedDate).toISOString().split("T")[0];
+const totalEmployees = attendanceResult.totalEmployees;
+const totalPresent = attendanceResult.totalPresent;
+const totalAbsent = attendanceResult.totalAbsent;
 
 // 🔹 TOTAL EMPLOYEES (based on selected date)
-const totalEmployees = uniqueEmployees.filter(emp => {
-  if (!emp.dateOfJoining) return false;
+// const totalEmployees = uniqueEmployees.filter(emp => {
+//   if (!emp.dateOfJoining) return false;
 
-  const joiningISO = new Date(emp.dateOfJoining).toISOString().split("T")[0];
+//   const joiningISO = new Date(emp.dateOfJoining).toISOString().split("T")[0];
 
-  return joiningISO <= selectedISO;
-}).length;
+//   return joiningISO <= selectedISO;
+// }).length;
 
-// 🔹 3. THEN calculate present
-let presentUnits = 0;
+// // 🔹 3. THEN calculate present
+// let presentUnits = 0;
 
-attData.forEach((a) => {
-  if (!plantIds.has(String(a.plantId))) return;
+// attData.forEach((a) => {
+//   if (!plantIds.has(String(a.plantId))) return;
 
-  const am = a.plantOp?.attendanceAm;
-  const pm = a.plantOp?.attendancePm;
+//   const am = a.plantOp?.attendanceAm;
+//   const pm = a.plantOp?.attendancePm;
 
-  if (am && pm) presentUnits += 1;
-  else if (am || pm) presentUnits += 0.5;
-});
+//   if (am && pm) presentUnits += 1;
+//   else if (am || pm) presentUnits += 0.5;
+// });
 
 // 🔹 FINAL
-const totalAttendance = `${presentUnits}/${totalEmployees}`;
+// const totalAttendance = `${presentUnits}/${totalEmployees}`;
+// 🔹 Attendance SIMPLE (NO LOGIC)
 
- 
+// 1. Fetch attendance
+// const attData = await getEmployeeOperationsByDate(selectedDate);
+
+// // 2. Fetch employees (only for total count)
+// const employeePromises = [...plantIds].map(id => getEmployeesByPlant(id));
+// const employeeResults = await Promise.all(employeePromises);
+
+// const employees = employeeResults.flat().filter(Boolean);
+
+
+
         setKpis({
           totalPlants, totalVehicles,  permanentPowerCount,    mnitCount,  solarCount, internetCount,codbodCount,
           totalReceived, totalProcessed, totalTank, totalBiochar,
@@ -343,7 +367,9 @@ const totalAttendance = `${presentUnits}/${totalEmployees}`;
             totalProcessed / permanentPowerCount),
          avgBiochar: (totalBiochar / permanentPowerCount).toFixed(1),
          
-          totalAttendance: `${presentUnits}/${totalEmployees}`,
+            totalPresent,
+  totalEmployees,
+  totalAbsent,
           totalRunHours,
           totalPowerImport: totalPowerImport.toFixed(2),
           totalSolarExport: totalSolarExport.toFixed(2),
@@ -374,12 +400,12 @@ const totalAttendance = `${presentUnits}/${totalEmployees}`;
 }
     };
     fetchDashboardData();
-  }, [date, zone]);
+}, [date, zone]); // ✅ FIX
 
-  const present = kpis?.totalAttendance ? Number(kpis.totalAttendance.split("/")[0]) : 0;
-  const totalAtt = kpis?.totalAttendance ? Number(kpis.totalAttendance.split("/")[1]) : 0;
-  const absent = Math.max(totalAtt - present, 0);
-  const attendancePercent = totalAtt > 0 ? Math.round((present / totalAtt) * 100) : 0;
+const present = kpis?.totalPresent?.toFixed(1) || "0.0";
+const total = kpis?.totalEmployees || 0;
+const absent = kpis?.totalAbsent?.toFixed(1) || "0.0";
+  const attendancePercent = total > 0 ? Math.round((present / total) * 100) : 0;
 
  if (loading) {
   return (
@@ -418,7 +444,6 @@ if (error) {
 if (!kpis) return null;
 
 
-  
   return (
     <div
   className={`p-6 min-h-screen transition-all ${
@@ -543,7 +568,7 @@ if (!kpis) return null;
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <SludgeDashboard kpis={kpis} isDark={isDark} cardClass={cardClass} Metric={Metric} AverageRow={AverageRow} formatValue={formatValue} />
         <div className={`p-8 rounded-[3rem] border transition-all ${isDark ? "bg-slate-900/70 border-slate-800" : "bg-white border-slate-200"}`}>
-          <AttendanceDashboard attendancePercent={attendancePercent} present={present} absent={absent} total={totalAtt} isDark={isDark} />
+          <AttendanceDashboard attendancePercent={attendancePercent} present={present} absent={absent} total={total} isDark={isDark} />
         </div>
       </section>
 

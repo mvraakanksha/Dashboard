@@ -47,6 +47,7 @@ const DgReport = () => {
   const [operations, setOperations] = useState([]);
 
   const [selectedZone, setSelectedZone] = useState("ALL");
+  const [selectedPhase, setSelectedPhase] = useState("ALL");
 const [previewMode, setPreviewMode] = useState(false);
   const today = new Date().toISOString().split("T")[0];
 const [selectedPlantIds, setSelectedPlantIds] = useState([]);
@@ -109,6 +110,21 @@ const [dgFilter, setDgFilter] = useState("ALL");
 
   }, [plants]);
 
+
+  /* ================= PHASES ================= */
+const phases = useMemo(() => {
+
+  const clean = plants
+    .map((p) => p.plantPhase)
+    .filter((p) => p !== null && p !== undefined);
+
+  return [
+    "ALL",
+    ...[...new Set(clean)].sort((a, b) => Number(a) - Number(b))
+  ];
+
+}, [plants]);
+
   /* ================= MERGE DATA ================= */
 
   const mergedData = useMemo(() => {
@@ -163,11 +179,19 @@ const finalData = useMemo(() => {
 
   let data = mergedData;
 
-  if (selectedZone !== "ALL") {
-    data = data.filter(
-      p => String(p.zones) === String(selectedZone)
-    );
-  }
+data = data.filter((p) => {
+
+  const zoneMatch =
+    selectedZone === "ALL" ||
+    String(p.zones) === String(selectedZone);
+
+  const phaseMatch =
+    selectedPhase === "ALL" ||
+    String(p.plantPhase) === String(selectedPhase);
+
+  return zoneMatch && phaseMatch;
+
+});
 
   const plantMap = {};
 
@@ -215,9 +239,19 @@ const finalData = useMemo(() => {
 const overview = useMemo(() => {
 
   // plants filtered by zone
-  const zonePlants = plants.filter(p =>
-    selectedZone === "ALL" || String(p.zones) === String(selectedZone)
-  );
+ const zonePlants = plants.filter((p) => {
+
+  const zoneMatch =
+    selectedZone === "ALL" ||
+    String(p.zones) === String(selectedZone);
+
+  const phaseMatch =
+    selectedPhase === "ALL" ||
+    String(p.plantPhase) === String(selectedPhase);
+
+  return zoneMatch && phaseMatch;
+
+});
 
   const plantSet = new Set(zonePlants.map(p => p.plantID));
 
@@ -250,7 +284,7 @@ const overview = useMemo(() => {
     { label: "Diesel Consumed %", value: diesel }
   ];
 
-}, [plants, mergedData, selectedZone]);
+}, [plants, mergedData, selectedZone, selectedPhase]);
   /* ================= DATE LIST ================= */
 
   const dates = useMemo(() => {
@@ -276,9 +310,19 @@ const overview = useMemo(() => {
   /* ================= GROUP BY PLANT ================= */
 const plantDateMap = useMemo(() => {
 
-  let basePlants = plants.filter(p =>
-    selectedZone === "ALL" || String(p.zones) === String(selectedZone)
-  );
+let basePlants = plants.filter((p) => {
+
+  const zoneMatch =
+    selectedZone === "ALL" ||
+    String(p.zones) === String(selectedZone);
+
+  const phaseMatch =
+    selectedPhase === "ALL" ||
+    String(p.plantPhase) === String(selectedPhase);
+
+  return zoneMatch && phaseMatch;
+
+});
 
   // apply preview filter
   if (previewMode && selectedPlantIds.length > 0) {
@@ -335,7 +379,16 @@ const plantDateMap = useMemo(() => {
 
   });
 
-}, [plants, mergedData, dates, selectedZone, previewMode, selectedPlantIds, dgFilter]);
+}, [
+  plants,
+  mergedData,
+  dates,
+  selectedZone,
+  selectedPhase,
+  previewMode,
+  selectedPlantIds,
+  dgFilter
+]);
 
   /* ================= EXPORT EXCEL ================= */
 
@@ -716,6 +769,32 @@ className="border p-2 rounded text-xs"
 ))}
 </select>
 </div>
+</div>
+<div>
+  <label className="text-xs font-bold">
+    Phase
+  </label>
+
+  <div className="flex gap-2 mt-1">
+    <Filter size={16} />
+
+    <select
+      value={selectedPhase}
+      onChange={(e) => setSelectedPhase(e.target.value)}
+      className="border p-2 rounded text-xs"
+    >
+      {phases.map((phase) => (
+        <option
+          key={phase}
+          value={phase}
+        >
+          {phase === "ALL"
+            ? "All Phases"
+            : `Phase ${phase}`}
+        </option>
+      ))}
+    </select>
+  </div>
 </div>
 <div>
 <label className="text-xs font-bold">DG Usage</label>

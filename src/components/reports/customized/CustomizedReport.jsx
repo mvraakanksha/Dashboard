@@ -89,7 +89,7 @@ vehicle: {
     ],
   },
   pellets: {
-    label: "Pellets",
+    label: "Stock",
     options: [
       { id: "pelletsUsed", label: "Pellets Used (Kg)" },
       { id: "pelletsStock", label: "Pellets Stock (Kg)" },
@@ -149,7 +149,7 @@ vehicle: {
     ],
   },
   pellets: {
-    label: "Pellets",
+    label: "Stock",
     dataKey: "inventory",
     options: [
       { id: "pelletsUsed", label: "Pellets Used (Kg)" },
@@ -292,19 +292,19 @@ const sumSinglePlantVehicleMetric = (plantRow, dates, metric) => {
 
 
 const getTopVehiclesForPlant = (plantRow, dates) => {
-  const usage = {};
+  const vehicles = [];
 
   dates.forEach(d => {
     plantRow.values?.[d]?.vehicleRows?.forEach(v => {
-      const key = normalizeVehicleNo(v.vehicleNo);
-      usage[key] = (usage[key] || 0) + (Number(v.distance) || 0);
+      const vn = normalizeVehicleNo(v.vehicleNo);
+
+      if (vn && !vehicles.includes(vn)) {
+        vehicles.push(vn);
+      }
     });
   });
 
-  return Object.entries(usage)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2)
-    .map(([v]) => v);
+  return vehicles.slice(0, 2); // ✅ FIXED ORDER (NO SORT)
 };
 
 const sumVehicleMetricForDateAllPlants = (rows, date, metric) => {
@@ -1955,12 +1955,17 @@ const overviewTotals = useMemo(() => {
       </td>
 
       {/* Non-vehicle totals */}
-      {nonVehicleMetrics.map(m => {
-const shouldExclude =
-  (m.module === "lab" && m.metric !== "cumulativeFlow") ||
-  m.metric === "tankLevel" ||
-  m.metric.toLowerCase().includes("stock");
+{nonVehicleMetrics.map(m => {
 
+  const isLab =
+    m.module === "lab" && m.metric !== "cumulativeFlow";
+
+  const isTankLevel = m.metric === "tankLevel";
+
+  const isStock =
+    m.metric?.toLowerCase()?.includes("stock");
+
+  const shouldExclude = isLab || isTankLevel || isStock;
 
   return (
     <td key={m.metric} className="border p-2 text-center">
@@ -2149,7 +2154,20 @@ const shouldExclude =
 
     .flatMap(m => {
    if (m.module === "vehicle") {
-const [pV1, pV2] = getTopVehiclesForPlant(r, dates);
+    
+let masterRows = [];
+
+for (const d of dates) {
+  const rowsForDate = r.values?.[d]?.vehicleRows || [];
+
+  if (rowsForDate.length > 0) {
+    masterRows = rowsForDate;
+    break;
+  }
+}
+
+const pV1 = masterRows[0]?.vehicleNo;
+const pV2 = masterRows[1]?.vehicleNo;
 
 const v1Value = sumVehicleMetricBySlot(r, dates, m.metric, pV1);
 const v2Value = sumVehicleMetricBySlot(r, dates, m.metric, pV2);
@@ -2255,7 +2273,22 @@ const v2Value = sumVehicleMetricBySlot(r, dates, m.metric, pV2);
     let v2Total = 0;
 
     rows.forEach(r => {
-      const [pV1, pV2] = getTopVehiclesForPlant(r, dates);
+      const firstDate = dates[0];
+
+let masterRows = [];
+
+for (const d of dates) {
+  const rowsForDate = r.values?.[d]?.vehicleRows || [];
+
+  if (rowsForDate.length > 0) {
+    masterRows = rowsForDate;
+    break;
+  }
+}
+
+//exchnaged
+const pV1 = masterRows[0]?.vehicleNo;
+const pV2 = masterRows[1]?.vehicleNo;
 
       v1Total += sumVehicleMetricBySlot(r, dates, m.metric, pV1);
       v2Total += sumVehicleMetricBySlot(r, dates, m.metric, pV2);

@@ -277,12 +277,12 @@ useEffect(() => {
           <Routes>
             <Route
               path="/"
-              element={<Dashboard isDark={isDark} date={date} zone={zone}  setZones={setZones} />}
+              element={<Dashboard isDark={isDark} date={date} zone={zone}  setZones={setZones}  />}
             />
 
 
               <Route path="/sludge-report" element={<SludgeReports date={date} zone={zone}  setZones={setZones}  />} />
-              <Route path="/attendance" element={<Attendance date={date} zone={zone} />} />
+              <Route path="/attendance" element={<Attendance date={date} zone={zone}   />} />
               <Route path="/vehicle" element={<Vehicle date={date} zone={zone} />} />
               <Route path="/power" element={<Power date={date} zone={zone} />} />
               <Route path="/pellets" element={<Pellets date={date} zone={zone} />} />
@@ -343,6 +343,7 @@ useEffect(() => {
                 <Route path="attendance" element={<AttendanceReport/>} />
                    <Route path="water" element={<WaterReport/>} />
                    <Route path="performance" element={<Performance/>} />
+                   
                       <Route path="utility" element={<Utility/>} />
                       <Route path="discom" element={<Discom/>} />
                         <Route path="employee" element={<EmployeeDetails/>} />

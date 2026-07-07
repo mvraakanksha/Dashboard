@@ -288,64 +288,52 @@ const filteredPlants = useMemo(() => {
 
   if (!plants.length) return;
 
-  const fetchData = async () => {
+const fetchData = async () => {
 
-    const billMap = {};
-    const opsMap = {};
+  const billMap = {};
 
-    const selectedMonth = new Date(month + "-01").getMonth();
+  const selectedDate = new Date(month + "-01");
+  const selectedMonth = selectedDate.getMonth();
+  const selectedYear = selectedDate.getFullYear();
 
-    await Promise.all(
+  await Promise.all(
+    plants.map(async (p) => {
 
-      plants.map(async (p) => {
+      try {
+        const bills = await getPowerBillDetailsByPlant(p.plantID);
+        if (!bills?.length) return;
 
-        try {
+        const matchedBill = bills.find((b) => {
+          const d = new Date(b.lastBillDate);
 
-          const bills = await getPowerBillDetailsByPlant(p.plantID);
-          if (!bills?.length) return;
+          // 🔥 BILL MONTH belongs to PREVIOUS month consumption
+          const consumptionMonth = (d.getMonth() - 1 + 12) % 12;
+          const consumptionYear =
+            d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear();
 
-          const sorted = [...bills].sort(
-            (a,b)=> new Date(a.lastBillDate) - new Date(b.lastBillDate)
+          return (
+            consumptionMonth === selectedMonth &&
+            consumptionYear === selectedYear
           );
+        });
 
-          for (let i=1;i<sorted.length;i++) {
+        if (matchedBill) {
+          billMap[p.plantID] = {
+            ...matchedBill,
+            startDate: "-", // optional
+            endDate: matchedBill.lastBillDate
+          };
+        }
 
-            const prev = sorted[i-1];
-            const curr = sorted[i];
+      } catch (e) {
+        console.error(e);
+      }
 
-            const billMonth = new Date(curr.lastBillDate).getMonth();
+    })
+  );
 
-            if (billMonth === selectedMonth + 1) {
-
-              const start = prev.lastBillDate;
-              const end = curr.lastBillDate;
-
-              billMap[p.plantID] = {
-                ...curr,
-                startDate: start,
-                endDate: end
-              };
-
-              const ops = await getOperationsByDateRange(start,end);
-
-              opsMap[p.plantID] = ops?.filter(
-                o => o.plantId === p.plantID
-              ) || [];
-
-              break;
-            }
-
-          }
-
-        } catch(e){}
-
-      })
-    );
-
-    setPowerBills(billMap);
-    setOperationsMap(opsMap);
-
-  };
+  setPowerBills(billMap);
+};
 
   fetchData();
 
@@ -419,58 +407,57 @@ const aggregated = useMemo(() => {
 
   /* ================= FETCH POWER BILLS ================= */
 
-useEffect(() => {
-  if (!plants.length) return;
+// useEffect(() => {
+//   if (!plants.length) return;
 
-  const fetchBills = async () => {
+//   const fetchBills = async () => {
 
-    const map = {};
+//     const map = {};
 
-    const selected = new Date(month + "-01");
+//     const selected = new Date(month + "-01");
 
-    /* next month start */
-    const start = new Date(selected);
-    start.setMonth(start.getMonth() + 1);
-    start.setDate(1);
+//     /* next month start */
+// const start = new Date(selected);
+// start.setMonth(start.getMonth() + 1);
+// start.setDate(1);
 
-    /* next month 15 */
-    const end = new Date(selected);
-    end.setMonth(end.getMonth() + 1);
-    end.setDate(15);
+// const end = new Date(selected);
+// end.setMonth(end.getMonth() + 2);
+// end.setDate(0); // full next month
 
-    await Promise.all(
-      plants.map(async (p) => {
+//     await Promise.all(
+//       plants.map(async (p) => {
 
-        try {
+//         try {
 
-          const res = await getPowerBillDetailsByPlant(p.plantID);
+//           const res = await getPowerBillDetailsByPlant(p.plantID);
 
-          if (!res?.length) return;
+//           if (!res?.length) return;
 
-          const bill = res.find((b) => {
+//           const bill = res.find((b) => {
 
-            const d = new Date(b.lastBillDate);
+//             const d = new Date(b.lastBillDate);
 
-            return d >= start && d <= end;
+//             return d >= start && d <= end;
 
-          });
+//           });
 
-          if (bill) {
-            map[p.plantID] = bill;
-          }
+//           if (bill) {
+//             map[p.plantID] = bill;
+//           }
 
-        } catch {}
+//         } catch {}
 
-      })
-    );
+//       })
+//     );
 
-    setPowerBills(map);
+//     setPowerBills(map);
 
-  };
+//   };
 
-  fetchBills();
+//   fetchBills();
 
-}, [plants, month]);
+// }, [plants, month]);
   /* ================= AGGREGATE POWER ================= */
 
 // const aggregated = useMemo(() => {

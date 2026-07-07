@@ -13,6 +13,8 @@ title:"Plant Info",
 fields:[
 { id:"stateCode", label:"State" },
 { id:"district", label:"District" },
+{ id:"plantPhase", label:"Phase" },
+
 { id:"waterType", label:"Water Type" },
 { id:"headquarterName", label:"Headquarter" },
 { id:"wardNo", label:"Ward No" },
@@ -65,6 +67,11 @@ fields:[
 { id:"tabImeiNo", label:"Tab IMEI No" },
 { id:"tabMake", label:"Tab Make" },
 { id:"ipPhoneDate", label:"Ip Phone Received Date" },
+
+{ id:"esslDevice", label:"ESSL Device Status" },
+{ id:"esslDeviceDate", label:"ESSL Device Date" },
+
+
 { id:"cameraConfigurationDate", label:"Camera Configuration Date" },
 ]
 },
@@ -195,6 +202,7 @@ export default function PlantSelection({onGenerate,config}){
 const [plants,setPlants]=useState([]);
 const [selectedPlants,setSelectedPlants]=useState([]);
 const [zoneFilter,setZoneFilter]=useState("All");
+const [phaseFilter,setPhaseFilter]=useState("All");
 
 const [modules,setModules]=useState({plant:true,vehicle:false,employee:false});
 const [enabledGroups,setEnabledGroups] = useState({plant:true});
@@ -221,24 +229,39 @@ const zones = useMemo(()=>{
     .sort((a,b)=>Number(a)-Number(b));
 },[plants]);
 
+const phases = useMemo(() => {
+  return [...new Set(
+    plants
+      .map(p => p.plantPhase)
+      .filter(p => p !== null && p !== undefined)
+  )].sort((a, b) => Number(a) - Number(b));
+}, [plants]);
+
 const toggle=(list,setList,id)=>setList(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
 /* ===== VISIBLE PLANTS (zone filtered) ===== */
 const visiblePlants = useMemo(() => {
   return plants.filter(p => {
-    const zoneMatch =
-      zoneFilter === "All" || String(p.zones) === zoneFilter;
 
-    const statusValue = p.permanentPower; // 👈 CHANGE FIELD if needed
+    const zoneMatch =
+      zoneFilter === "All" ||
+      String(p.zones) === zoneFilter;
+
+    const phaseMatch =
+      phaseFilter === "All" ||
+      String(p.plantPhase) === phaseFilter;
+
+    const statusValue = p.permanentPower;
 
     const statusMatch =
       statusFilter === "All" ||
       (statusFilter === "Yes" && statusValue === true) ||
       (statusFilter === "No" && statusValue === false);
 
-    return zoneMatch && statusMatch;
+    return zoneMatch && phaseMatch && statusMatch;
+
   });
-}, [plants, zoneFilter, statusFilter]);
+}, [plants, zoneFilter, phaseFilter, statusFilter]);
 
 /* ===== SELECT ALL LOGIC ===== */
 const allSelected =
@@ -343,6 +366,7 @@ useEffect(()=>{
 },[
   selectedPlants,
   zoneFilter,
+    phaseFilter,
   modules,
   selPlantFields,
   selVehicleFields,
@@ -352,9 +376,16 @@ useEffect(()=>{
 
 
 const generate = () => {
-  const filteredPlants = plants
-    .filter(p => selectedPlants.includes(p.plantID))
-    .filter(p => zoneFilter === "All" || String(p.zones) === zoneFilter);
+ const filteredPlants = plants
+  .filter(p => selectedPlants.includes(p.plantID))
+  .filter(p =>
+    zoneFilter === "All" ||
+    String(p.zones) === zoneFilter
+  )
+  .filter(p =>
+    phaseFilter === "All" ||
+    String(p.plantPhase) === phaseFilter
+  );
 
   onGenerate({
     plants: filteredPlants,
@@ -655,8 +686,21 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
     ))}
   </select>
 
+<select
+  value={phaseFilter}
+  onChange={e => setPhaseFilter(e.target.value)}
+  className="border px-4 py-2 rounded-xl"
+>
+  <option value="All">All Phases</option>
+
+  {phases.map((phase) => (
+    <option key={phase} value={String(phase)}>
+      Phase {phase}
+    </option>
+  ))}
+</select>
   {/* STATUS FILTER */}
-  <select
+  {/* <select
     value={statusFilter}
     onChange={e => setStatusFilter(e.target.value)}
     className="border px-4 py-2 rounded-xl"
@@ -664,7 +708,7 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
     <option value="All">All Status</option>
     <option value="Yes">Yes</option>
     <option value="No">No</option>
-  </select>
+  </select> */}
 
 </div>
     
@@ -672,7 +716,7 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
 <div className="flex items-center gap-3">
 
   {/* STATUS FILTER */}
-  <select
+  {/* <select
     value={previewStatusFilter}
     onChange={(e) => setPreviewStatusFilter(e.target.value)}
     className="border px-3 py-2 rounded-lg text-sm"
@@ -680,7 +724,7 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
     <option value="All">All Status</option>
     <option value="Yes">Yes Only</option>
     <option value="No">No Only</option>
-  </select>
+  </select> */}
 
   {/* PDF */}
   <button

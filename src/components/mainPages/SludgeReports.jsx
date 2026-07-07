@@ -575,8 +575,8 @@ const downloadExcel = async (type) => {
 </div>
 
   <div className="flex items-center gap-3">
-    {/* MODE TOGGLE */}
-    <div className="flex p-1 rounded-lg bg-slate-100">
+    {/* MODE TOGGLE  #bdb3b3 */}
+    <div className="flex p-1 rounded-lg bg-slate-100 text-white">
       <button
         onClick={() => setReceivedMode("received")}
         className={`px-4 py-1.5 text-xs font-bold rounded-md ${

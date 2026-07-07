@@ -131,6 +131,33 @@ const formatValue = (value, key) => {
   return Number(num).toLocaleString("en-IN");
 };
 
+const getUnit = (key) => {
+  switch (key) {
+    case "sludgeReceived":
+    case "sludgeProcessed":
+    case "cumulativeFlow":
+      return "L";
+
+    case "biochar":
+    case "pelletsUsed":
+    case "polymerUsed":
+      return "Kg";
+
+    case "importPower":
+    case "solarPower":
+      return "Kwh";
+
+    case "runHours":
+      return "Hrs";
+
+    case "totalDistance":
+      return "Km";
+
+    default:
+      return "";
+  }
+};
+
 const DateRangeTooltip = ({ active, payload, label, module }) => {
   if (!active || !payload || payload.length === 0) return null;
 
@@ -170,7 +197,8 @@ if (!row) return null;
                 className="font-bold"
                 style={{ color: p.fill }}
               >
-                {formatValue(p.value, p.dataKey)}
+               {formatValue(p.value, p.dataKey)} {getUnit(p.dataKey)}
+
               </span>
             </div>
           );

@@ -106,10 +106,12 @@ const displayDate = (d) => {
 const TopBarLabel = ({ x, y, width, value, mode }) => {
   if (value === null || value === undefined || value === 0) return null;
 
-  const display =
-    mode === "temp_ph"
-      ? Number(value).toFixed(1)
-      : Number(value).toFixed(0);
+const display =
+  mode === "flow"
+    ? formatIndianNumber(value, 2)
+    : mode === "temp_ph"
+    ? Number(value).toFixed(1)
+    : Number(value).toFixed(0);
 
   return (
     <text
@@ -227,6 +229,48 @@ const DateTick = ({ x, y, payload }) => {
   );
 };
 
+const LabTooltip = ({ active, payload, type }) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+
+  const fmt = (v) => Number(v || 0).toFixed(1);
+
+  return (
+    <div className="bg-white border rounded shadow-md p-2 text-xs">
+      <p className="font-bold text-blue-900">
+        {d.label}
+      </p>
+
+      {type === "cod_bod" && (
+        <>
+          <p>COD: {fmt(d.cod)} mg/L</p>
+          <p>BOD: {fmt(d.bod)} mg/L</p>
+        </>
+      )}
+
+      {type === "tn_tss" && (
+        <>
+          <p>TN: {fmt(d.tn)} mg/L</p>
+          <p>TSS: {fmt(d.tss)} mg/L</p>
+        </>
+      )}
+
+      {type === "temp_ph" && (
+        <>
+          <p>Temperature: {fmt(d.temperature)} °C</p>
+          <p>pH: {fmt(d.ph)}</p>
+        </>
+      )}
+
+      {type === "flow" && (
+  <p>
+    Cumulative Flow :
+    <b> {formatIndianNumber(d.cumulativeFlow, 2)} L</b>
+  </p>
+)}
+    </div>
+  );
+};
 
 /* ================= PAGE ================= */
 export default function LabView() {
@@ -234,7 +278,7 @@ export default function LabView() {
   const navigate = useNavigate();
   const { search } = useLocation();
   const mode = new URLSearchParams(search).get("mode") || "cod_bod";
-
+const [secondGraph, setSecondGraph] = useState("cod_bod");
   const [fromDate, setFromDate] = useState(
     formatDate(subtractDays(new Date(), 10))
   );
@@ -296,6 +340,12 @@ useEffect(() => {
     : "100%";
 
   const yAxisConfig = getYAxisConfig(mode);
+const yAxisLabelMap = {
+  cod_bod: "COD / BOD (mg/L)",
+  tn_tss: "TN / TSS (mg/L)",
+  temp_ph: "Temperature (°C) / pH",
+  flow: "Cumulative Flow (L)",
+};
 
 
   const sum = (k) =>
@@ -314,7 +364,7 @@ useEffect(() => {
       </button>
 
       <h2 className="text-2xl font-bold text-blue-900 mb-6">
-        {decodeURIComponent(plantName)} — Day Wise Trend
+        PID: {decodeURIComponent(plantId)} - {decodeURIComponent(plantName)} — Day Wise Trend
       </h2>
 
       {/* KPI */}
@@ -326,7 +376,7 @@ useEffect(() => {
     {/* TOTAL FLOW */}
     <KPICard
       label="Total Flow"
-      value={sum("cumulativeFlow")}
+       value={formatIndianNumber(sum("cumulativeFlow"), 2)}
       unit="L"
       theme={theme.indigo}
       icon={<Droplets />}
@@ -335,7 +385,7 @@ useEffect(() => {
     {/* AVG FLOW */}
     <KPICard
       label="Avg Flow"
-      value={avg("cumulativeFlow")}
+      value={formatIndianNumber(avg("cumulativeFlow"), 2)}
       unit="L"
       theme={theme.blue}
       icon={<Droplets />}
@@ -410,74 +460,202 @@ useEffect(() => {
       </div>
 
       {/* CHART */}
-      <div className="bg-white rounded-xl shadow-xl p-6">
-        <div className={needsScroll ? "overflow-x-auto" : ""}>
-          <div style={{ width: chartWidth, height: 420 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={daywiseData}
-                margin={{ top: 40, right: 30, left: 70, bottom: 90 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-<XAxis
-  dataKey="date"
-  interval={0}
-  height={90}
-  tick={<DateTick />}
+   <div className="bg-white  rounded-xl shadow-xl p-6">
+
+  {/* 🔹 TOGGLE BUTTONS */}
+  <div className="flex justify-end mb-3">
+    
+    {/* TOGGLE BUTTONS */}
+    <div className="flex p-1 rounded-lg bg-slate-100 w-fit">
+
+      <button
+        onClick={() => setSecondGraph("cod_bod")}
+        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+          secondGraph === "cod_bod"
+            ? "bg-white text-emerald-600 shadow-sm"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+      >
+        COD & BOD
+      </button>
+
+      <button
+        onClick={() => setSecondGraph("tn_tss")}
+        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+          secondGraph === "tn_tss"
+            ? "bg-white text-emerald-600 shadow-sm"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+      >
+        TN & TSS
+      </button>
+
+      <button
+        onClick={() => setSecondGraph("temp_ph")}
+        className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+          secondGraph === "temp_ph"
+            ? "bg-white text-emerald-600 shadow-sm"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+      >
+        Temp & pH
+      </button>
+              <button
+    onClick={() => setSecondGraph("flow")}
+    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+      secondGraph === "flow"
+        ? "bg-white text-emerald-600 shadow-sm"
+        : "text-slate-500 hover:text-slate-700"
+    }`}
+  >
+    Flow
+  </button>
+    </div>
+
+    </div>
+  {/* 🔹 CHART */}
+  <div className={needsScroll ? "overflow-x-auto" : ""}>
+    <div style={{ width: chartWidth, height: 420 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={daywiseData}
+          margin={{ top: 40, right: 30, left: 70, bottom: 90 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+
+          <XAxis
+            dataKey="date"
+            interval={0}
+            height={90}
+            tick={<DateTick />}
+          />
+
+<YAxis
+  label={{
+    value: yAxisLabelMap[secondGraph],
+    angle: -90,
+    position: "insideLeft",
+    dy: 70,
+    style: { fill: "#1E3A8A", fontSize: 14, fontWeight: 600 },
+  }}
 />
 
+<Tooltip content={(p) => <LabTooltip {...p} type={secondGraph} />} />
 
+{secondGraph === "cod_bod" && (
+  <>
+    <Bar dataKey="cod" fill="#6AA6FF" barSize={28} label={<TopBarLabel mode={secondGraph} />} />
+    <Bar dataKey="bod" fill="#0047B3" barSize={28} label={<TopBarLabel mode={secondGraph} />} />
+  </>
+)}
 
-                <YAxis
-                  label={{
-                    value: yAxisConfig.label,
-                    angle: -90,
-                    position: "insideLeft",
-                    dy: 70,
-                    style: { fill: "#1E3A8A", fontSize: 14, fontWeight: 600 },
-                  }}
-                />
+{secondGraph === "tn_tss" && (
+  <>
+    <Bar dataKey="tn" fill="#885caf" barSize={28} label={<TopBarLabel mode={secondGraph} />} />
+    <Bar dataKey="tss" fill="#1a9cb3" barSize={28} label={<TopBarLabel mode={secondGraph} />} />
+  </>
+)}
 
-                <Tooltip content={<DaywiseTooltip mode={mode} />} />
+{secondGraph === "temp_ph" && (
+  <>
+    <Bar dataKey="temperature" fill="#FF9800" barSize={28} label={<TopBarLabel mode={secondGraph} />} />
+    <Bar dataKey="ph" fill="#9C27B0" barSize={28} label={<TopBarLabel mode={secondGraph} />} />
+  </>
+)}
 
-                {mode === "flow" && (
-                  <Bar
-                    dataKey="cumulativeFlow"
-                    fill="#2E7D32"
-                    barSize={28}
-                    label={<TopBarLabel mode={mode} />}
-                  />
-                )}
+{secondGraph === "flow" && (
+  <Bar
+    dataKey="cumulativeFlow"
+    fill="#2563EB"
+    barSize={28}
+    label={<TopBarLabel mode={secondGraph} />}
+  />
+)}
+          {/* <Tooltip content={<DaywiseTooltip mode={mode} />} />
 
-                {mode === "cod_bod" && (
-                  <>
-                    <Bar dataKey="cod" fill="#6AA6FF" barSize={28} label={<TopBarLabel mode={mode} />} />
-                    <Bar dataKey="bod" fill="#0047B3" barSize={28} label={<TopBarLabel mode={mode} />} />
-                  </>
-                )}
+          {mode === "flow" && (
+            <Bar
+              dataKey="cumulativeFlow"
+              fill="#2E7D32"
+              barSize={28}
+              label={<TopBarLabel mode={mode} />}
+            />
+          )}
 
-                {mode === "tn_tss" && (
-                  <>
-                    <Bar dataKey="tn" fill="#885caf" barSize={28} label={<TopBarLabel mode={mode} />} />
-                    <Bar dataKey="tss" fill="#1a9cb3" barSize={28} label={<TopBarLabel mode={mode} />} />
-                  </>
-                )}
+          {mode === "cod_bod" && (
+            <>
+              <Bar dataKey="cod" fill="#6AA6FF" barSize={28} label={<TopBarLabel mode={mode} />} />
+              <Bar dataKey="bod" fill="#0047B3" barSize={28} label={<TopBarLabel mode={mode} />} />
+            </>
+          )}
 
-                {mode === "temp_ph" && (
-                  <>
-                    <Bar dataKey="temperature" fill="#FF9800" barSize={28} label={<TopBarLabel mode={mode} />} />
-                    <Bar dataKey="ph" fill="#9C27B0" barSize={28} label={<TopBarLabel mode={mode} />} />
-                  </>
-                )}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+          {mode === "tn_tss" && (
+            <>
+              <Bar dataKey="tn" fill="#885caf" barSize={28} label={<TopBarLabel mode={mode} />} />
+              <Bar dataKey="tss" fill="#1a9cb3" barSize={28} label={<TopBarLabel mode={mode} />} />
+            </>
+          )}
 
-        <p className="text-center text-lg font-bold text-gray-700 mt-3">
-          Dates
-        </p>
-      </div>
+          {mode === "temp_ph" && (
+            <>
+              <Bar dataKey="temperature" fill="#FF9800" barSize={28} label={<TopBarLabel mode={mode} />} />
+              <Bar dataKey="ph" fill="#9C27B0" barSize={28} label={<TopBarLabel mode={mode} />} />
+            </>
+          )} */}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  </div>
+{/* LEGEND */}
+<div className="flex items-center justify-center gap-6 mt-4 text-[13px] font-semibold text-[#003f8a]">
+
+  {secondGraph === "cod_bod" && (
+    <>
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#6AA6FF] rounded-sm" />
+        COD
+      </span>
+
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#0047B3] rounded-sm" />
+        BOD
+      </span>
+    </>
+  )}
+
+  {secondGraph === "tn_tss" && (
+    <>
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#885cafff] rounded-sm" />
+        TN
+      </span>
+
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#1a9cb3ff] rounded-sm" />
+        TSS
+      </span>
+    </>
+  )}
+
+  {secondGraph === "temp_ph" && (
+    <>
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#FF9800] rounded-sm" />
+        Temperature
+      </span>
+
+      <span className="flex items-center gap-2">
+        <span className="w-3 h-3 bg-[#9C27B0] rounded-sm" />
+        pH
+      </span>
+    </>
+  )}
+
+</div>
+  <p className="text-center text-lg font-bold text-gray-700 mt-3">
+    Dates
+  </p>
+</div>
     </div>
   );
 }

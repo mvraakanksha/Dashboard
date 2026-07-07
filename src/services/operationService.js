@@ -74,8 +74,6 @@ export const getLabOperationsByDateRange = (
 };
 
 
-
-
 export const getLatestPowerBill = (plantId, date) => {
   if (!plantId || !date)
     throw new Error("Plant ID and Date are required");

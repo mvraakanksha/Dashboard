@@ -34,6 +34,7 @@ const VehicleFuel = () => {
   const [plants,setPlants] = useState([]);
   const [fuelData,setFuelData] = useState([]);
   const [selectedZone,setSelectedZone] = useState("ALL");
+  const [selectedPhase, setSelectedPhase] = useState("ALL");
   const [dateRange,setDateRange] = useState({from:"",to:""});
 const [billFilter, setBillFilter] = useState("ALL");
   /* FETCH PLANTS */
@@ -105,19 +106,38 @@ const [billFilter, setBillFilter] = useState("ALL");
 
 },[plants]);
 
+const phases = useMemo(() => {
+
+  const clean = plants
+    .map((p) => p.plantPhase)
+    .filter((p) => p !== null && p !== undefined);
+
+  return [
+    "ALL",
+    ...[...new Set(clean)].sort((a, b) => Number(a) - Number(b)),
+  ];
+
+}, [plants]);
+
   /* ZONE FILTER */
 
-  const filteredPlants = useMemo(()=>{
+const filteredPlants = useMemo(() => {
 
-    if(selectedZone === "ALL") return fuelData;
+  return fuelData.filter((p) => {
 
-    return fuelData.filter(p =>
-      String(p.zones || "")
-        .trim()
-        .toLowerCase() === selectedZone.toLowerCase()
-    );
+    const zoneMatch =
+      selectedZone === "ALL" ||
+      String(p.zones) === String(selectedZone);
 
-  },[fuelData,selectedZone]);
+    const phaseMatch =
+      selectedPhase === "ALL" ||
+      String(p.plantPhase) === String(selectedPhase);
+
+    return zoneMatch && phaseMatch;
+
+  });
+
+}, [fuelData, selectedZone, selectedPhase]);
 
 
 const calculateMileage = (records) => {
@@ -725,6 +745,32 @@ const exportPDF = async () => {
             </select>
           </div>
         </div>
+        <div>
+  <label className="text-xs font-bold">
+    Phase
+  </label>
+
+  <div className="flex gap-2 mt-1">
+    <Filter size={16} />
+
+    <select
+      value={selectedPhase}
+      onChange={(e) => setSelectedPhase(e.target.value)}
+      className="border p-2 rounded text-xs"
+    >
+      {phases.map((phase) => (
+        <option
+          key={phase}
+          value={phase}
+        >
+          {phase === "ALL"
+            ? "All Phases"
+            : `Phase ${phase}`}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
 <div>
   <label className="text-xs font-bold">Fuel Bills</label>
   <div className="flex gap-2 mt-1">
@@ -806,7 +852,7 @@ const exportPDF = async () => {
               <th className="border p-2 text-center">Fuel Filled Date</th>
               <th className="border p-2 text-center">Quantity (Liters)</th>
               <th className="border p-2 text-center">Odometer Reading</th>
-              <th className="border p-2 text-center">Mileage (Km/L)</th>
+              <th className="border p-2 text-center">Mileage (Km/L)</th> 
             </tr>
 
           </thead>

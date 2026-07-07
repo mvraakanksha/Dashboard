@@ -263,7 +263,7 @@ const getStockAlert = (value, materialType) => {
   if (value === 0) return "red";
 
   if (materialType === "pellets" && value <= 200) return "yellow";
-  if (materialType === "polymer" && value <= 15) return "yellow";
+  if (materialType === "polymer" && value <= 20) return "yellow";
 
   return null;
 };

@@ -15,6 +15,7 @@ export default function StockReport() {
   
  const [plants, setPlants] = useState([]); 
    const [zone, setZone] = useState("All");
+   const [phase, setPhase] = useState("All");
 //   const [selectedPlant, setSelectedPlant] = useState("All");
 const [selectedPlants, setSelectedPlants] = useState([]);
 
@@ -43,7 +44,13 @@ const [filters, setFilters] = useState({
     loadPlants();
   }, []);
 
-
+const phases = useMemo(() => {
+  return [...new Set(
+    plants
+      .map(p => p.plantPhase)
+      .filter(p => p !== null && p !== undefined)
+  )].sort((a, b) => Number(a) - Number(b));
+}, [plants]);
   /* ---------------- FETCH OPERATIONS ---------------- */
   useEffect(() => {
     if (!date) return;
@@ -133,26 +140,43 @@ useEffect(() => {
 
 /* ---------------- FILTERED PLANTS ---------------- */
 const filteredPlants = useMemo(() => {
-  if (zone === "All") return plants;
+  return plants.filter((p) => {
 
-  return plants.filter(
-    p => String(p.zones) === String(zone)
-  );
-}, [plants, zone]);
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
+
+    const phaseMatch =
+      phase === "All" ||
+      String(p.plantPhase) === String(phase);
+
+    return zoneMatch && phaseMatch;
+
+  });
+}, [plants, zone, phase]);
 
 useEffect(() => {
   if (!plants.length) return;
 
-  const ids =
-    zone === "All"
-      ? plants.map(p => p.plantID)
-      : plants
-          .filter(p => String(p.zones) === String(zone))
-          .map(p => p.plantID);
+  const ids = plants
+    .filter((p) => {
+
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const phaseMatch =
+        phase === "All" ||
+        String(p.plantPhase) === String(phase);
+
+      return zoneMatch && phaseMatch;
+
+    })
+    .map((p) => p.plantID);
 
   setSelectedPlants(ids);
 
-}, [plants, zone]);
+}, [plants, zone, phase]);
 
 /* ---------------- SELECT ALL CHECK ---------------- */
 const allSelected =
@@ -203,7 +227,7 @@ const finalFilteredData = useMemo(() => {
       if (
         filters.polymerLowStock &&
         row.polymerStock > 0 &&
-        row.polymerStock <= 10
+        row.polymerStock <= 20
       )
         match = true;
 
@@ -575,7 +599,28 @@ const resetFilters = () => {
           ))}
         </select>
       </div>
+<div>
+  <label className="text-[10px] font-bold uppercase">
+    Phase
+  </label>
 
+  <select
+    value={phase}
+    onChange={(e) => setPhase(e.target.value)}
+    className="border p-2 rounded text-xs mt-1"
+  >
+    <option value="All">All Phases</option>
+
+    {phases.map((p) => (
+      <option
+        key={p}
+        value={String(p)}
+      >
+        Phase {p}
+      </option>
+    ))}
+  </select>
+</div>
      <div className="flex items-center gap-3">
 
     {/* ================= generate and download report buttons ================= */}
@@ -732,7 +777,7 @@ const resetFilters = () => {
                   setFilters({ ...filters, polymerLowStock: e.target.checked })
                 }
               />
-              Low Stock (≤ 10 Kg)
+              Low Stock (≤ 20 Kg)
             </label>
           </div>
         )}
@@ -871,7 +916,7 @@ const resetFilters = () => {
     const polymerColor =
       row.polymerStock === 0
         ? "text-red-600"
-        : row.polymerStock !== null && row.polymerStock <= 10
+        : row.polymerStock !== null && row.polymerStock <= 20
         ? "text-yellow-600"
         : "text-green-600";
 

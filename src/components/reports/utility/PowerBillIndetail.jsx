@@ -162,44 +162,39 @@ const monthlyData = useMemo(() => {
   ];
 
   const base = months.map((m,i)=>({
-    month:m,
-    units:null,
-    amount:null,
-    billDate:null,
-    index:i
+    month: m,
+    units: null,
+    amount: null,
+    billDate: null,
+    index: i
   }));
 
-  if(!bills.length) return base;
+  if (!bills.length) return base;
 
-  const sorted = [...bills].sort(
-    (a,b)=> new Date(a.lastBillDate) - new Date(b.lastBillDate)
-  );
+  bills.forEach(b => {
 
-  for(let i=1;i<sorted.length;i++){
+    const d = new Date(b.lastBillDate);
 
-    const prev = new Date(sorted[i-1].lastBillDate);
-    const curr = new Date(sorted[i].lastBillDate);
+    // 🔥 SHIFT to previous month (same as everywhere)
+    const consumptionMonth = (d.getMonth() - 1 + 12) % 12;
+    const consumptionYear =
+      d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear();
 
-    const consumptionYear = prev.getFullYear();
+    if (consumptionYear !== year) return;
 
-    if(consumptionYear !== year) continue;
-
-    const monthIndex = prev.getMonth();
-
-    base[monthIndex] = {
-      month: months[monthIndex],
-      units: sorted[i].totalNoOfUnits ?? 0,
-      amount: sorted[i].totalBillAmount ?? 0,
-      billDate: curr.toISOString().split("T")[0],
-      index: monthIndex
+    base[consumptionMonth] = {
+      month: months[consumptionMonth],
+      units: b.totalNoOfUnits ?? null,
+      amount: b.totalBillAmount ?? null,
+      billDate: d.toISOString().split("T")[0],
+      index: consumptionMonth
     };
 
-  }
+  });
 
   return base;
 
 }, [bills, year]);
-
 
   /* ================= YEARLY DATA ================= */
 
@@ -217,26 +212,31 @@ const yearlyData = useMemo(() => {
   const unitResult = {};
   const amountResult = {};
 
-  Object.keys(plantMap).forEach(pid => {
+Object.keys(plantMap).forEach(pid => {
 
-    const sorted = plantMap[pid].sort(
-      (a,b)=> new Date(a.lastBillDate) - new Date(b.lastBillDate)
-    );
+  const bills = plantMap[pid];
 
-    for(let i=1;i<sorted.length;i++){
+  bills.forEach(b => {
 
-      const prev = new Date(sorted[i-1].lastBillDate);
+    const d = new Date(b.lastBillDate);
 
-      if(prev.getFullYear() !== year) continue;
+    // 🔥 SHIFT to previous month (same as monthly)
+    const consumptionMonth = (d.getMonth() - 1 + 12) % 12;
+    const consumptionYear =
+      d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear();
 
-      if(!unitResult[pid]) unitResult[pid] = 0;
-      if(!amountResult[pid]) amountResult[pid] = 0;
+    // ✅ Match selected YEAR
+    if (consumptionYear !== year) return;
 
-      unitResult[pid] += sorted[i].totalNoOfUnits || 0;
-      amountResult[pid] += sorted[i].totalBillAmount || 0;
-    }
+    if (!unitResult[pid]) unitResult[pid] = 0;
+    if (!amountResult[pid]) amountResult[pid] = 0;
+
+    unitResult[pid] += b.totalNoOfUnits || 0;
+    amountResult[pid] += b.totalBillAmount || 0;
 
   });
+
+});
 
   return filteredPlants.map(p => ({
     plantId: p.plantID,
