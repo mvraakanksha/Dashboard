@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, LabelList, CartesianGrid, Label
 } from "recharts";
 import { useNavigate } from "react-router-dom";
-import { Users, UserCheck, UserMinus, Activity } from "lucide-react";
+import { Users, UserCheck, UserMinus, Activity , Layers} from "lucide-react";
 
 import { getAllPlants } from "../../services/plantService";
 import {
@@ -399,6 +399,7 @@ const allPlantsData = useMemo(() => {
   date,
 ]);
 
+const totalPlants = allPlantsData.length;
 
   const sortedAttendanceData = useMemo(() => {
   const data = [...allPlantsData];
@@ -645,9 +646,10 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
             {/* KPI ROW WITH DYNAMIC COLORS AND DOWN BAR */}
 {/* ================= PREMIUM KPI CARDS ================= */}
  <div className="rounded-2xl p-5 sm:p-4 sm:p-6 bg-white shadow-lg mb-5">
-<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5 mb-8">
 
   {[
+     { label: "Total Plants", value: totalPlants, icon: <Layers/>, themeKey: "amber" },
     { label: "Total Strength", value: totalEmployees, icon: <Users />, themeKey: "blue", type: "strength" },
     { label: "Total Present", value: totalPresent, icon: <UserCheck />, themeKey: "emerald", type: "present" },
     { label: "Total Absent", value: totalAbsent, icon: <UserMinus />, themeKey: "rose", type: "absent" },
@@ -657,9 +659,9 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
 
     return (
       <div
-        key={i}
-        className={`group relative rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-xl transition-all border ${theme.staticBg}`}
-      >
+  key={i}
+  className={`group relative overflow-hidden rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-xl transition-all border ${theme.staticBg}`}
+>
         {/* Bottom Animated Bar */}
         <div
           className={`absolute bottom-0 left-0 h-1 w-full ${theme.bar}

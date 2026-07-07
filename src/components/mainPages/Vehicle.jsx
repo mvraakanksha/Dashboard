@@ -1213,7 +1213,7 @@ return (
         ].map((card, i) => (
           <div
             key={i}
-            className="group relative rounded-xl p-4 shadow-sm hover:shadow-md transition"
+            className="group relative overflow-hidden  rounded-xl p-4 shadow-sm hover:shadow-md transition"
             style={{ backgroundColor: card.bg }}
           >
             <div

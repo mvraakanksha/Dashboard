@@ -232,6 +232,8 @@ const filteredPlants = useMemo(() => {
   });
 }, [plants, zone, selectedPlants]);
 
+const totalPlants = filteredPlants.length;
+
   /* ---------------- DATA ---------------- */
   const chartData = useMemo(() => {
     return filteredPlants.map(p => {
@@ -384,7 +386,13 @@ const labEntryCount = useMemo(() => {
 
     {/* KPI CARDS */}
     <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-6">
+     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-6">
+      <KPICard
+  label="Total Plants"
+  value={totalPlants}
+  theme={theme.amber}
+  icon={<Activity />}
+/>
         <KPICard label="Avg COD" value={avg("cod")} unit="mg/L" theme={theme.blue} icon={<FlaskConical />} />
         <KPICard label="Avg BOD" value={avg("bod")} unit="mg/L" theme={theme.indigo} icon={<FlaskConical />} />
         <KPICard label="Avg TN" value={avg("tn")} unit="mg/L" theme={theme.emerald} icon={<Activity />} />

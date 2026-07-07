@@ -9,8 +9,9 @@ import {
   CartesianGrid,
   ResponsiveContainer
 } from "recharts";
+import { Activity, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Zap } from "lucide-react";
+
 import { getAllPlants } from '../../services/plantService'
 import { getOperationsByDate } from '../../services/operationService'
 
@@ -177,12 +178,37 @@ useEffect(() => {
   loadOperations();
 }, [date]);
 
-
 const theme = {
-  blue: { bg: "bg-blue-50", border: "border-blue-100", barColor: "bg-blue-600", iconColor: "text-blue-600" },
-  emerald: { bg: "bg-emerald-50", border: "border-emerald-100", barColor: "bg-emerald-600", iconColor: "text-emerald-600" },
-  rose: { bg: "bg-rose-50", border: "border-rose-100", barColor: "bg-rose-600", iconColor: "text-rose-600" },
-  indigo: { bg: "bg-indigo-50", border: "border-indigo-100", barColor: "bg-indigo-600", iconColor: "text-indigo-600" },
+  blue: {
+    bg: "bg-blue-50",
+    border: "border-blue-100",
+    barColor: "bg-blue-600",
+    iconColor: "text-blue-600",
+  },
+  emerald: {
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
+    barColor: "bg-emerald-600",
+    iconColor: "text-emerald-600",
+  },
+  rose: {
+    bg: "bg-rose-50",
+    border: "border-rose-100",
+    barColor: "bg-rose-600",
+    iconColor: "text-rose-600",
+  },
+  indigo: {
+    bg: "bg-indigo-50",
+    border: "border-indigo-100",
+    barColor: "bg-indigo-600",
+    iconColor: "text-indigo-600",
+  },
+  amber: {
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    barColor: "bg-amber-500",
+    iconColor: "text-amber-600",
+  },
 };
 
   // const zones = [...new Set(plants.map(p => p.zones))].sort((a, b) => a - b);
@@ -250,7 +276,7 @@ const rawChartData = useMemo(() => {
     });
 }, [plants, operations, zone, selectedPlants]);
 
-
+const totalPlants = rawChartData.length;
 const chartData = useMemo(() => {
   const data = [...rawChartData];
 
@@ -378,8 +404,14 @@ const entryCount = useMemo(() => {
 
       {/* KPI CARDS */}
       <div className="flex-1 bg-white rounded-2xl p-6 shadow">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+<KPICard
+  label="Total Plants"
+  value={totalPlants}
+  unit=""
+  theme={theme.amber}
+  icon={<Activity size={18} />}
+/>
           <KPICard label="Total Power Consumption" value={totalImport.toFixed(2)} unit="Kwh" theme={theme.rose} icon={<Zap size={18} />} />
           <KPICard label="Total Solar Power Generated" value={totalExport.toFixed(2)} unit="Kwh" theme={theme.emerald} icon={<Zap size={18} />} />
           <KPICard label="Avg Power Consumption" value={avgImport.toFixed(2)} unit="Kwh" theme={theme.blue} icon={<Zap size={18} />} />
