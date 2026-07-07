@@ -13,8 +13,9 @@ title:"Plant Info",
 fields:[
 { id:"stateCode", label:"State" },
 { id:"district", label:"District" },
-{ id:"plantPhase", label:"Phase" },
 
+{ id:"zones", label:"Zone" },
+{ id:"plantPhase", label:"Phase" },
 { id:"waterType", label:"Water Type" },
 { id:"headquarterName", label:"Headquarter" },
 { id:"wardNo", label:"Ward No" },
@@ -49,9 +50,9 @@ fields:[
 { id:"solar", label:"Solar Status" },
 { id:"solarDateOfCompletion", label:"Solar Completed" },
 
-{ id:"solarMultiplicationFactor", label:"Solar MF" },
+{ id:"solarMultiplicationFactor", label:"Solar MF " },
 { id:"solarMeterSerialNo", label:"Solar Meter Serial No" },
-{ id:"solarPlantCapacity", label:"Solar Capacity" },
+{ id:"solarPlantCapacity", label:"Solar Capacity (Kw)" },
 
 ]
 },
@@ -202,8 +203,7 @@ export default function PlantSelection({onGenerate,config}){
 const [plants,setPlants]=useState([]);
 const [selectedPlants,setSelectedPlants]=useState([]);
 const [zoneFilter,setZoneFilter]=useState("All");
-const [phaseFilter,setPhaseFilter]=useState("All");
-
+const [phaseFilter, setPhaseFilter] = useState("All");
 const [modules,setModules]=useState({plant:true,vehicle:false,employee:false});
 const [enabledGroups,setEnabledGroups] = useState({plant:true});
 const [selPlantFields,setSelPlantFields]=useState(["stateCode","district"]);
@@ -230,26 +230,27 @@ const zones = useMemo(()=>{
 },[plants]);
 
 const phases = useMemo(() => {
-  return [...new Set(
-    plants
-      .map(p => p.plantPhase)
-      .filter(p => p !== null && p !== undefined)
-  )].sort((a, b) => Number(a) - Number(b));
+  return [
+    ...new Set(
+      plants
+        .map((p) => p.plantPhase)
+        .filter((p) => p != null)
+    ),
+  ].sort((a, b) => Number(a) - Number(b));
 }, [plants]);
 
 const toggle=(list,setList,id)=>setList(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
 /* ===== VISIBLE PLANTS (zone filtered) ===== */
 const visiblePlants = useMemo(() => {
-  return plants.filter(p => {
-
+  return plants.filter((p) => {
     const zoneMatch =
       zoneFilter === "All" ||
-      String(p.zones) === zoneFilter;
+      String(p.zones) === String(zoneFilter);
 
     const phaseMatch =
       phaseFilter === "All" ||
-      String(p.plantPhase) === phaseFilter;
+      String(p.plantPhase) === String(phaseFilter);
 
     const statusValue = p.permanentPower;
 
@@ -259,10 +260,8 @@ const visiblePlants = useMemo(() => {
       (statusFilter === "No" && statusValue === false);
 
     return zoneMatch && phaseMatch && statusMatch;
-
   });
 }, [plants, zoneFilter, phaseFilter, statusFilter]);
-
 /* ===== SELECT ALL LOGIC ===== */
 const allSelected =
 visiblePlants.length > 0 &&
@@ -313,12 +312,18 @@ const toggleGroup = (id) => {
     const next = !prev[id];
     const group = PLANT_GROUPS.find(g => g.id === id);
 
-    if (next) {
-      // ✅ SELECT ALL fields when group enabled
-      setSelPlantFields(p => [
-        ...new Set([...p, ...group.fields.map(f => f.id)])
-      ]);
-    } else {
+  if (next) {
+  setSelPlantFields((p) => [
+    ...new Set([
+      ...p,
+      ...group.fields
+        .filter(
+          (f) => !["zones", "plantPhase"].includes(f.id)
+        )
+        .map((f) => f.id),
+    ]),
+  ]);
+}else {
       // ❌ REMOVE all group fields when group disabled
       setSelPlantFields(p =>
         p.filter(f => !group.fields.some(x => x.id === f))
@@ -361,12 +366,12 @@ const formatValue = (v) => {
   return v ?? "-";
 };
 
-useEffect(()=>{
+useEffect(() => {
   setReportStatus("generate");
-},[
+}, [
   selectedPlants,
   zoneFilter,
-    phaseFilter,
+  phaseFilter,
   modules,
   selPlantFields,
   selVehicleFields,
@@ -376,16 +381,19 @@ useEffect(()=>{
 
 
 const generate = () => {
- const filteredPlants = plants
-  .filter(p => selectedPlants.includes(p.plantID))
-  .filter(p =>
-    zoneFilter === "All" ||
-    String(p.zones) === zoneFilter
-  )
-  .filter(p =>
-    phaseFilter === "All" ||
-    String(p.plantPhase) === phaseFilter
-  );
+const filteredPlants = plants
+  .filter((p) => selectedPlants.includes(p.plantID))
+  .filter((p) => {
+    const zoneMatch =
+      zoneFilter === "All" ||
+      String(p.zones) === String(zoneFilter);
+
+    const phaseMatch =
+      phaseFilter === "All" ||
+      String(p.plantPhase) === String(phaseFilter);
+
+    return zoneMatch && phaseMatch;
+  });
 
   onGenerate({
     plants: filteredPlants,
@@ -688,13 +696,13 @@ onToggle={id=>toggle(selEmployeeFields,setSelEmployeeFields,id)}
 
 <select
   value={phaseFilter}
-  onChange={e => setPhaseFilter(e.target.value)}
+  onChange={(e) => setPhaseFilter(e.target.value)}
   className="border px-4 py-2 rounded-xl"
 >
   <option value="All">All Phases</option>
 
   {phases.map((phase) => (
-    <option key={phase} value={String(phase)}>
+    <option key={phase} value={phase}>
       Phase {phase}
     </option>
   ))}
@@ -781,7 +789,6 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
 
 <th className="px-4 py-3 w-20 text-center">KLD</th>
 
-<th className="px-4 py-3 w-20 text-center">Zone</th>
 
 </tr>
 </thead>
@@ -813,10 +820,6 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
 
 <td className="px-4 py-3 text-center">
 {p.kld ?? "-"}
-</td>
-
-<td className="px-4 py-3 text-center">
-{p.zones ?? "-"}
 </td>
 
 </tr>
@@ -883,15 +886,19 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
         <th className="px-3 py-4 w-auto text-center  whitespace-nowrap">Plant ID</th>
         <th className="px-4 py-4 w-auto text-center ">Plant Name</th>
         <th className="px-3 py-4 text-center w-auto text-center ">KLD</th>
-        <th className="px-3 py-4 text-center w-auto text-center ">Zone</th>
+       
 
         {/* DYNAMIC PLANT */}
-        {config.modules.plant && config.selPlantFields.map(f => (
-          <th key={f} className="px-4 py-4 whitespace-nowrap font-semibold">
-           {ALL_PLANT_FIELDS.find(x => x.id === f)?.label}
-          </th>
-        ))}
-
+{/* DYNAMIC PLANT */}
+{config.modules.plant &&
+  config.selPlantFields.map((f) => (
+    <th
+      key={f}
+      className="px-4 py-4 whitespace-nowrap font-semibold"
+    >
+      {ALL_PLANT_FIELDS.find((x) => x.id === f)?.label}
+    </th>
+))}
         {/* VEHICLE */}
         {config.modules.vehicle && config.selVehicleFields.map(f => (
           <th key={f} className="px-4 py-4 text-center  whitespace-nowrap font-semibold">
@@ -934,7 +941,7 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
           <td className="px-3 py-3 font-mono text-center  text-xs text-slate-600">{p.plantID}</td>
           <td className="px-4 py-3 font-bold text-center  text-slate-800">{p.plantName}</td>
           <td className="px-3 py-3 text-center text-center  font-semibold text-blue-600">{p.kld ?? "-"}</td>
-          <td className="px-3 py-3 text-center text-center  italic text-slate-500">{p.zones ?? "-"}</td>
+          {/* <td className="px-3 py-3 text-center text-center  italic text-slate-500">{p.zones ?? "-"}</td> */}
 
           {/* PLANT FIELDS */}
           {config.modules.plant && config.selPlantFields.map(f => (

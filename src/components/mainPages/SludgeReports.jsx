@@ -92,7 +92,12 @@ const CustomTooltip = ({ active, payload, label, mode }) => {
 
 /* ================= MAIN COMPONENT ================= */
 
-export default function SludgeReports({ date, zone, setZones }) {
+export default function SludgeReports({
+  date,
+  zone,
+  setZones,
+  selectedPlants = [],
+}) {
   
   const navigate = useNavigate();
 
@@ -163,11 +168,23 @@ useEffect(() => {
     .catch(console.error);
 }, [setZones]);
 
-  const zonePlants = useMemo(() => 
-    zone === "All" ? plants : plants.filter(p => Number(p.zones) === Number(zone)), 
-    [plants, zone]
-  );
+const zonePlants = useMemo(() => {
+  let filtered =
+    zone === "All"
+      ? plants
+      : plants.filter(
+          (p) => Number(p.zones) === Number(zone)
+        );
 
+  // FILTER BY SELECTED PLANTS
+  if (selectedPlants.length > 0) {
+    filtered = filtered.filter((p) =>
+      selectedPlants.includes(p.plantID)
+    );
+  }
+
+  return filtered;
+}, [plants, zone, selectedPlants]);
   // fetch operations -----------
   useEffect(() => {
   if (!date) return;

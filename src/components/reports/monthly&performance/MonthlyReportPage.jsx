@@ -98,6 +98,7 @@ export default function MonthlyReportPage() {
 const [refreshKey, setRefreshKey] = useState(0);
 const [plants, setPlants] = useState([]);
 const [zoneFilter, setZoneFilter] = useState("All");
+const [phaseFilter, setPhaseFilter] = useState("All");
 
   /* ================= LOAD PLANTS ================= */
 useEffect(() => {
@@ -106,13 +107,14 @@ getAllPlants().then((list) => {
 
   const map = {};
   (list || []).forEach((p) => {
-  map[p.plantID] = {
+map[p.plantID] = {
   name: p.plantName,
   district: p.district,
   kld: p.kld,
-  permanentPowerDate: p.permanentPowerDateOfCompletion, // styling
-  mnitDate: p.mnitDateOfCompletion,                     // ⭐ visibility
+  permanentPowerDate: p.permanentPowerDateOfCompletion,
+  mnitDate: p.mnitDateOfCompletion,
   zone: p.zones,
+  phase: p.plantPhase,
 };
   });
 
@@ -344,25 +346,33 @@ const oldSludge = getOpeningSludge(op.ops || [], startDate, endDate);
     const remaining = getClosingSludge(op.ops || [], startDate, endDate);
     const total = oldSludge + op.sludgeReceived;
 
-    return {
-      plantId: Number(pid),
-      district: meta.district,
-      name: meta.name,
-      kld: meta.kld,
-      zone: meta.zone,
-      permanentPowerDate: meta.permanentPowerDate,
-      mnitDate: meta.mnitDate,
-      sludgeReceived: op.sludgeReceived,
-      sludgeProcessed: op.sludgeProcessed,
-      oldSludge,
-      total,
-      remaining,
-    };
+   return {
+  plantId: Number(pid),
+  district: meta.district,
+  name: meta.name,
+  kld: meta.kld,
+  zone: meta.zone,
+  phase: meta.phase,
+  permanentPowerDate: meta.permanentPowerDate,
+  mnitDate: meta.mnitDate,
+  sludgeReceived: op.sludgeReceived,
+  sludgeProcessed: op.sludgeProcessed,
+  oldSludge,
+  total,
+  remaining,
+};
   })
-  .filter(r =>
+.filter((r) => {
+  const zoneMatch =
     zoneFilter === "All" ||
-    String(r.zone) === String(zoneFilter)
-  );
+    String(r.zone) === String(zoneFilter);
+
+  const phaseMatch =
+    phaseFilter === "All" ||
+    String(r.phase) === String(phaseFilter);
+
+  return zoneMatch && phaseMatch;
+});
 
   const [y, m] = month.split("-");
 const monthEnd = new Date(y, m, 0);
@@ -394,8 +404,7 @@ setRows(withStatus);
   }
 
   setLoading(false);
-}, [month, plantMaster, zoneFilter]);
-
+}, [month, plantMaster, zoneFilter, phaseFilter]);
 
 useEffect(() => {
   loadMonth();
@@ -954,7 +963,21 @@ return (
       <option key={z} value={z}>Zone {z}</option>
     ))}
 </select>
+<select
+  value={phaseFilter}
+  onChange={(e) => setPhaseFilter(e.target.value)}
+  className="border p-2 text-sm"
+>
+  <option value="All">All Phases</option>
 
+  {[...new Set(plants.map((p) => p.plantPhase).filter((v) => v != null))]
+    .sort((a, b) => Number(a) - Number(b))
+    .map((phase) => (
+      <option key={phase} value={phase}>
+        Phase {phase}
+      </option>
+    ))}
+</select>
         <input
           type="month"
           value={month}

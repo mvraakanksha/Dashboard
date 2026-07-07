@@ -15,6 +15,7 @@ import {
 } from "react-router-dom";
 import { Layers, Droplets, Recycle, Box } from "lucide-react";
 import { getOperationsByDateRange } from "../../services/operationService";
+import { getVehicleOperationsByDateRange } from "../../services/vehicleService";
 import { getPlantById } from "../../services/plantService";
 
 /* ---------------- UTILITIES ---------------- */
@@ -127,7 +128,7 @@ const theme = {
     iconColor: "text-amber-600",
   },
 };
-const KPICard = ({ label, value, theme, icon }) => (
+const KPICard = ({ label, value, theme, icon, children }) => (
   <div className={`group relative overflow-hidden p-6 rounded-xl border ${theme.bg} ${theme.border} shadow-sm hover:shadow-md`}>
     
     <div className={`absolute bottom-0 left-0 h-1.5 w-full ${theme.barColor} origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
@@ -143,6 +144,11 @@ const KPICard = ({ label, value, theme, icon }) => (
         <p className="text-xl font-black text-slate-900">
           {value}
         </p>
+        {children && (
+  <div className="mt-2 text-xs font-medium text-slate-900 ">
+    {children}
+  </div>
+)}
       </div>
     </div>
   </div>
@@ -155,7 +161,8 @@ export default function SludgeReportView() {
   const urlMode = params.get("mode") || "received";
 const [activeMode, setActiveMode] = useState(urlMode);
 const [allTankData, setAllTankData] = useState([]);
-
+const [operationsData, setOperationsData] = useState([]);
+const [vehicleOperationsData, setVehicleOperationsData] = useState([]);
   /* -------- PLANT DETAILS -------- */
   const [plantDetails, setPlantDetails] = useState(null);
 
@@ -189,14 +196,25 @@ const fetchDaywise = useCallback(async () => {
       subtractDays(new Date(fromDate), 30)
     );
 
-    const result = await getOperationsByDateRange(
-      extendedFromDate,
-      toDate
-    );
+const [tankResult, selectedResult, vehicleResult] = await Promise.all([
+  getOperationsByDateRange(extendedFromDate, toDate), // for tank fallback
+  getOperationsByDateRange(fromDate, toDate),         // for KPI counts
+  getVehicleOperationsByDateRange(fromDate, toDate),
+]);
 
+setOperationsData(
+  selectedResult.filter(
+    (item) => String(item.plantId) === String(plantId)
+  )
+);
+setVehicleOperationsData(
+  vehicleResult.filter(
+    (item) => String(item.plantId) === String(plantId)
+  )
+);
     // 1️⃣ Build map FIRST
     const map = {};
-    result.forEach((item) => {
+    tankResult.forEach((item) => {
       if (String(item.plantId) === String(plantId)) {
         map[item.operation.operationDate] = item.operation;
       }
@@ -296,7 +314,21 @@ const toTankLevel = getLastAvailableTankLevel(toDate);
 
   const avgValue =
     daywiseData.length > 0 ? totalValue / daywiseData.length : 0;
+/* ---------------- TRIPS CALCULATIONS ---------------- */
 
+/* ---------------- TRIPS CALCULATIONS ---------------- */
+
+const ownVehicleTrips = vehicleOperationsData.reduce(
+  (sum, item) =>
+    sum + (item.vehicleOp?.noOfTrips || 0),
+  0
+);
+
+const privateVehicleTrips = operationsData.reduce(
+  (sum, item) =>
+    sum + (item.operation?.noOfTripsPrivateVehicle || 0),
+  0
+);
   const labels = {
     received: ["Total Sludge Received (L)", "Average Sludge Received (L)"],
     tank: ["Total Tank Level (L)", "Average Tank Level (L)"],
@@ -355,12 +387,38 @@ const toTankLevel = getLastAvailableTankLevel(toDate);
       />
 
       {/* AVERAGE */}
-      <KPICard
-        label={labels[activeMode][1]}
-        value={formatIndianRounded(avgValue)}
-        theme={theme.indigo}
-        icon={<Droplets size={18} />}
-      />
+    {/* AVERAGE / TRIPS */}
+{activeMode === "received" ? (
+<KPICard
+ label={
+  <span className="text-sm font-black text-slate-900">
+    Vehicle Trips Count -{" "}
+    {formatIndianRounded(
+      ownVehicleTrips + privateVehicleTrips
+    )}
+  </span>
+}
+  value={
+    <span className="text-sm font-semibold text-indigo-700">
+      Own Vehicle Trips: {formatIndianRounded(ownVehicleTrips)}
+    </span>
+  }
+  theme={theme.indigo}
+  icon={<Droplets size={18} />}
+>
+  <div className="text-sm font-semibold text-indigo-700">
+    Private Vehicle Trips:{" "}
+    {formatIndianRounded(privateVehicleTrips)}
+  </div>
+</KPICard>
+) : (
+  <KPICard
+    label={labels[activeMode][1]}
+    value={formatIndianRounded(avgValue)}
+    theme={theme.indigo}
+    icon={<Droplets size={18} />}
+  />
+)}
 
       {/* EXTRA TANK CARDS (ONLY WHEN NOT BIOCHAR) */}
       {activeMode !== "biochar" && (

@@ -328,9 +328,11 @@ const [toDate, setToDate] = useState(TODAY);
 const [includeMonthly, setIncludeMonthly] = useState(false);
 
   const [zone, setZone] = useState("All");
+  const [phase, setPhase] = useState("All");
 const [selectedKlds, setSelectedKlds] = useState([]);
   const [plants, setPlants] = useState([]);
   const [zones, setZones] = useState([]);
+  const [phases, setPhases] = useState([]);
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -349,10 +351,23 @@ useEffect(() => {
     setPlants(plantsData);
     
 const sortedZones = [
-  ...new Set(plantsData.map(p => p.zones))
+  ...new Set(
+    plantsData
+      .map((p) => p.zones)
+      .filter((z) => z != null)
+  ),
 ].sort((a, b) => Number(a) - Number(b));
 
-    setZones(sortedZones);
+const sortedPhases = [
+  ...new Set(
+    plantsData
+      .map((p) => p.plantPhase)
+      .filter((p) => p != null)
+  ),
+].sort((a, b) => Number(a) - Number(b));
+
+setZones(sortedZones);
+setPhases(sortedPhases); 
   });
 }, []);
 
@@ -387,21 +402,29 @@ const visiblePlants = useMemo(() => {
   );
 
   // Zone filter
-  if (zone !== "All") {
-    filtered = filtered.filter(
-      p => String(p.zones) === String(zone)
-    );
-  }
+// Zone filter
+if (zone !== "All") {
+  filtered = filtered.filter(
+    (p) => String(p.zones) === String(zone)
+  );
+}
 
-  // KLD filter
-  if (selectedKlds.length > 0) {
-    filtered = filtered.filter(p =>
-      selectedKlds.includes(Number(p.kld))
-    );
-  }
+// Phase filter
+if (phase !== "All") {
+  filtered = filtered.filter(
+    (p) => String(p.plantPhase) === String(phase)
+  );
+}
 
-  return filtered;
-}, [plants, zone, selectedKlds]);
+// KLD filter
+if (selectedKlds.length > 0) {
+  filtered = filtered.filter((p) =>
+    selectedKlds.includes(Number(p.kld))
+  );
+}
+
+return filtered;
+}, [plants, zone, phase, selectedKlds]);
 
   const aggregated = useMemo(() => {
     const map = {};
@@ -605,11 +628,13 @@ const downloadPdf = async () => {
 
   /* ========= PAGE 1 ========= */
 if (includeMonthly) {
-  await addMonthlyReportToPdf({
-    doc,
-    month: fromDate.slice(0, 7),
-    logos: { company: cachedCompanyLogo },
-  });
+await addMonthlyReportToPdf({
+  doc,
+  month: fromDate.slice(0, 7),
+  logos: { company: cachedCompanyLogo },
+  zoneFilter: zone,
+  phaseFilter: phase,
+});
 } else {
   addTextHeaderOnly(doc, pageWidth, zone, fromDate, toDate);
   addSmallLogo(doc, cachedCompanyLogo);
@@ -782,6 +807,17 @@ return (
     o === "All" ? "All Zones" : `Zone ${o}`
   }
 />
+
+<Select
+  label="Phase"
+  value={phase}
+  onChange={setPhase}
+  options={["All", ...phases]}
+  formatOption={(o) =>
+    o === "All" ? "All Phases" : `Phase ${o}`
+  }
+/>
+
 <div>
   <label className="text-xs font-bold block mb-1">KLD</label>
 

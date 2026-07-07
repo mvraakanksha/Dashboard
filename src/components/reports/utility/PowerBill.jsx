@@ -214,6 +214,7 @@ export default function PowerBill() {
   const [powerBills, setPowerBills] = useState({});
 const [selectedPlant, setSelectedPlant] = useState(null);
 const [zone, setZone] = useState("All");
+const [phase, setPhase] = useState("All");
 const [view, setView] = useState("graph"); // graph | table
 const [operationsMap, setOperationsMap] = useState({});
 
@@ -247,16 +248,42 @@ const zones = useMemo(() => {
 
 }, [plants]);
 
+const phases = useMemo(() => {
+
+  const unique = [...new Set(
+    plants
+      .map(p => p.plantPhase)
+      .filter(p => p !== null && p !== undefined)
+  )].sort((a, b) => Number(a) - Number(b));
+
+  return [
+    { label: "All Phases", value: "All" },
+    ...unique.map(p => ({
+      label: `Phase ${p}`,
+      value: String(p)
+    }))
+  ];
+
+}, [plants]);
+
 
 const filteredPlants = useMemo(() => {
 
-  if (zone === "All") return plants;
+  return plants.filter((p) => {
 
-  return plants.filter(
-    p => String(p.zones) === String(zone)
-  );
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
 
-}, [plants, zone]);
+    const phaseMatch =
+      phase === "All" ||
+      String(p.plantPhase) === String(phase);
+
+    return zoneMatch && phaseMatch;
+
+  });
+
+}, [plants, zone, phase]);
 
   /* ================= FETCH PLANTS ================= */
 
@@ -652,7 +679,11 @@ const stats = useMemo(() => {
 <div className="flex justify-between items-center">
 
 <h2 className="text-xl font-bold text-blue-900">
-  Monthly Power Consumption {zone !== "All" && ` - Zone ${zone}`}
+  Monthly Power Consumption
+
+  {zone !== "All" && ` - Zone ${zone}`}
+
+  {phase !== "All" && ` - Phase ${phase}`}
 </h2>
 
 <div className="flex items-center gap-3">
@@ -687,6 +718,21 @@ const stats = useMemo(() => {
   {zones.map(z => (
     <option key={z.value} value={z.value}>
       {z.label}
+    </option>
+  ))}
+</select>
+
+<select
+  value={phase}
+  onChange={(e) => setPhase(e.target.value)}
+  className="border rounded px-3 py-1 text-sm"
+>
+  {phases.map((p) => (
+    <option
+      key={p.value}
+      value={p.value}
+    >
+      {p.label}
     </option>
   ))}
 </select>

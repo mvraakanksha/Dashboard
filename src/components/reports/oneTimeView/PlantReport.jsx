@@ -80,7 +80,9 @@ const [gpsVehicleMap, setGpsVehicleMap] = useState({});
   const [zoneFilter, setZoneFilter] = useState(() => {
   return localStorage.getItem("plantReportZone") || "All";
 });
-
+const [phaseFilter, setPhaseFilter] = useState(() => {
+  return localStorage.getItem("plantReportPhase") || "All";
+});
 const location = useLocation();
 
 const [selectedCard, setSelectedCard] = useState(
@@ -92,6 +94,10 @@ useEffect(() => {
     setSelectedCard(location.state.selectedCard);
   }
 }, [location.state]);
+
+useEffect(() => {
+  localStorage.setItem("plantReportPhase", phaseFilter);
+}, [phaseFilter]);
 
   const navigate = useNavigate();
 const [yesNoFilter, setYesNoFilter] = useState("ALL");
@@ -136,11 +142,31 @@ useEffect(() => {
     [plants]
   );
 
-const zoneFilteredPlants = useMemo(() => {
-  if (zoneFilter === "All") return plants;
-  return plants.filter(p => p.zones === Number(zoneFilter));
-}, [plants, zoneFilter]);
+  const phases = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        plants
+          .map((p) => p.plantPhase)
+          .filter((p) => p != null)
+      )
+    ).sort((a, b) => Number(a) - Number(b)),
+  [plants]
+);
 
+const zoneFilteredPlants = useMemo(() => {
+  return plants.filter((p) => {
+    const zoneMatch =
+      zoneFilter === "All" ||
+      p.zones === Number(zoneFilter);
+
+    const phaseMatch =
+      phaseFilter === "All" ||
+      p.plantPhase === Number(phaseFilter);
+
+    return zoneMatch && phaseMatch;
+  });
+}, [plants, zoneFilter, phaseFilter]);
 
   /* ================= FILTERED PLANTS ================= */
 const filteredPlants = useMemo(() => {
@@ -853,9 +879,11 @@ if (selectedCard === "CAMERA") {
 };
 
 const handleReset = () => {
-   setYesNoFilter("ALL");
+  setZoneFilter("All");
+  setPhaseFilter("All");
+  setYesNoFilter("ALL");
   setFromDate("");
-  setToDate(""); 
+  setToDate("");
 };
 
   /* ================= UI ================= */
@@ -950,7 +978,19 @@ const handleReset = () => {
         </option>
       ))}
     </select>
+<select
+  value={phaseFilter}
+  onChange={(e) => setPhaseFilter(e.target.value)}
+  className="border rounded-lg p-2 text-sm"
+>
+  <option value="All">All Phases</option>
 
+  {phases.map((phase) => (
+    <option key={phase} value={phase}>
+      Phase {phase}
+    </option>
+  ))}
+</select>
 {selectedCard !== "ALL" && (
   <select
     value={yesNoFilter}

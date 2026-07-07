@@ -36,7 +36,7 @@ export default async function PlantExcel(config) {
 
 
 
-  const baseColumns = ["S.No", "Plant ID", "Plant Name", "KLD", "Zone"];
+  const baseColumns = ["S.No", "Plant ID", "Plant Name", "KLD"];
 
   /* ===== FIELD LABELS ===== */
 
@@ -144,7 +144,7 @@ if (config.modules.plant) {
       p.plantID,
       p.plantName,
       p.kld ?? "-",
-      p.zones ?? "-"
+      // p.zones ?? "-"
     ];
 
     config.selPlantFields.forEach(f=>{
@@ -194,7 +194,7 @@ const row = [
   p.plantID,
   p.plantName,
   p.kld ?? "-",
-  p.zones ?? "-"
+  // p.zones ?? "-"
 ];
     config.selVehicleFields.forEach(f=>{
       row.push(formatValue(v[f]));
@@ -256,7 +256,7 @@ config.plants.forEach(p => {
       p.plantID,
       p.plantName,
       p.kld ?? "-",
-      p.zones ?? "-"
+      // p.zones ?? "-"
     ];
 
     config.selEmployeeFields.forEach(f=>{

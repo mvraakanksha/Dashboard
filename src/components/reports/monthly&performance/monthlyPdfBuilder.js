@@ -106,22 +106,24 @@ const getClosingSludge = (ops, startDate, endDate) => {
 export const addMonthlyReportToPdf = async ({
   doc,
   month,
-  logos, // { company: base64 }
-  zoneFilter = "All", // ⭐ ported from page-level zone filter
+  logos,
+  zoneFilter = "All",
+  phaseFilter = "All",
 }) => {
   /* ================= LOAD PLANTS ================= */
   const plantList = await getAllPlants();
   const plantMaster = {};
 
   (plantList || []).forEach((p) => {
-    plantMaster[p.plantID] = {
-      name: p.plantName,
-      district: p.district,
-      kld: p.kld,
-      permanentPowerDate: p.permanentPowerDateOfCompletion,
-      mnitDate: p.mnitDateOfCompletion,
-      zone: p.zones, // ⭐ was missing
-    };
+   plantMaster[p.plantID] = {
+  name: p.plantName,
+  district: p.district,
+  kld: p.kld,
+  permanentPowerDate: p.permanentPowerDateOfCompletion,
+  mnitDate: p.mnitDateOfCompletion,
+  zone: p.zones,
+  phase: p.plantPhase,
+};
   });
 
   /* ================= DATE RANGE (⭐ this was never being set before) ================= */
@@ -161,23 +163,33 @@ export const addMonthlyReportToPdf = async ({
       const remaining = getClosingSludge(op.ops || [], startDate, endDate);
       const total = oldSludge + op.sludgeReceived;
 
-      return {
-        plantId: Number(pid),
-        district: meta.district,
-        name: meta.name,
-        kld: meta.kld,
-        zone: meta.zone,
-        permanentPowerDate: meta.permanentPowerDate,
-        mnitDate: meta.mnitDate,
-        sludgeReceived: op.sludgeReceived,
-        sludgeProcessed: op.sludgeProcessed,
-        oldSludge,
-        total,
-        remaining,
-      };
+     return {
+  plantId: Number(pid),
+  district: meta.district,
+  name: meta.name,
+  kld: meta.kld,
+  zone: meta.zone,
+  phase: meta.phase,
+  permanentPowerDate: meta.permanentPowerDate,
+  mnitDate: meta.mnitDate,
+  sludgeReceived: op.sludgeReceived,
+  sludgeProcessed: op.sludgeProcessed,
+  oldSludge,
+  total,
+  remaining,
+};
     })
-    .filter((r) => zoneFilter === "All" || String(r.zone) === String(zoneFilter)); // ⭐ zone filter
+.filter((r) => {
+  const zoneMatch =
+    zoneFilter === "All" ||
+    String(r.zone) === String(zoneFilter);
 
+  const phaseMatch =
+    phaseFilter === "All" ||
+    String(r.phase) === String(phaseFilter);
+
+  return zoneMatch && phaseMatch;
+});
   const visibleRows = finalRows.filter((r) => {
     if (!r.mnitDate) return false;
     return new Date(r.mnitDate) <= monthEnd;

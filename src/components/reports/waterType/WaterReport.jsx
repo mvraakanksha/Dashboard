@@ -11,7 +11,7 @@ export default function WaterReport() {
   const [plants, setPlants] = useState([]);
   const [zones, setZones] = useState([]);
   const [selectedZone, setSelectedZone] = useState("All");
-
+const [selectedPhase, setSelectedPhase] = useState("All");
   const [waterTypes, setWaterTypes] = useState({
     normal: true,
     salt: true,
@@ -33,22 +33,43 @@ export default function WaterReport() {
       .catch(console.error);
   }, []);
 
+const phases = useMemo(() => {
+
+  return [
+    ...new Set(
+      plants
+        .map((p) => p.plantPhase)
+        .filter((p) => p !== null && p !== undefined)
+    ),
+  ].sort((a, b) => Number(a) - Number(b));
+
+}, [plants]);
+
   /* ===== FILTER LOGIC ===== */
-  const filteredPlants = useMemo(() => {
-    return plants.filter((p) => {
-      const zoneMatch =
-        selectedZone === "All" || String(p.zones) === String(selectedZone);
+const filteredPlants = useMemo(() => {
 
-      const type = (p.waterType || "").toLowerCase().trim();
+  return plants.filter((p) => {
 
-      const waterMatch =
-        (waterTypes.normal && type === "normal water") ||
-        (waterTypes.salt && type === "salt water") ||
-        (waterTypes.noBorewell && type === "no borewell");
+    const zoneMatch =
+      selectedZone === "All" ||
+      String(p.zones) === String(selectedZone);
 
-      return zoneMatch && waterMatch;
-    });
-  }, [plants, selectedZone, waterTypes]);
+    const phaseMatch =
+      selectedPhase === "All" ||
+      String(p.plantPhase) === String(selectedPhase);
+
+    const type = (p.waterType || "").toLowerCase().trim();
+
+    const waterMatch =
+      (waterTypes.normal && type === "normal water") ||
+      (waterTypes.salt && type === "salt water") ||
+      (waterTypes.noBorewell && type === "no borewell");
+
+    return zoneMatch && phaseMatch && waterMatch;
+
+  });
+
+}, [plants, selectedZone, selectedPhase, waterTypes]);
 
   /* ===== COUNTS ===== */
   const waterCounts = useMemo(() => {
@@ -69,10 +90,24 @@ export default function WaterReport() {
     return counts;
   }, [filteredPlants]);
 const totalPlants = useMemo(() => {
-  return plants.filter(p =>
-    selectedZone === "All" || String(p.zones) === String(selectedZone)
-  ).length;
-}, [plants, selectedZone]);
+
+  return plants.filter((p) => {
+
+    const zoneMatch =
+      selectedZone === "All" ||
+      String(p.zones) === String(selectedZone);
+
+    const phaseMatch =
+      selectedPhase === "All" ||
+      String(p.plantPhase) === String(selectedPhase);
+
+    return zoneMatch && phaseMatch;
+
+  }).length;
+
+}, [plants, selectedZone, selectedPhase]);
+
+const matchingPlants = filteredPlants.length;
 
 const summaryParts = [`Total Plants: ${totalPlants}`];
 
@@ -115,7 +150,7 @@ const summaryText = summaryParts.join(" | ");
 
     doc.setFontSize(10);
 doc.text(
- `Zone: ${selectedZone} | ${summaryText}`,
+ `Zone: ${selectedZone} | Phase: ${selectedPhase} | ${summaryText}`,
   pageWidth / 2,
   28,
   { align: "center" }
@@ -228,7 +263,7 @@ const downloadTableExcel = async () => {
 
   /* SUMMARY */
 sheet.getCell("A4").value =
-`Zone: ${selectedZone} | ${summaryText}`;
+`Zone: ${selectedZone} | Phase: ${selectedPhase} | ${summaryText}`;
   setHeaderStyle("A4", 11);
 
   /* ===== TABLE HEADER ===== */
@@ -360,7 +395,28 @@ sheet.getCell("A4").value =
       ))}
     </select>
   </div>
+<div className="flex items-center gap-2">
+  <label className="text-sm font-semibold">
+    Phase:
+  </label>
 
+  <select
+    value={selectedPhase}
+    onChange={(e) => setSelectedPhase(e.target.value)}
+    className="border p-2 rounded"
+  >
+    <option value="All">All Phases</option>
+
+    {phases.map((phase) => (
+      <option
+        key={phase}
+        value={String(phase)}
+      >
+        Phase {phase}
+      </option>
+    ))}
+  </select>
+</div>
   {/* Water Type Checkboxes */}
   <div className="flex gap-4 items-center">
     <label className="flex items-center gap-1">

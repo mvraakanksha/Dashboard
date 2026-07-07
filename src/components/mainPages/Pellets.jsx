@@ -95,7 +95,7 @@ const getLastEnteredStock = (ops, stockKey) => {
 };
 
 
-export default function Pellets({ isDark, date, zone }) {
+export default function Pellets({ isDark, date, zone, selectedPlants = [],  }) {
   const navigate = useNavigate();
 
   const [plants, setPlants] = useState([]);
@@ -202,12 +202,23 @@ const lastStockMap = useMemo(() => {
   /* ---------------- BUILD CHART DATA ---------------- */
 const chartData = useMemo(() => {
   return plants
-    .filter(
-      (p) => zone === "All" || String(p.zones) === String(zone)
-    )
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
     .map((p) => {
-      const op = ops.find((o) => o.plantId === p.plantID &&
-    o.operation?.operationDate === date)?.operation;
+      const op = ops.find(
+        (o) =>
+          o.plantId === p.plantID &&
+          o.operation?.operationDate === date
+      )?.operation;
 
       const lastStock = lastStockMap[p.plantID] || {};
 
@@ -219,14 +230,21 @@ const chartData = useMemo(() => {
         pelletsUsed: op?.pillets ?? 0,
         polymerUsed: op?.polymerUsage ?? 0,
 
-        // ✅ LAST ENTERED (non-null) stock
-        pelletsStock: lastStock.pelletsStock ?? null,
-        polymerStock: lastStock.polymerStock ?? null
+        pelletsStock:
+          lastStock.pelletsStock ?? null,
+
+        polymerStock:
+          lastStock.polymerStock ?? null,
       };
     });
-}, [plants, ops, zone, lastStockMap]);
-
-
+}, [
+  plants,
+  ops,
+  zone,
+  selectedPlants,
+  date,
+  lastStockMap,
+]);
 
 // const hasLowPelletsStock = useMemo(() => {
 //   return chartData.some(

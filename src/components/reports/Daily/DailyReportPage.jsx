@@ -80,6 +80,8 @@ const DailyReportPage = () => {
     const [plantMaster, setPlantMaster] = useState({});
     const [notice, setNotice] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [phaseFilter, setPhaseFilter] = useState("All");
+
 const [zoneFilter, setZoneFilter] = useState("All");
 const [plants, setPlants] = useState([]);
 const formattedDate = formatDateDDMMYYYY(selectedDate);
@@ -141,10 +143,17 @@ const formattedDate = formatDateDDMMYYYY(selectedDate);
 }, [reportData]);
 
 const processedData = Object.entries(plantMaster)
-  .filter(([plantId, meta]) =>
+.filter(([plantId, meta]) => {
+  const zoneMatch =
     zoneFilter === "All" ||
-    String(meta.zone) === String(zoneFilter)
-  )
+    String(meta.zone) === String(zoneFilter);
+
+  const phaseMatch =
+    phaseFilter === "All" ||
+    String(meta.phase) === String(phaseFilter);
+
+  return zoneMatch && phaseMatch;
+})
   .map(([plantId, meta]) => {
     const operationItem = operationsByPlantId[plantId];
 
@@ -222,13 +231,13 @@ list.forEach((item) => {
 
   const idStr = String(id);
 
-  newPlantMap[idStr] = {
-    name: String(getBest(item.plantName, item.name, item.plant_name, item.plant) || ""),
-    district: String(getBest(item.district, item.stateCode, item.District) || ""),
-    kld: String(getBest(item.kld, item.KLD) || ""),
-    zone: String(getBest(item.zone, item.zones, item.Zone) || "")
-  };
-
+newPlantMap[idStr] = {
+  name: String(getBest(item.plantName, item.name, item.plant_name, item.plant) || ""),
+  district: String(getBest(item.district, item.stateCode, item.District) || ""),
+  kld: String(getBest(item.kld, item.KLD) || ""),
+  zone: String(getBest(item.zone, item.zones, item.Zone) || ""),
+  phase: String(getBest(item.plantPhase, item.phase, item.plant_phase) || "")
+};
 });
       setPlantMaster(newPlantMap);
 
@@ -245,6 +254,16 @@ list.forEach((item) => {
 const zones = useMemo(() => {
   return [...new Set(Object.values(plantMaster).map(p => p.zone).filter(Boolean))]
     .sort((a, b) => Number(a) - Number(b));
+}, [plantMaster]);
+
+const phases = useMemo(() => {
+  return [
+    ...new Set(
+      Object.values(plantMaster)
+        .map((p) => p.phase)
+        .filter((p) => p !== "" && p !== null && p !== undefined)
+    ),
+  ].sort((a, b) => Number(a) - Number(b));
 }, [plantMaster]);
 
 // 2. Fetch Report Data (SERVICE LAYER BASED)
@@ -923,6 +942,19 @@ Power<br />(Kwh)</th>
     </option>
   ))}
 </select>
+                       <select
+  value={phaseFilter}
+  onChange={(e) => setPhaseFilter(e.target.value)}
+  className="p-2 border border-gray-300 rounded-md"
+>
+  <option value="All">All Phases</option>
+
+  {phases.map((phase) => (
+    <option key={phase} value={phase}>
+      Phase {phase}
+    </option>
+  ))}
+</select>
                         <input
                             id="dateInput"
                             type="date"
@@ -931,6 +963,7 @@ Power<br />(Kwh)</th>
                             onChange={(e) => setSelectedDate(e.target.value)}
                             className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#b31818]"
                         />
+ 
                         <button
                             id="loadBtn"
                             className="bg-[#b31818] text-white px-3 py-2 rounded-md cursor-pointer hover:bg-red-700 disabled:opacity-50"

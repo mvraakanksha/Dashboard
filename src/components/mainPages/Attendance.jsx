@@ -127,7 +127,7 @@ return (
 
 
 /* ================= MAIN ================= */
-export default function Attendance({ isDark, date, zone }) {
+export default function Attendance({ isDark, date, zone, selectedPlants }) {
   const navigate = useNavigate();
 
   const [plants, setPlants] = useState([]);
@@ -361,9 +361,20 @@ const rec = attendanceMap[key];
   /* ---------- BUILD CHART DATA ---------- */
 const allPlantsData = useMemo(() => {
   return plants
-    .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => {
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
+    .map((p) => {
       const stats = calculatePlant(p.plantID);
+
       return {
         label: p.plantName,
         plantId: p.plantID,
@@ -371,14 +382,22 @@ const allPlantsData = useMemo(() => {
         presentUnits: stats.presentUnits,
         employees: stats.employees,
         attendance: stats.attendance,
-         attendanceMap,
-         date, 
-       totalEmployees: stats.employees.filter(e =>
-  isEmployeeValid(e, date)
-).length
+        attendanceMap,
+        date,
+
+        totalEmployees: stats.employees.filter((e) =>
+          isEmployeeValid(e, date)
+        ).length,
       };
     });
-}, [plants, zone, calculatePlant]);
+}, [
+  plants,
+  zone,
+  selectedPlants,
+  calculatePlant,
+  attendanceMap,
+  date,
+]);
 
 
   const sortedAttendanceData = useMemo(() => {
@@ -408,9 +427,19 @@ const entryCount = useMemo(() => {
 
 const zonePlantIds = useMemo(() => {
   return plants
-    .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => p.plantID);
-}, [plants, zone]);
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
+    .map((p) => p.plantID);
+}, [plants, zone, selectedPlants]);
 
 const zoneEmployees = useMemo(() => {
   return zonePlantIds.flatMap(pid => employeesByPlant[pid] || []);
@@ -421,9 +450,19 @@ const zoneEmployees = useMemo(() => {
 const designationSummary = useMemo(() => {
   const summary = {};
 
-  const zonePlantIds = plants
-    .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => p.plantID);
+const zonePlantIds = plants
+  .filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
+
+    const plantMatch =
+      selectedPlants.length === 0 ||
+      selectedPlants.includes(p.plantID);
+
+    return zoneMatch && plantMatch;
+  })
+  .map((p) => p.plantID);
 
 const zoneEmployees = zonePlantIds.flatMap(
   pid => employeesByPlant[pid] || []
@@ -470,7 +509,15 @@ zoneEmployees.forEach(emp => {
 });
 
   return summary;
-}, [employees, attendanceMap, plants, zone]);
+}, [
+  employees,
+  attendanceMap,
+  plants,
+  zone,
+  selectedPlants,
+  employeesByPlant,
+  date,
+]);
 
 const strengthSummary = useMemo(() => {
   const summary = {};
@@ -481,9 +528,19 @@ const strengthSummary = useMemo(() => {
   });
 
   // ✅ only zone plants
-  const zonePlantIds = plants
-    .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => p.plantID);
+const zonePlantIds = plants
+  .filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
+
+    const plantMatch =
+      selectedPlants.length === 0 ||
+      selectedPlants.includes(p.plantID);
+
+    return zoneMatch && plantMatch;
+  })
+  .map((p) => p.plantID);
 
   const zoneEmployees = zonePlantIds.flatMap(
     pid => employeesByPlant[pid] || []
@@ -498,7 +555,13 @@ const strengthSummary = useMemo(() => {
   });
 
   return summary;
-}, [employeesByPlant, plants, zone, date]);
+}, [
+  employeesByPlant,
+  plants,
+  zone,
+  selectedPlants,
+  date,
+]);
 
 const totalEmployees = zoneEmployees.length;
 

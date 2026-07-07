@@ -62,7 +62,7 @@ const head = [[
   "Plant ID",
   "Plant Name",
   "KLD",
-  "Zone",
+  // "Zone",
 
   ...(config.modules.plant ? plantLabels : []),
   ...(config.modules.vehicle ? vehicleLabels : []),
@@ -77,7 +77,7 @@ const head = [[
       p.plantID,
       p.plantName,
       p.kld ?? "-",
-      p.zones ?? "-"
+      // p.zones ?? "-"
     ];
 
     if(config.modules.plant){

@@ -852,7 +852,7 @@ const exportPDF = async () => {
               <th className="border p-2 text-center">Fuel Filled Date</th>
               <th className="border p-2 text-center">Quantity (Liters)</th>
               <th className="border p-2 text-center">Odometer Reading</th>
-              <th className="border p-2 text-center">Mileage (Km/L)</th> 
+              {/* <th className="border p-2 text-center">Mileage (Km/L)</th> */}
             </tr>
 
           </thead>
@@ -938,9 +938,9 @@ const exportPDF = async () => {
                       {f.currentOdometerReading ?? "-"}
                     </td>
 
-<td className="border p-2 text-center">
+{/* <td className="border p-2 text-center">
  {f.mileage || "-"}
-</td>
+</td> */}
 
                   </tr>
                 );

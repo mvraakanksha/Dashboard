@@ -92,6 +92,7 @@ export default function PowerBillIndetail() {
   const [bills,setBills] = useState([]);
   const [view,setView] = useState("graph");
 const [zone,setZone] = useState("All");
+const [phase, setPhase] = useState("All");
   /* ================= FETCH PLANTS ================= */
 
   useEffect(()=>{
@@ -116,15 +117,46 @@ const zones = useMemo(() => {
 
 }, [plants]);
 
+
+const phases = useMemo(() => {
+
+  const unique = [
+    ...new Set(
+      plants
+        .map((p) => p.plantPhase)
+        .filter((p) => p !== null && p !== undefined)
+    ),
+  ].sort((a, b) => Number(a) - Number(b));
+
+  return [
+    { label: "All Phases", value: "All" },
+    ...unique.map((p) => ({
+      label: `Phase ${p}`,
+      value: String(p),
+    })),
+  ];
+
+}, [plants]);
+
 const filteredPlants = useMemo(() => {
 
-  if(zone === "All") return plants;
+  return plants.filter((p) => {
 
-  return plants.filter(
-    p => String(p.zones) === String(zone)
-  );
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
 
-}, [plants,zone]);
+    const phaseMatch =
+      phase === "All" ||
+      String(p.plantPhase) === String(phase);
+
+    return zoneMatch && phaseMatch;
+
+  });
+
+}, [plants, zone, phase]);
+
+const matchingPlants = filteredPlants.length;
   /* ================= FETCH BILLS ================= */
 
   useEffect(()=>{
@@ -147,9 +179,9 @@ const filteredPlants = useMemo(() => {
 
     };
 
-    if(plants.length) fetchBills();
+   if(filteredPlants.length) fetchBills();
 
-  },[plants,mode,selectedPlant]);
+}, [filteredPlants, mode, selectedPlant]);
 
 
   /* ================= MONTHLY DATA ================= */
@@ -362,11 +394,15 @@ for(let i=1;i<sorted.length;i++){
 
   <div className="flex justify-between items-center mb-4">
 
-    <h2 className="text-xl font-bold text-blue-900">
-      {mode==="yearly"
-        ? "All Plants - Yearly Power Consumption"
-        : `${selectedPlant?.plantName} - Monthly Power Bill Consumption`}
-    </h2>
+   <h2 className="text-xl font-bold text-blue-900">
+  {mode === "yearly"
+    ? `All Plants - Yearly Power Consumption${
+        zone !== "All" ? ` - Zone ${zone}` : ""
+      }${
+        phase !== "All" ? ` - Phase ${phase}` : ""
+      }`
+    : `${selectedPlant?.plantName} - Monthly Power Bill Consumption`}
+</h2>
 
     <div className="flex gap-3">
 
@@ -404,7 +440,20 @@ for(let i=1;i<sorted.length;i++){
     </option>
   ))}
 </select>
-
+<select
+  value={phase}
+  onChange={(e) => setPhase(e.target.value)}
+  className="border rounded px-3 py-1 text-sm"
+>
+  {phases.map((p) => (
+    <option
+      key={p.value}
+      value={p.value}
+    >
+      {p.label}
+    </option>
+  ))}
+</select>
 
       <select
       value={year}

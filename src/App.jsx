@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 
 import {
-   MemoryRouter as Router,
+   BrowserRouter as Router,
   Routes,
   Route,
   NavLink,
@@ -260,16 +260,18 @@ useEffect(() => {
         <div className="main-content">
           {/* 🔎 GLOBAL FILTER BAR */}
         {!isEmbed && !hideFilterBar && (
-            <FilterBar
-              isDark={isDark}
-              setIsDark={setDashboardDark}   // ✅ IMPORTANT
-              showThemeToggle={isDashboard}
-              date={date}
-              setDate={setDate}
-              zone={zone}
-              setZone={setZone}
-              zones={zones}
-            />
+<FilterBar
+  isDark={isDark}
+  setIsDark={setDashboardDark}
+  showThemeToggle={isDashboard}
+  date={date}
+  setDate={setDate}
+  zone={zone}
+  setZone={setZone}
+  zones={zones}
+  selectedPlants={selectedPlants}
+  setSelectedPlants={setSelectedPlants}
+/>
 
 
           )}
@@ -277,16 +279,34 @@ useEffect(() => {
           <Routes>
             <Route
               path="/"
-              element={<Dashboard isDark={isDark} date={date} zone={zone}  setZones={setZones}  />}
+              element={<Dashboard isDark={isDark} date={date} zone={zone}  setZones={setZones} selectedPlants={selectedPlants}  />}
             />
 
-
-              <Route path="/sludge-report" element={<SludgeReports date={date} zone={zone}  setZones={setZones}  />} />
-              <Route path="/attendance" element={<Attendance date={date} zone={zone}   />} />
-              <Route path="/vehicle" element={<Vehicle date={date} zone={zone} />} />
-              <Route path="/power" element={<Power date={date} zone={zone} />} />
-              <Route path="/pellets" element={<Pellets date={date} zone={zone} />} />
-              <Route path="/lab" element={<LabOperations date={date} zone={zone} />} />
+<Route
+  path="/sludge-report"
+  element={
+    <SludgeReports
+      date={date}
+      zone={zone}
+      setZones={setZones}
+      selectedPlants={selectedPlants}
+    />
+  }
+/>
+             <Route
+  path="/attendance"
+  element={
+    <Attendance
+      date={date}
+      zone={zone}
+      selectedPlants={selectedPlants}
+    />
+  }
+/>
+              <Route path="/vehicle" element={<Vehicle date={date} zone={zone}   selectedPlants={selectedPlants} />} />
+              <Route path="/power" element={<Power date={date} zone={zone}  selectedPlants={selectedPlants}  />} />
+              <Route path="/pellets" element={<Pellets date={date} zone={zone} selectedPlants={selectedPlants}  />} />
+              <Route path="/lab" element={<LabOperations date={date} zone={zone} selectedPlants={selectedPlants} />} />
 
 
 
@@ -332,24 +352,92 @@ useEffect(() => {
 
             <Route path="/daterange" element={<DaterangeView />} />
 
-            <Route path="/reports" element={<Report />}>
-            
-              <Route index element={<DailyReportPage />} />
+ <Route path="/reports" element={<Report />}>
 
-              <Route path="daily" element={<DailyReportPage />} />
-                <Route path="monthly" element={<MonthlyReportPage/>} />
-              <Route path="customized" element={<CustomizedReport />} />
-               <Route path="individual" element={<Individual/>} />
-                <Route path="attendance" element={<AttendanceReport/>} />
-                   <Route path="water" element={<WaterReport/>} />
-                   <Route path="performance" element={<Performance/>} />
-                   
-                      <Route path="utility" element={<Utility/>} />
-                      <Route path="discom" element={<Discom/>} />
-                        <Route path="employee" element={<EmployeeDetails/>} />
-                        <Route path="stockreport" element={<StockReport/>} />
-                          <Route path="master" element={<PlantMasterReport/>} />
-            </Route>
+  {/* DEFAULT */}
+  <Route
+    index
+    element={<DailyReportPage />}
+  />
+
+  {/* ================= OPERATIONS ================= */}
+  <Route path="operations">
+
+    <Route
+      path="daily"
+      element={<DailyReportPage />}
+    />
+
+    <Route
+      path="monthly"
+      element={<MonthlyReportPage />}
+    />
+
+    <Route
+      path="performance"
+      element={<Performance />}
+    />
+
+    <Route
+      path="individual"
+      element={<Individual />}
+    />
+
+  </Route>
+
+  {/* ================= MAINTAINANCE ================= */}
+  <Route path="maintainance">
+
+    <Route
+      path="utility"
+      element={<Utility />}
+    />
+
+    <Route
+      path="water"
+      element={<WaterReport />}
+    />
+
+    <Route
+      path="discom"
+      element={<Discom />}
+    />
+
+  </Route>
+
+  {/* ================= EMPLOYEE DATA ================= */}
+  <Route path="employee-data">
+
+    <Route
+      path="attendance"
+      element={<AttendanceReport />}
+    />
+
+    <Route
+      path="employee"
+      element={<EmployeeDetails />}
+    />
+
+  </Route>
+
+  {/* ================= OTHER REPORTS ================= */}
+
+  <Route
+    path="stockreport"
+    element={<StockReport />}
+  />
+
+  <Route
+    path="master"
+    element={<PlantMasterReport />}
+  />
+
+  <Route
+    path="customized"
+    element={<CustomizedReport />}
+  />
+
+</Route>
 <Route
   path="/plants"
   element={

@@ -370,6 +370,7 @@ export default function CustomizedReport() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [zoneFilter, setZoneFilter] = useState("All");
+  const [phaseFilter, setPhaseFilter] = useState("All");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
 const [selectedPlants, setSelectedPlants] = useState([]);
 const [dateError, setDateError] = useState("");
@@ -707,7 +708,13 @@ const zones = useMemo(() => {
   ).sort((a, b) => a - b);
 }, [plants]);
 
+const phases = useMemo(() => {
+  if (!Array.isArray(plants)) return [];
 
+  return Array.from(
+    new Set(plants.map((p) => p.plantPhase).filter((p) => p != null))
+  ).sort((a, b) => Number(a) - Number(b));
+}, [plants]);
 
   const activeInfraKeys = Object.keys(infraFilters).filter(
     (k) => infraFilters[k]
@@ -717,8 +724,21 @@ const zones = useMemo(() => {
   /* ================= FILTERED PLANTS ================= */
 const filteredPlants = useMemo(() => {
   return plants.filter((p) => {
-    if (zoneFilter !== "All" && String(p.zones) !== String(zoneFilter))
+    // Zone filter
+    if (
+      zoneFilter !== "All" &&
+      String(p.zones) !== String(zoneFilter)
+    ) {
       return false;
+    }
+
+    // Phase filter
+    if (
+      phaseFilter !== "All" &&
+      String(p.plantPhase) !== String(phaseFilter)
+    ) {
+      return false;
+    }
 
     // TOTAL → no infra filtering
     if (infraFilters.TOTAL) return true;
@@ -731,7 +751,7 @@ const filteredPlants = useMemo(() => {
 
     return true;
   });
-}, [plants, zoneFilter, infraFilters]);
+}, [plants, zoneFilter, phaseFilter, infraFilters]);
 
 // const initialized = useRef(false);
 
@@ -741,9 +761,11 @@ const filteredPlants = useMemo(() => {
 //     initialized.current = true;
 //   }
 // }, [filteredPlants]);
+
 useEffect(() => {
-  setSelectedPlants(filteredPlants.map(p => p.plantID));
-}, [zoneFilter, filteredPlants]);
+  setSelectedPlants(filteredPlants.map((p) => p.plantID));
+}, [zoneFilter, phaseFilter, filteredPlants]);
+ 
 useEffect(() => {
   setShowPreview(false);
   setPreviewData(null);
@@ -1158,6 +1180,29 @@ useEffect(() => {
   </div>
 </div>
 
+<div>
+  <label className="text-[10px] font-bold text-slate-500 uppercase">
+    Phase
+  </label>
+
+  <div className="flex items-center gap-2 mt-1">
+    <Filter size={16} />
+
+    <select
+      value={phaseFilter}
+      onChange={(e) => setPhaseFilter(e.target.value)}
+      className="border p-2 rounded text-xs"
+    >
+      <option value="All">All Phases</option>
+
+      {phases.map((phase) => (
+        <option key={phase} value={String(phase)}>
+          Phase {phase}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
       </div>
 
 

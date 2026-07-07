@@ -139,7 +139,7 @@ const TelemetryRow = ({ leftLabel, leftValue, leftUnit, rightLabel, rightValue, 
 );
 
 // ================= MAIN DASHBOARD COMPONENT =================
-export default function Dashboard({ isDark, date, zone, setZones}) {
+export default function Dashboard({ isDark, date, zone, setZones, selectedPlants }) {
   const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -184,15 +184,17 @@ try {
     throw new Error("Invalid plants response");
   }
 
-      const filteredByZone =
-  zone === "All"
-    ? allPlants
-    : allPlants.filter(p => String(p.zones) === String(zone));
+const filteredPlants = allPlants.filter((p) => {
+  const zoneMatch =
+    zone === "All" ||
+    String(p.zones) === String(zone);
 
-// 🔥 Apply Permanent Power Date Logic
-const filteredPlants = filteredByZone;
+  const plantMatch =
+    selectedPlants.length === 0 ||
+    selectedPlants.includes(p.plantID);
 
-          
+  return zoneMatch && plantMatch;
+});     
 
   const permanentPowerCount =
   filteredPlants.filter((p) => {
@@ -400,7 +402,7 @@ const totalAbsent = attendanceResult.totalAbsent;
 }
     };
     fetchDashboardData();
-}, [date, zone]); // ✅ FIX
+}, [date, zone, selectedPlants]);
 
 const present = kpis?.totalPresent?.toFixed(1) || "0.0";
 const total = kpis?.totalEmployees || 0;
