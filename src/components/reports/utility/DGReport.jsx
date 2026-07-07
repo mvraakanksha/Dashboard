@@ -825,13 +825,29 @@ Generate Report
 </button>
 
 <button
-onClick={()=>{
-  setPreviewMode(false);
-  setSelectedPlantIds([]);
-}}
-className="bg-gray-500 text-white px-4 py-2 rounded text-xs font-semibold"
+  onClick={() => {
+    const today = new Date().toISOString().split("T")[0];
+
+    // Reset preview
+    setPreviewMode(false);
+
+    // Reset selected plants
+    setSelectedPlantIds([]);
+
+    // Reset filters
+    setSelectedZone("ALL");
+    setSelectedPhase("ALL");
+    setDgFilter("ALL");
+
+    // Reset dates
+    setDateRange({
+      from: today,
+      to: today,
+    });
+  }}
+  className="bg-gray-500 text-white px-4 py-2 rounded text-xs font-semibold"
 >
-Reset
+  Reset
 </button>
 <button
 onClick={exportExcel}
