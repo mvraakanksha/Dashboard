@@ -871,50 +871,42 @@ className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-900 cu
 )}
 
   <table className="w-full text-sm border-collapse text-left">
-    <thead className="bg-slate-900 text-white sticky top-0 z-20">
-      {/* Category Row (Optional but helpful for visual grouping) */}
-      <tr className="text-[10px] uppercase tracking-widest bg-slate-950 divide-x divide-slate-800">
-        <th colSpan={5} className="px-4 py-2 text-center text-slate-200">Basic Information</th>
-        {config.modules.plant && <th colSpan={config.selPlantFields.length} className="px-4 py-2 text-center text-blue-400">Plant Metadata</th>}
-        {config.modules.vehicle && <th colSpan={config.selVehicleFields.length} className="px-4 py-2 text-center text-indigo-400">Vehicle</th>}
-        {config.modules.employee && <th colSpan={config.selEmployeeFields.length} className="px-4 py-2 text-center text-emerald-400">Employee</th>}
-      </tr>
-      
-      {/* Field Row */}
-      <tr className="divide-x divide-slate-700 border-t border-slate-800">
-        <th className="px-3 py-4 text-center w-auto whitespace-nowrap">S.No</th>
-        <th className="px-3 py-4 w-auto text-center  whitespace-nowrap">Plant ID</th>
-        <th className="px-4 py-4 w-auto text-center ">Plant Name</th>
-        <th className="px-3 py-4 text-center w-auto text-center ">KLD</th>
-       
+ <thead className="bg-slate-900 text-white sticky top-0 z-20">
+  {/* Category Row */}
+  <tr className="text-[10px] uppercase tracking-widest bg-slate-950 divide-x divide-slate-800">
+    <th colSpan={4} className="px-4 py-2 text-center text-slate-200">Basic Information</th>
+    {config.modules.plant && <th colSpan={config.selPlantFields.length} className="px-4 py-2 text-center text-blue-400">Plant Metadata</th>}
+    {config.modules.vehicle && <th colSpan={config.selVehicleFields.length} className="px-4 py-2 text-center text-indigo-400">Vehicle</th>}
+    {config.modules.employee && <th colSpan={config.selEmployeeFields.length} className="px-4 py-2 text-center text-emerald-400">Employee</th>}
+  </tr>
 
-        {/* DYNAMIC PLANT */}
-{/* DYNAMIC PLANT */}
-{config.modules.plant &&
-  config.selPlantFields.map((f) => (
-    <th
-      key={f}
-      className="px-4 py-4 whitespace-nowrap font-semibold"
-    >
-      {ALL_PLANT_FIELDS.find((x) => x.id === f)?.label}
-    </th>
-))}
-        {/* VEHICLE */}
-        {config.modules.vehicle && config.selVehicleFields.map(f => (
-          <th key={f} className="px-4 py-4 text-center  whitespace-nowrap font-semibold">
-            {VEHICLE_FIELDS.find(x => x.id === f)?.label || f}
-          </th>
-        ))}
+  {/* Field Row */}
+  <tr className="divide-x divide-slate-700 border-t border-slate-800">
+    <th className="px-3 py-4 text-center w-auto whitespace-nowrap">S.No</th>
+    <th className="px-3 py-4 w-auto text-center whitespace-nowrap">Plant ID</th>
+    <th className="px-4 py-4 w-auto text-center">Plant Name</th>
+    <th className="px-3 py-4 text-center w-auto text-center">KLD</th>
 
-        {/* EMPLOYEE */}
-        {config.modules.employee && config.selEmployeeFields.map(f => (
-          <th key={f} className="px-4 py-4 text-center  whitespace-nowrap font-semibold">
-            {EMPLOYEE_FIELDS.find(x => x.id === f)?.label || f}
-          </th>
-        ))}
-      </tr>
-    </thead>
+    {config.modules.plant &&
+      config.selPlantFields.map((f) => (
+        <th key={f} className="px-4 py-4 whitespace-nowrap font-semibold">
+          {ALL_PLANT_FIELDS.find((x) => x.id === f)?.label}
+        </th>
+      ))}
 
+    {config.modules.vehicle && config.selVehicleFields.map(f => (
+      <th key={f} className="px-4 py-4 text-center whitespace-nowrap font-semibold">
+        {[...VEHICLE_FIELDS, ...TYRE_DETAILS_FIELDS].find(x => x.id === f)?.label || f}
+      </th>
+    ))}
+
+    {config.modules.employee && config.selEmployeeFields.map(f => (
+      <th key={f} className="px-4 py-4 text-center whitespace-nowrap font-semibold">
+        {EMPLOYEE_FIELDS.find(x => x.id === f)?.label || f}
+      </th>
+    ))}
+  </tr>
+</thead>
     <tbody className="divide-y divide-slate-200">
      {config.plants
   .filter(p => {
