@@ -261,6 +261,7 @@ export default function DaterangeView() {
   const [fromDate, setFromDate] = useState(TODAY);
   const [toDate, setToDate] = useState(TODAY);
   const [zone, setZone] = useState("All");
+  const [phase, setPhase] = useState("All");
 const [previewImage, setPreviewImage] = useState(null);
 
   const [plants, setPlants] = useState([]);
@@ -278,13 +279,35 @@ const [machineryType, setMachineryType] = useState("with");
 // with | without
 
   /* ================= FETCH PLANTS ================= */
-  useEffect(() => {
-    getAllPlants().then((res) => {
-      setPlants(res || []);
-      const uniqueZones = [...new Set((res || []).map(p => p.zones))].sort();
-      setZones(uniqueZones);
-    });
-  }, []);
+const [phases, setPhases] = useState([]);
+
+useEffect(() => {
+  getAllPlants().then((res) => {
+    const data = res || [];
+
+    setPlants(data);
+
+    const uniqueZones = [
+      ...new Set(
+        data
+          .map((p) => p.zones)
+          .filter((z) => z !== null && z !== undefined)
+      ),
+    ].sort((a, b) => Number(a) - Number(b));
+
+    setZones(uniqueZones);
+
+    const uniquePhases = [
+      ...new Set(
+        data
+          .map((p) => p.plantPhase)
+          .filter((p) => p !== null && p !== undefined)
+      ),
+    ].sort((a, b) => Number(a) - Number(b));
+
+    setPhases(uniquePhases);
+  });
+}, []);
 
   /* ================= FETCH OPERATIONS ================= */
  /* ================= FETCH OPERATIONS (NON-VEHICLE MODULES) ================= */
@@ -297,7 +320,7 @@ useEffect(() => {
       .then(res => setOperations(res || []))
       .finally(() => setLoading(false));
   }
-}, [fromDate, toDate, zone, module]);
+}, [fromDate, toDate, zone, phase, module]);
 
 
 
@@ -332,7 +355,7 @@ useEffect(() => {
       .then(res => setVehicleOps(res || []))
       .finally(() => setLoading(false));
   }
-}, [fromDate, toDate, zone, module]);
+}, [fromDate, toDate, zone, phase, module]);
 
 /* ================= FETCH VEHICLE MASTER (VEHICLE NUMBER) ================= */
 /* ================= FETCH VEHICLE MASTER (VEHICLE NUMBER) ================= */
@@ -455,11 +478,19 @@ const handleDownloadMachineryImage = () => {
 
 
   /* ================= FILTER PLANTS BY ZONE ================= */
-  const visiblePlants = useMemo(() => {
-    if (zone === "All") return plants;
-    return plants.filter(p => String(p.zones) === String(zone));
-  }, [plants, zone]);
+const visiblePlants = useMemo(() => {
+  return plants.filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
 
+    const phaseMatch =
+      phase === "All" ||
+      String(p.plantPhase) === String(phase);
+
+    return zoneMatch && phaseMatch;
+  });
+}, [plants, zone, phase]);
   /* ================= AGGREGATE OPERATIONS ================= */
   const aggregatedByPlant = useMemo(() => {
     const map = {};
@@ -911,6 +942,18 @@ const motors = [
       />
     </div>
 
+<div className="min-w-[140px]">
+  <Select
+    label="Phase"
+    value={phase}
+    onChange={setPhase}
+    options={[
+      "All",
+      ...phases.map((p) => String(p)),
+    ]}
+  />
+</div>
+
     {/* MODULE TOGGLE */}
     <div className="flex flex-col gap-1">
       <span className="text-xs font-bold text-slate-600 tracking-wide">
@@ -1360,7 +1403,9 @@ const motors = [
     ))}
   </div>
 
-  <p className="text-center text-sm font-bold mt-4">Plants</p>
+<p className="text-center text-sm font-bold mt-4">
+  Plants ({visiblePlants.length})
+</p>
 </div>
 
 

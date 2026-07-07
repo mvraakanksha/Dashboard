@@ -233,7 +233,7 @@ export default function FilterBar({
       return `⚠️ Select at least one plant before fetching data for ${prettyDate}.`;
     }
 
-    return `Ready to pull data for ${prettyDate} across ${zoneText} — ${plantText} selected. Hit GET when you're set.`;
+    return `Choose the date, zone, and plants, then click GET DATA.`;
   }, [draftDate, draftZone, draftSelectedPlants, filteredPlants]);
 
   return (
@@ -400,69 +400,85 @@ export default function FilterBar({
           </div>
 
           {/* GET BUTTON — unchanged */}
-          <button
-            onClick={handleGetData}
-            className={`
-              flex items-center gap-2 px-4 py-2 rounded-xl
-              font-bold text-xs transition-all duration-300
-              ${
-                isDark
-                  ? "bg-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30"
-                  : "bg-emerald-200 text-emerald-700 hover:bg-emerald-100"
-              }
-            `}
-          >
-            GET DATA
-          </button>
+{/* GET DATA + Helper Text */}
+<div className="flex flex-col items-start">
+  <button
+    onClick={handleGetData}
+    className={`
+      flex items-center gap-2 px-4 py-2 rounded-xl
+      font-bold text-xs transition-all duration-300
+      ${
+        isDark
+          ? "bg-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30"
+          : "bg-emerald-200 text-emerald-700 hover:bg-emerald-100"
+      }
+    `}
+  >
+    GET DATA
+  </button>
 
-          {/* RESET BUTTON — only enabled when a filter differs from default */}
-          <button
-            onClick={handleResetFilters}
-            disabled={!isFilterApplied}
-            title={
-              isFilterApplied
-                ? "Clear all filters back to default"
-                : "No filters applied yet"
-            }
-            className={`
-              flex items-center gap-2 px-4 py-2 rounded-xl
-              font-bold text-xs transition-all duration-300
-              ${
-                !isFilterApplied
-                  ? isDark
-                    ? "bg-slate-800/40 text-slate-600 cursor-not-allowed"
-                    : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  : isDark
-                  ? "bg-rose-500/20 text-rose-300 hover:bg-rose-500/30"
-                  : "bg-rose-50 text-rose-700 hover:bg-rose-100"
-              }
-            `}
-          >
-            <RotateCcw className="w-4 h-4" />
-            RESET
-          </button>
+  {/* Helper Text */}
+  <div className="mt-1 flex items-center gap-1.5">
+    <Sparkles className="w-3 h-3 text-indigo-400 shrink-0" />
+
+    <span
+      className={`
+        text-[12px]
+        whitespace-nowrap
+        ${isDark ? "text-slate-400" : "text-slate-500"}
+      `}
+    >
+      Select the filters and click on GET DATA to view the data.
+    </span>
+  </div>
+</div>
+
+{/* RESET BUTTON */}
+<button
+  onClick={handleResetFilters}
+  disabled={!isFilterApplied}
+  title={
+    isFilterApplied
+      ? "Clear all filters back to default"
+      : "No filters applied yet"
+  }
+  className={`
+    flex items-center gap-2 px-4 py-2 rounded-xl
+    font-bold text-xs transition-all duration-300
+    ${
+      !isFilterApplied
+        ? isDark
+          ? "bg-slate-800/40 text-slate-600 cursor-not-allowed"
+          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+        : isDark
+        ? "bg-rose-500/20 text-rose-300 hover:bg-rose-500/30"
+        : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+    }
+  `}
+>
+  <RotateCcw className="w-4 h-4" />
+  RESET
+</button>
         </div>
 
         {/* RIGHT */}
-        {showThemeToggle && (
-          <button
-            onClick={() => setIsDark((v) => !v)}
-            className={`
-              flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs
-              transition-all duration-300
-              ${
-                isDark
-                  ? "bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30"
-                  : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-              }
-            `}
-          >
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            {isDark ? "LIGHT" : "DARK"}
-          </button>
-        )}
-        <div>  <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-        <span>{helperText}</span></div>
+      {showThemeToggle && (
+  <button
+    onClick={() => setIsDark((v) => !v)}
+    className={`
+      flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs
+      transition-all duration-300
+      ${
+        isDark
+          ? "bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30"
+          : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+      }
+    `}
+  >
+    {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    {isDark ? "LIGHT" : "DARK"}
+  </button>
+)}
       </div>
 
       {/* FRIENDLY HELPER TEXT */}
