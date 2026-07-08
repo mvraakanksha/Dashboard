@@ -1475,12 +1475,16 @@ const Select = ({ label, value, onChange, options }) => (
     >
       {options.map(o => (
         <option key={o} value={o}>
-          {label === "Zone"
-            ? o === "All"
-              ? "All Zones"
-              : `Zone ${o}`
-            : o.charAt(0).toUpperCase() + o.slice(1)}
-        </option>
+  {label === "Zone"
+    ? o === "All"
+      ? "All Zones"
+      : `Zone ${o}`
+    : label === "Phase"
+    ? o === "All"
+      ? "All Phases"
+      : `Phase ${o}`
+    : o.charAt(0).toUpperCase() + o.slice(1)}
+</option>
       ))}
     </select>
   </div>

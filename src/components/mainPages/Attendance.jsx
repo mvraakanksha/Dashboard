@@ -646,7 +646,7 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
             {/* KPI ROW WITH DYNAMIC COLORS AND DOWN BAR */}
 {/* ================= PREMIUM KPI CARDS ================= */}
  <div className="rounded-2xl p-5 sm:p-4 sm:p-6 bg-white shadow-lg mb-5">
-<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5 mb-8">
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5 ">
 
   {[
      { label: "Total Plants", value: totalPlants, icon: <Layers/>, themeKey: "amber" },

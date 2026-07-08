@@ -102,7 +102,6 @@ fields:[
 ]
 },
 
-
 ];
 
 
@@ -312,19 +311,15 @@ const toggleGroup = (id) => {
     const next = !prev[id];
     const group = PLANT_GROUPS.find(g => g.id === id);
 
-  if (next) {
-  setSelPlantFields((p) => [
-    ...new Set([
-      ...p,
-      ...group.fields
-        .filter(
-          (f) => !["zones", "plantPhase"].includes(f.id)
-        )
-        .map((f) => f.id),
-    ]),
-  ]);
-}else {
-      // ❌ REMOVE all group fields when group disabled
+    if (next) {
+      setSelPlantFields((p) => [
+        ...new Set([
+          ...p,
+          ...group.fields.map((f) => f.id), // ✅ include everything, no exclusion
+        ]),
+      ]);
+    } else {
+      // remove all group fields when group disabled
       setSelPlantFields(p =>
         p.filter(f => !group.fields.some(x => x.id === f))
       );
@@ -333,7 +328,6 @@ const toggleGroup = (id) => {
     return { ...prev, [id]: next };
   });
 };
-
 const formatDate = (v) => {
   if (!v) return "-";
 

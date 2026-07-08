@@ -14,7 +14,8 @@ import autoTable from "jspdf-autotable";
 import PerformanceSingle from "./PerformanceSingle";
 import { getOperationsByDateRange } from "../../../services/operationService";
 import { getAllPlants } from "../../../services/plantService";
-
+import ExcelJS from "exceljs";
+import { addMonthlyReportSheet, addTop10Sheet, addZeroSheet } from './excelReportBuilder';
 import jsPDF from "jspdf";
 import companyLogo from '../../reports/company_logo1.jpg'
 
@@ -756,7 +757,61 @@ autoTable(doc, {
   doc.save(`Monthly Report_${monthYearLabel}.pdf`);
 };
 
+const downloadExcel = async () => {
+  if (!cachedCompanyLogo) {
+    cachedCompanyLogo = await loadImage(companyLogo);
+  }
 
+  // Reuse the exact same chart images used in the PDF
+  const receivedImage = await svgToImage(receivedChartRef.current);
+  const processedImage = await svgToImage(processedChartRef.current);
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "MVR Technology";
+  workbook.created = new Date();
+
+  // Sheet order mirrors the PDF page order
+  if (includeMonthly) {
+    await addMonthlyReportSheet(workbook, {
+      month: fromDate.slice(0, 7),
+      zoneFilter: zone,
+      phaseFilter: phase,
+      logoBase64: cachedCompanyLogo,
+    });
+  }
+
+  addTop10Sheet(workbook, {
+    receivedData,
+    processedData,
+    receivedImage,
+    processedImage,
+    fromDate,
+    toDate,
+    zone,
+    logoBase64: cachedCompanyLogo,
+  });
+
+  addZeroSheet(workbook, {
+    zeroSludgePlants,
+    fromDate,
+    toDate,
+    zone,
+    logoBase64: cachedCompanyLogo,
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Monthly Report_${monthYearLabel}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
 
 
   /* ================= UI ================= */
@@ -852,6 +907,13 @@ return (
           >
             Download PDF
           </button>
+          <button
+  onClick={downloadExcel}
+  className="bg-green-600 text-white px-4 py-1 rounded text-xs font-bold hover:bg-green-700"
+>
+  Download Excel
+</button>
+
         </div>
 
         {/* CONTENT */}

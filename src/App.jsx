@@ -2,13 +2,12 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 
 import {
-   BrowserRouter as Router,
+   MemoryRouter as Router,
   Routes,
   Route,
   NavLink,
   useLocation
 } from "react-router-dom";
-
 
 import { lazy, Suspense } from "react";
 
