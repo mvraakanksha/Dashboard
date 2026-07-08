@@ -516,7 +516,7 @@ doc.text(
      TABLE
   ===================================================== */
 /* ================= TABLE (uniform row height on every page) ================= */
-  const ROWS_PER_PAGE = 50;
+  const ROWS_PER_PAGE = 40;
   const BOTTOM_MARGIN = 10;
   const HEAD_HEIGHT = 9;
   const SAFETY_BUFFER = 2;

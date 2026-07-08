@@ -53,14 +53,22 @@ const formatDate = (dateString) => {
 
 /* ================= STAT CARD ================= */
 const StatCard = ({ title, count, icon, active, onClick }) => (
-  <div
-    onClick={onClick}
-    className={`p-5 rounded-xl border cursor-pointer transition-all ${
-      active
-        ? "bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500"
-        : "bg-white border-slate-200 hover:border-indigo-300 hover:shadow"
-    }`}
-  >
+<div
+  onClick={onClick}
+  className={`p-5 rounded-xl border cursor-pointer transition-all ${
+    active
+      ? "bg-indigo-50 border-indigo-500 shadow-lg"
+      : "bg-white border-slate-200 hover:border-indigo-300 hover:shadow"
+  }`}
+  style={
+    active
+      ? {
+          boxShadow:
+            "inset 0 0 0 2px #2563eb, 0 4px 12px rgba(0,0,0,0.12)",
+        }
+      : {}
+  }
+>
     <div className="flex justify-between items-start">
       <div>
         <p className="text-xs font-bold text-slate-500 uppercase">{title}</p>
@@ -888,14 +896,14 @@ const handleReset = () => {
 
   /* ================= UI ================= */
   return (
-   <div className="w-full overflow-hidden">
+   <div className="w-full">
 
-   <div
-      className="flex flex-nowrap gap-4  overflow-x-auto custom-scrollbar snap-x snap-mandatory scroll-smooth w-full  px-2 pb-3"
-      onWheel={(e) => {
-        e.currentTarget.scrollLeft += e.deltaY;
-      }}
-    >
+<div
+  className="w-full overflow-x-auto custom-scrollbar"
+>
+  <div
+    className="flex flex-nowrap gap-4 min-w-max px-2 pt-2 pb-3"
+  >
 
   {[
     { key: "ALL", title: "Total Plants", count: counts.total, icon: <Factory size={20} /> },
@@ -915,7 +923,10 @@ const handleReset = () => {
     { key: "CTE/CTO", title: "CTE / CTO", count: zoneFilteredPlants.filter(p => p.cteCertified && p.ctoCertified).length, icon: <LayoutDashboard size={20} /> }
 
   ].map(card => (
-    <div key={card.key} className="snap-center shrink-0 w-[220px] transition-transform duration-300 hover:scale-105">
+    <div
+  key={card.key}
+  className="flex-none w-[220px] transition-transform duration-300 hover:scale-105"
+>
       <StatCard
         title={card.title}
         count={card.count}
@@ -927,7 +938,7 @@ const handleReset = () => {
   ))}
 
 </div>
-
+</div>
       {/* TABLE */}
       <div className="bg-white rounded-xl border overflow-x-auto mt-7 p-4">
 <div className="flex items-center justify-between mb-3 gap-4">
