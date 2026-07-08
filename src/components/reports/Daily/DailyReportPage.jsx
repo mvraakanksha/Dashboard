@@ -523,21 +523,35 @@ const headerRow = sheet.addRow([
     "-",
   ]);
 
-  totalRow.eachCell(cell => {
-    cell.font = { bold: true, color: { argb: "FF000000" } };
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFFFFFFF" },
-    };
-    cell.border = {
-      top: { style: "thin" },
-      bottom: { style: "thin" },
-      left: { style: "thin" },
-      right: { style: "thin" },
-    };
-  });
+totalRow.eachCell((cell, colNumber) => {
+  cell.font = {
+    bold: true,
+    color: { argb: "FF000000" },
+  };
+
+  cell.alignment = {
+    horizontal: "center",
+    vertical: "middle",
+  };
+
+  cell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFFFFFF" },
+  };
+
+  cell.border = {
+    top: { style: "thin" },
+    bottom: { style: "thin" },
+    left: { style: "thin" },
+    right: { style: "thin" },
+  };
+
+  // ✅ Apply Indian comma format to numeric total columns
+  if (colNumber >= 5 && colNumber <= 10) {
+    cell.numFmt = "#,##,##0";
+  }
+});
 
   sheet.mergeCells(
     totalRow.number,
@@ -690,99 +704,148 @@ const downloadPdf = async () => {
   /* =====================================================
      TABLE
   ===================================================== */
-  autoTable(doc, {
-      startY: 26,
-  theme: "grid",
+const ROWS_PER_PAGE = 40;
 
-  margin: {
-    left: SIDE_MARGIN,
-    right: SIDE_MARGIN,
-    top: 8,
-    bottom: 8,
-  },
+const headDef = [[
+  "S.No",
+  "ID / KLD",
+  "District",
+  "Plant name",
+  "Opening\nSTL (L)",
+  "Sludge\nReceived (L)",
+  "Sludge\nProcessed (L)",
+  "Closing\nSTL (L)",
+  "Plant run\nhrs",
+  "Biochar\nquantity (kgs)",
+  "Power\n(Kwh)",
+  "Remarks",
+]];
 
-  tableWidth: "auto",
+const bodyRows = processedData.map((r, i) => [
+  i + 1,
+  `${r.plantId || r.numericPlantId || "-"}${r.kld ? " / " + r.kld : ""}`,
+  r.district || "-",
+  r.plantName || "-",
+  formatNumberNice(r.beforeSTL),
+  formatNumberNice(r.sludgeReceived),
+  formatNumberNice(r.sludgeProcessed),
+  formatNumberNice(r.afterSTL),
+  r.plantRunHrs ?? "-",
+  formatNumberNice(r.biocharProduced),
+  formatNumberNice(r.power),
+  r.remarks || "-",
+]);
 
-  styles: {
-    font: "times",
-    fontSize: 5,
-    cellPadding: 0.25,
-    halign: "center",
-    valign: "middle",
+const footDef = [[
+  "TOTAL",
+  "",
+  "",
+  "",
+  formatNumberNice(totals.totalBefore),
+  formatNumberNice(totals.totalReceived),
+  formatNumberNice(totals.totalProcessed),
+  formatNumberNice(totals.totalAfter),
+  formatNumberNice(totals.totalRunHrs),
+  formatNumberNice(totals.totalBiochar),
+  "-",
+  "-",
+]];
 
-    lineWidth: 0.2,          // 🔥 THICK INNER GRID
-    lineColor: [0, 0, 0],    // solid black
-    textColor: [0, 0, 0],
-  },
+const chunks = [];
 
-  headStyles: {
-    fontStyle: "bold",
-    lineWidth: 0.2,          // 🔥 EXTRA THICK HEADER
-    fillColor: [255, 255, 255],
-    textColor: [0, 0, 0],
-  },
+for (let i = 0; i < bodyRows.length; i += ROWS_PER_PAGE) {
+    chunks.push(bodyRows.slice(i, i + ROWS_PER_PAGE));
+}
 
-  bodyStyles: {
-    lineWidth: 0.2,          // 🔥 BODY GRID
-  },
+if (!chunks.length) chunks.push([]);
+ 
+const pageHeight = doc.internal.pageSize.getHeight();
 
-  footStyles: {
-    fontStyle: "bold",
-    lineWidth: 0.2,          // 🔥 EXTRA THICK FOOTER
-    fillColor: [255, 255, 255],
-    textColor: [0, 0, 0],
-  },
+const referenceStartY = 26;
 
-columnStyles: {
-  11: {
-    halign: "center",   // ✅ center text horizontally
-    valign: "middle",  // ✅ center vertically
-  },
-},
+const BOTTOM_MARGIN = 8;
 
-    head: [[
-      "S.No",
-      "ID / KLD",
-      "District",
-      "Plant name",
-      "Opening\nSTL (L)",
-      "Sludge\nReceived (L)",
-      "Sludge\nProcessed (L)",
-      "Closing\nSTL (L)",
-      "Plant run\nhrs",
-      "Biochar\nquantity (kgs)",
-      "Power\n(Kwh)",
-      "Remarks",
-    ]],
+const HEAD_HEIGHT = 8;
 
-    body: processedData.map((r, i) => [
-      i + 1,
-      `${r.plantId || r.numericPlantId || "-"}${r.kld ? " / " + r.kld : ""}`,
-      r.district || "-",
-      r.plantName || "-",
-      formatNumberNice(r.beforeSTL),
-      formatNumberNice(r.sludgeReceived),
-      formatNumberNice(r.sludgeProcessed),
-      formatNumberNice(r.afterSTL),
-      r.plantRunHrs ?? "-",
-      formatNumberNice(r.biocharProduced),
-      formatNumberNice(r.power),
-      r.remarks || "-",
-    ]),
+const FOOT_HEIGHT = 6;
 
-    foot: [[
-      "TOTAL", "", "", "",
-      formatNumberNice(totals.totalBefore),
-      formatNumberNice(totals.totalReceived),
-      formatNumberNice(totals.totalProcessed),
-      formatNumberNice(totals.totalAfter),
-      formatNumberNice(totals.totalRunHrs),
-      formatNumberNice(totals.totalBiochar),
-      "-",
-      "-",
-    ]],
-  });
+const SAFETY_BUFFER = 2;
 
+const availableHeight =
+    pageHeight -
+    referenceStartY -
+    BOTTOM_MARGIN -
+    FOOT_HEIGHT -
+    HEAD_HEIGHT -
+    SAFETY_BUFFER;
+
+const UNIFORM_ROW_HEIGHT =
+    availableHeight / ROWS_PER_PAGE;
+
+    chunks.forEach((chunkRows, index) => {
+
+    if (index > 0) {
+        doc.addPage();
+    }
+
+    autoTable(doc, {
+
+        startY: index === 0 ? 26 : 10,
+
+        theme: "grid",
+
+        margin: {
+            left: SIDE_MARGIN,
+            right: SIDE_MARGIN,
+            bottom: 8,
+        },
+
+        tableWidth: "auto",
+
+        styles: {
+            font: "times",
+            fontSize: 5,
+            cellPadding: 0.25,
+            halign: "center",
+            valign: "middle",
+            lineWidth: 0.2,
+            lineColor: [0, 0, 0],
+            textColor: [0, 0, 0],
+
+            minCellHeight: UNIFORM_ROW_HEIGHT,
+        },
+
+        headStyles: {
+            fontStyle: "bold",
+            fillColor: [255,255,255],
+            textColor: [0,0,0],
+        },
+
+        footStyles: {
+            fontStyle: "bold",
+            fillColor: [255,255,255],
+            textColor: [0,0,0],
+        },
+
+        columnStyles: {
+            11: {
+                halign: "center",
+                valign: "middle",
+            },
+        },
+
+        head: headDef,
+
+        body: chunkRows,
+
+        foot: index === chunks.length - 1 ? footDef : undefined,
+
+        pageBreak: "avoid",
+
+        rowPageBreak: "avoid",
+    });
+
+});
   /* =====================================================
      SAVE
   ===================================================== */

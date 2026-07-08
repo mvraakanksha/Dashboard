@@ -401,7 +401,7 @@ export default function FilterBar({
 
           {/* GET BUTTON — unchanged */}
 {/* GET DATA + Helper Text */}
-<div className="flex flex-col items-start">
+<div className="flex items-center gap-2">
   <button
     onClick={handleGetData}
     className={`
@@ -417,48 +417,32 @@ export default function FilterBar({
     GET DATA
   </button>
 
-  {/* Helper Text */}
-  <div className="mt-1 flex items-center gap-1.5">
-    <Sparkles className="w-3 h-3 text-indigo-400 shrink-0" />
-
-    <span
-      className={`
-        text-[12px]
-        whitespace-nowrap
-        ${isDark ? "text-slate-400" : "text-slate-500"}
-      `}
-    >
-      Select the filters and click on GET DATA to view the data.
-    </span>
-  </div>
-</div>
-
-{/* RESET BUTTON */}
-<button
-  onClick={handleResetFilters}
-  disabled={!isFilterApplied}
-  title={
-    isFilterApplied
-      ? "Clear all filters back to default"
-      : "No filters applied yet"
-  }
-  className={`
-    flex items-center gap-2 px-4 py-2 rounded-xl
-    font-bold text-xs transition-all duration-300
-    ${
-      !isFilterApplied
-        ? isDark
-          ? "bg-slate-800/40 text-slate-600 cursor-not-allowed"
-          : "bg-slate-100 text-slate-400 cursor-not-allowed"
-        : isDark
-        ? "bg-rose-500/20 text-rose-300 hover:bg-rose-500/30"
-        : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+  <button
+    onClick={handleResetFilters}
+    disabled={!isFilterApplied}
+    title={
+      isFilterApplied
+        ? "Clear all filters back to default"
+        : "No filters applied yet"
     }
-  `}
->
-  <RotateCcw className="w-4 h-4" />
-  RESET
-</button>
+    className={`
+      flex items-center gap-2 px-4 py-2 rounded-xl
+      font-bold text-xs transition-all duration-300
+      ${
+        !isFilterApplied
+          ? isDark
+            ? "bg-slate-800/40 text-slate-600 cursor-not-allowed"
+            : "bg-slate-100 text-slate-400 cursor-not-allowed"
+          : isDark
+          ? "bg-rose-500/20 text-rose-300 hover:bg-rose-500/30"
+          : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+      }
+    `}
+  >
+    <RotateCcw className="w-4 h-4" />
+    RESET
+  </button>
+</div>
         </div>
 
         {/* RIGHT */}
