@@ -74,7 +74,7 @@ const MODULES = {
       { key: "pelletsUsed", label: "Pellets Used", color: "#ea580c" },
       { key: "polymerUsed", label: "Polymer Used", color: "#9333ea" }
     ],
-    yAxis: "Quantity"
+    yAxis: "Quantity(Kg)"
   },
   cumulative: {
     title: "Cumulative Flow",

@@ -633,7 +633,8 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
 
 
     return (
-        <div className="space-y-6">
+      
+       <div className="min-h-screen p-6 bg-gradient-to-br from-[#CFE2FF] via-[#BBD8FE] to-[#013B88]">
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-2">
                 <div className={`p-3 rounded-2xl ${isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-600 text-white"}`}>
                     <Activity className="w-6 h-6" />
@@ -658,6 +659,7 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
     const theme = METRIC_THEMES(isDark)[c.themeKey];
 
     return (
+      
       <div
   key={i}
   className={`group relative overflow-hidden rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-xl transition-all border ${theme.staticBg}`}

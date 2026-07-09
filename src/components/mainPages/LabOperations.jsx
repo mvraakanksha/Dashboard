@@ -21,7 +21,14 @@ import {
 import { getAllPlants } from "../../services/plantService";
 import { getLabOperationsByDate } from "../../services/operationService";
 
+const formatIndian = (value, decimals = 1) => {
+  const num = Number(value || 0);
 
+  return num.toLocaleString("en-IN", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
 const KPICard = ({ label, value, unit, theme, icon }) => (
   <div
     className={`group relative overflow-hidden p-4 rounded-xl border
@@ -44,7 +51,7 @@ const KPICard = ({ label, value, unit, theme, icon }) => (
           {label}
         </p>
         <p className="text-xl font-black text-slate-900">
-          {value}
+           {formatIndian(value)}
           {unit && <span className="text-sm ml-1">{unit}</span>}
         </p>
       </div>
@@ -66,7 +73,7 @@ const TopBarLabel = ({ x, y, width, value }) => {
       fontSize={11}
       fontWeight={700}
     >
-      {Number(value).toFixed(1)}
+      {formatIndian(value)}
     </text>
   );
 };
@@ -99,7 +106,11 @@ const LabTooltip = ({ active, payload, type }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
 
-  const fmt = (v) => Number(v || 0).toFixed(1);
+ const fmt = (v) =>
+  Number(v || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 
   return (
     <div className="bg-white border rounded shadow-md p-2 text-xs">

@@ -154,11 +154,11 @@ export default function Report() {
               <>
 <span
   className={`flex items-center justify-center w-10 h-10 rounded-lg mb-3
-  transition-all duration-300 ease-in-out
+transition-all duration-500 ease-out transform-gpu
   ${
-    card.active
-      ? "bg-white/15 text-white scale-110"
-      : "bg-[#013B88]/10 text-[#013B88] group-hover:bg-[#013B88]/15 group-hover:scale-105"
+  card.active
+  ? "bg-white/15 text-white"
+  : "bg-[#013B88]/10 text-[#013B88] group-hover:bg-[#013B88]/15"
   }`}
 >
                   {icons[card.icon]}
@@ -171,23 +171,27 @@ export default function Report() {
                   {card.label}
                 </span>
           
-                {card.active && (
-                  <span
+<span
   className={`
     absolute top-2.5 right-2.5
     w-2 h-2 rounded-full bg-white
-    transition-all duration-300
-    ${card.active ? "opacity-100 scale-100" : "opacity-0 scale-50"}
+    transition-all duration-500 ease-out
+    ${
+      card.active
+        ? "opacity-100 scale-100"
+        : "opacity-0 scale-75"
+    }
   `}
 />
-                )}
               </>
             );
 
-            const className = `group relative flex flex-col items-start text-left p-3.5 rounded-xl border transition-all duration-200 ${
-              card.active
-                ? "bg-[#013B88] border-[#013B88] shadow-md shadow-[#013B88]/25 scale-[1.03]"
-                : "bg-white border-slate-200 hover:border-[#013B88]/40 hover:shadow-sm hover:scale-[1.03]"
+            const className = `group relative flex flex-col items-start text-left p-3.5 rounded-xl border
+transform-gpu will-change-transform
+transition-all duration-500 ease-out ${
+             card.active
+  ? "bg-[#013B88] border-[#013B88] shadow-lg shadow-[#013B88]/20"
+  : "bg-white border-slate-200 hover:border-[#013B88]/40 hover:shadow-md"
             }`;
 
             return card.type === "section" ? (
@@ -196,7 +200,7 @@ export default function Report() {
                 <div
   className={`
     absolute inset-0 rounded-xl pointer-events-none
-    transition-opacity duration-300
+    transition-opacity duration-500 ease-out
     ${
       card.active
         ? "bg-white/5 opacity-100"
