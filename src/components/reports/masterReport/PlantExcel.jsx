@@ -212,7 +212,7 @@ const row = [
 vehicleSheet.mergeCells(`B${startRow}:B${endRow}`);
 vehicleSheet.mergeCells(`C${startRow}:C${endRow}`);
 vehicleSheet.mergeCells(`D${startRow}:D${endRow}`);
-vehicleSheet.mergeCells(`E${startRow}:E${endRow}`);
+// vehicleSheet.mergeCells(`E${startRow}:E${endRow}`);
   }
 
 });
@@ -275,7 +275,7 @@ config.plants.forEach(p => {
     employeeSheet.mergeCells(`B${startRow}:B${endRow}`);
     employeeSheet.mergeCells(`C${startRow}:C${endRow}`);
     employeeSheet.mergeCells(`D${startRow}:D${endRow}`);
-    employeeSheet.mergeCells(`E${startRow}:E${endRow}`);
+    // employeeSheet.mergeCells(`E${startRow}:E${endRow}`);
 
   }
 

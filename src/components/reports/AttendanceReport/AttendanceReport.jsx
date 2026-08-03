@@ -267,7 +267,7 @@ const loadReport = async () => {
     fromDate,
     toDate
   );
-
+console.log("History Operations", historyOperations);
   for (const plantId of selectedPlants) {
 
     /* ================= 1. ACTIVE EMPLOYEES ================= */

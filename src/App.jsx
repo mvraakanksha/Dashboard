@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import "./App.css";
 
 import {
-   MemoryRouter as Router,
+   BrowserRouter as Router,
   Routes,
   Route,
   NavLink,

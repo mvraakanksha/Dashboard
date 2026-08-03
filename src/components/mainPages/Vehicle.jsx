@@ -742,27 +742,52 @@ items.forEach((text, index) => {
 doc.setDrawColor(0, 0, 0);
 doc.setLineWidth(0.5); 
 
-  Object.entries(group).forEach(([plantId, vehicles]) => {
-    const plant = getPlant(plantId);
-
-    vehicles.forEach((v, i) => {
-      body.push([
-        i === 0 ? plant?.plantID ?? plantId : "",
-        i === 0 ? plant?.plantName ?? "-" : "",
-        i === 0 ? plant?.zones ?? "-" : "",
-        v.vehicleNumber,
-        v.expiry,
-        v.status
-      ]);
-    });
-  });
-
+Object.entries(group).forEach(([plantId, vehicles]) => {
+  const plant = getPlant(plantId);
+ 
+  const totalRows = Math.max(vehicles.length, 1);
+ 
+  for (let r = 0; r < totalRows; r++) {
+    const row = [];
+ 
+    if (r === 0) {
+      row.push(
+        {
+          content: String(plant?.plantID ?? plantId),
+          rowSpan: totalRows,
+          styles: { valign: "middle" }
+        },
+        {
+          content: String(plant?.plantName ?? "-"),
+          rowSpan: totalRows,
+          styles: { valign: "middle" }
+        },
+        {
+          content: String(plant?.zones ?? "-"),
+          rowSpan: totalRows,
+          styles: { valign: "middle" }
+        }
+      );
+    }
+ 
+    const vehicle = vehicles[r];
+ 
+    row.push(
+      vehicle?.vehicleNumber ?? "-",
+      vehicle?.expiry ?? "-",
+      vehicle?.status ?? "-"
+    );
+ 
+    body.push(row);
+  }
+});
+ 
   /* ===== TABLE ===== */
 autoTable(doc, {
   startY: 50,
-
+ 
   theme: "grid",
-
+ 
   styles: {
     font: "times",
     fontSize: 8,
@@ -772,7 +797,7 @@ autoTable(doc, {
     lineColor: [0, 0, 0],   // 🔥 BLACK borders
     lineWidth: 0.5          // Slightly thicker
   },
-
+ 
   headStyles: {
     fillColor: [220, 230, 241],
     textColor: [0, 0, 0],   // 🔥 BLACK header text
@@ -782,12 +807,12 @@ autoTable(doc, {
     lineColor: [0, 0, 0],   // 🔥 BLACK header borders
     lineWidth: 0.5
   },
-
+ 
   bodyStyles: {
     lineColor: [0, 0, 0],   // 🔥 BLACK body borders
     lineWidth: 0.2
   },
-
+ 
   head: [[
     "Plant ID",
     "Plant Name",
@@ -796,27 +821,28 @@ autoTable(doc, {
     "Expiry",
     "Status"
   ]],
-
+ 
   body,
-
+ 
   didParseCell: (data) => {
     if (data.section === "body") {
       const val = data.row.raw[5];
-
+ 
       if (val === "Expired") {
         data.cell.styles.textColor = [220, 38, 38];
       }
-
+ 
       if (val === "Expiring Soon") {
         data.cell.styles.textColor = [180, 100, 0];
       }
-
+ 
       if (val === "Good") {
         data.cell.styles.textColor = [5, 150, 105];
       }
     }
   }
 });
+
 let fileName = "Vehicle_Insurance_Report.pdf";
 
 if (pdfFilter === "expired") {
