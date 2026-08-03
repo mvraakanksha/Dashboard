@@ -14,8 +14,12 @@ import VehicleDashboard from "./dashboardPages/VehicleDashboard";
 import { getAllPlants } from "../services/plantService";
 import { getOperationsByDate } from "../services/operationService";
 import { getVehicleOperationsByDate } from "../services/vehicleService";
-import { getEmployeeOperationsByDate } from "../services/employeeService";
-
+import { calculateAttendanceKpis } from '../components/attendanceUtils';
+import {
+  getEmployeesByPlant,
+  getEmployeeOperationsByDate,
+  getEmployeeOperationsByDateRangeFull
+} from '../services/employeeService';
 
 const formatValue = (val) => {
   if (val === null || val === undefined) return "-";
@@ -135,7 +139,7 @@ const TelemetryRow = ({ leftLabel, leftValue, leftUnit, rightLabel, rightValue, 
 );
 
 // ================= MAIN DASHBOARD COMPONENT =================
-export default function Dashboard({ isDark, date, zone, setZones }) {
+export default function Dashboard({ isDark, date, zone, setZones, selectedPlants }) {
   const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -164,7 +168,8 @@ useEffect(() => {
   // 2. Fetch Dashboard Data based on Global Filters
   useEffect(() => {
     const fetchDashboardData = async () => {
-
+  const today = new Date().toISOString().split("T")[0];
+  const selectedDate = date; 
       let hasLowPelletsStock = false;
       let hasLowPolymerStock = false;
 
@@ -179,25 +184,34 @@ try {
     throw new Error("Invalid plants response");
   }
 
-        // Filter locally by zone
-        const filteredPlants = zone === "All" 
-          ? allPlants 
-          : allPlants.filter(p => String(p.zones) === String(zone));
+const filteredPlants = allPlants.filter((p) => {
+  const zoneMatch =
+    zone === "All" ||
+    String(p.zones) === String(zone);
 
-          const permanentPowerCount =
-          filteredPlants.filter(p => p.permanentPower === true).length;
+  const plantMatch =
+    selectedPlants.length === 0 ||
+    selectedPlants.includes(p.plantID);
 
-          const mnitCount =
-  filteredPlants.filter(p => p.mnit === true).length;
+  return zoneMatch && plantMatch;
+});     
 
-const solarCount =
-  filteredPlants.filter(p => p.solar === true).length;
+  const permanentPowerCount =
+  filteredPlants.filter((p) => {
+    if (!p.permanentPower) return false;
 
-const internetCount =
-  filteredPlants.filter(p => p.internet === true).length;
+    const completionDate = p.permanentPowerDateOfCompletion;
+    if (!completionDate) return false;
 
-const codbodCount =
-  filteredPlants.filter(p => !!p.codAndBodSenserDate).length;
+    const completedISO = new Date(completionDate).toISOString().split("T")[0];
+
+    return today >= completedISO; // ✅ ONLY TODAY
+  }).length;
+
+const mnitCount = filteredPlants.filter(p => p.mnit === true).length;
+const solarCount = filteredPlants.filter(p => p.solar === true).length;
+const internetCount = filteredPlants.filter(p => p.internet === true).length;
+const codbodCount = filteredPlants.filter(p => !!p.codAndBodSenserDate).length;
 
 
         const plantIds = new Set(filteredPlants.map(p => String(p.plantID)));
@@ -206,7 +220,7 @@ const codbodCount =
         const plantCount = totalPlants || 1;
 
         // Sludge / Energy Operations
-        const opsData = await getOperationsByDate(date);
+       const opsData = await getOperationsByDate(selectedDate);
 
         let totalReceived = 0, totalProcessed = 0, totalTank = 0, totalBiochar = 0,
             totalRunHours = 0, totalPowerImport = 0, totalSolarExport = 0,
@@ -264,7 +278,7 @@ if (operation.polymerStock != null) {
 
 
         // Vehicle Operations
-        const vData = await getVehicleOperationsByDate(date);
+       const vData = await getVehicleOperationsByDate(selectedDate);
 
         let totalDistance = 0, totalTrips = 0;
         const movedVehiclesSet = new Set();
@@ -279,19 +293,73 @@ if (operation.polymerStock != null) {
           totalTrips += Number(v.vehicleOp?.noOfTrips || 0);
         });
 
-        // Attendance
-        const attData = await getEmployeeOperationsByDate(date);
 
-        let presentUnits = 0;
-        attData.forEach((a) => {
-          if (!plantIds.has(String(a.plantId))) return;
-          const am = a.plantOp?.attendanceAm, pm = a.plantOp?.attendancePm;
-          if (am && pm) presentUnits += 1;
-          else if (am || pm) presentUnits += 0.5;
-        });
-        const totalEmployees = filteredPlants.reduce((s, p) => s + (p.noOfEmployees || 0), 0);
+        // 🔥 FETCH ATTENDANCE DATA
+const attendanceOps = await getEmployeeOperationsByDate(selectedDate);
 
- 
+const employeesData = await Promise.all(
+  [...plantIds].map(id =>
+    getEmployeesByPlant(id).then(arr =>
+      arr.map(e => ({ ...e, plantId: id }))
+    )
+  )
+);
+
+const employees = employeesData.flat();
+
+const historyOps = await getEmployeeOperationsByDateRangeFull(selectedDate, selectedDate);
+
+// 🔥 CALCULATE
+const attendanceResult = calculateAttendanceKpis({
+   plants: filteredPlants,
+  employees,
+  attendanceOps,
+  historyOps,
+  date: selectedDate,
+  zone
+});
+
+const totalEmployees = attendanceResult.totalEmployees;
+const totalPresent = attendanceResult.totalPresent;
+const totalAbsent = attendanceResult.totalAbsent;
+
+// 🔹 TOTAL EMPLOYEES (based on selected date)
+// const totalEmployees = uniqueEmployees.filter(emp => {
+//   if (!emp.dateOfJoining) return false;
+
+//   const joiningISO = new Date(emp.dateOfJoining).toISOString().split("T")[0];
+
+//   return joiningISO <= selectedISO;
+// }).length;
+
+// // 🔹 3. THEN calculate present
+// let presentUnits = 0;
+
+// attData.forEach((a) => {
+//   if (!plantIds.has(String(a.plantId))) return;
+
+//   const am = a.plantOp?.attendanceAm;
+//   const pm = a.plantOp?.attendancePm;
+
+//   if (am && pm) presentUnits += 1;
+//   else if (am || pm) presentUnits += 0.5;
+// });
+
+// 🔹 FINAL
+// const totalAttendance = `${presentUnits}/${totalEmployees}`;
+// 🔹 Attendance SIMPLE (NO LOGIC)
+
+// 1. Fetch attendance
+// const attData = await getEmployeeOperationsByDate(selectedDate);
+
+// // 2. Fetch employees (only for total count)
+// const employeePromises = [...plantIds].map(id => getEmployeesByPlant(id));
+// const employeeResults = await Promise.all(employeePromises);
+
+// const employees = employeeResults.flat().filter(Boolean);
+
+
+
         setKpis({
           totalPlants, totalVehicles,  permanentPowerCount,    mnitCount,  solarCount, internetCount,codbodCount,
           totalReceived, totalProcessed, totalTank, totalBiochar,
@@ -301,7 +369,9 @@ if (operation.polymerStock != null) {
             totalProcessed / permanentPowerCount),
          avgBiochar: (totalBiochar / permanentPowerCount).toFixed(1),
          
-          totalAttendance: `${presentUnits}/${totalEmployees}`,
+            totalPresent,
+  totalEmployees,
+  totalAbsent,
           totalRunHours,
           totalPowerImport: totalPowerImport.toFixed(2),
           totalSolarExport: totalSolarExport.toFixed(2),
@@ -332,12 +402,12 @@ if (operation.polymerStock != null) {
 }
     };
     fetchDashboardData();
-  }, [date, zone]);
+}, [date, zone, selectedPlants]);
 
-  const present = kpis?.totalAttendance ? Number(kpis.totalAttendance.split("/")[0]) : 0;
-  const totalAtt = kpis?.totalAttendance ? Number(kpis.totalAttendance.split("/")[1]) : 0;
-  const absent = Math.max(totalAtt - present, 0);
-  const attendancePercent = totalAtt > 0 ? Math.round((present / totalAtt) * 100) : 0;
+const present = kpis?.totalPresent?.toFixed(1) || "0.0";
+const total = kpis?.totalEmployees || 0;
+const absent = kpis?.totalAbsent?.toFixed(1) || "0.0";
+  const attendancePercent = total > 0 ? Math.round((present / total) * 100) : 0;
 
  if (loading) {
   return (
@@ -376,7 +446,6 @@ if (error) {
 if (!kpis) return null;
 
 
-  
   return (
     <div
   className={`p-6 min-h-screen transition-all ${
@@ -400,37 +469,43 @@ if (!kpis) return null;
     label: "TOTAL PLANTS",
     value: kpis.totalPlants,
     theme: "blue",
-    icon: <Layers />
+    icon: <Layers />,
+    card: "ALL"
   },
   {
     label: "MNIT PLANTS",
     value: kpis.mnitCount,
     theme: "emerald",
-    icon: <CheckCircle />
+    icon: <CheckCircle />,
+    card: "MNIT"
   },
   {
     label: "PERMANENT POWER",
     value: kpis.permanentPowerCount,
     theme: "indigo",
-    icon: <Zap />
+    icon: <Zap />,
+    card: "POWER"
   },
   {
     label: "SOLAR COMPLETED",
     value: kpis.solarCount,
     theme: "amber",
-    icon: <Sun />
+    icon: <Sun />,
+    card: "SOLAR"
   },
   {
     label: "INTERNET ACTIVE",
     value: kpis.internetCount,
     theme: "blue",
-    icon: <Wifi />
+    icon: <Wifi />,
+    card: "INTERNET"
   },
   {
     label: "COD / BOD INSTALLED",
     value: kpis.codbodCount,
     theme: "rose",
-    icon: <Activity />
+    icon: <Activity />,
+    card: "CODBOD"
   }
 ]
 .map((k, i) => {
@@ -438,53 +513,55 @@ if (!kpis) return null;
 
 
     return (
-      <div
-        key={i}
-        className={`group relative p-5 rounded-[2rem] border transition-all ${theme.staticBg} ${cardClass}`}
-      >
-        {/* Bottom hover bar */}
-        <div
-          className={`absolute bottom-0 left-4 h-1 rounded-[15rem] w-full ${theme.bar}
-          scale-x-0 origin-left transition-transform duration-500
-          group-hover:scale-x-87 `}
-        />
+  <div
+    key={i}
+    className={`group relative p-5 rounded-[2rem] border transition-all ${theme.staticBg} ${cardClass}`}
+  >
+    {/* Bottom hover bar */}
+    <div
+      className={`absolute bottom-0 left-4 h-1 rounded-[15rem] w-full ${theme.bar}
+      scale-x-0 origin-left transition-transform duration-500
+      group-hover:scale-x-87`}
+    />
 
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-2">
-          <span className={`p-1.5 rounded-lg ${theme.iconHoverBg}`}>
-            {React.cloneElement(k.icon, {
-              className: `w-3.5 h-3.5 ${theme.text}`
-            })}
-          </span>
-          <p className="text-[10px] font-black text-slate-400 tracking-widest">
-            {k.label}
-          </p>
-        </div>
+    {/* Header */}
+    <div className="flex items-center gap-2 mb-2">
+      <span className={`p-1.5 rounded-lg ${theme.iconHoverBg}`}>
+        {React.cloneElement(k.icon, {
+          className: `w-3.5 h-3.5 ${theme.text}`
+        })}
+      </span>
+      <p className="text-[10px] font-black text-slate-400 tracking-widest">
+        {k.label}
+      </p>
+    </div>
 
-        {/* Value */}
-        <p className={`text-2xl font-black ${theme.text}`}>
-          {formatValue(k.value)}
-        </p>
+    {/* Value */}
+    <p className={`text-2xl font-black ${theme.text}`}>
+      {formatValue(k.value)}
+    </p>
 
-        {/* ✅ ACTION BUTTON (ONLY FOR TOTAL PLANTS) */}
-        {k.label === "TOTAL PLANTS" && (
-          <button
-            onClick={() => navigate("/plants")}
-            className={`
-              absolute top-4 right-4
-              p-2 rounded-xl transition-all duration-300
-              hover:scale-105 active:scale-95
-              ${isDark
-                ? "bg-slate-800/60 text-slate-400 hover:text-blue-400"
-                : "bg-slate-100 text-slate-500 hover:text-blue-600"}
-            `}
-            title="View Plants"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-    );
+    {/* 🔥 Navigation Button */}
+    <button
+      onClick={() =>
+        navigate("/plants", {
+          state: { selectedCard: k.card }
+        })
+      }
+      className={`
+        absolute top-4 right-4
+        p-2 rounded-xl transition-all duration-300
+        hover:scale-105 active:scale-95
+        ${isDark
+          ? "bg-slate-800/60 text-slate-400 hover:text-blue-400"
+          : "bg-slate-100 text-slate-500 hover:text-blue-600"}
+      `}
+      title="View details"
+    >
+      <ExternalLink className="w-4 h-4" />
+    </button>
+  </div>
+);
   })}
 </div>
 
@@ -493,7 +570,7 @@ if (!kpis) return null;
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <SludgeDashboard kpis={kpis} isDark={isDark} cardClass={cardClass} Metric={Metric} AverageRow={AverageRow} formatValue={formatValue} />
         <div className={`p-8 rounded-[3rem] border transition-all ${isDark ? "bg-slate-900/70 border-slate-800" : "bg-white border-slate-200"}`}>
-          <AttendanceDashboard attendancePercent={attendancePercent} present={present} absent={absent} total={totalAtt} isDark={isDark} />
+          <AttendanceDashboard attendancePercent={attendancePercent} present={present} absent={absent} total={total} isDark={isDark} />
         </div>
       </section>
 

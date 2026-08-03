@@ -1,16 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
 
-import { getAllPlants } from "../../services/plantService";
+import { getAllPlants } from "../../../services/plantService";
 import {
   getEmployeesByPlant,
-  getEmployeeOperationsByDateRange
-} from "../../services/employeeService";
+  getEmployeeOperationsByDateRange,
+  getEmployeeOperationsByDateRangeFull,
+  getDeletedEmployeesByPlantAndDate
+} from "../../../services/employeeService";
 import * as XLSX from "xlsx-js-style";
 
 import ExcelJS from "exceljs";
 
-import companyLogo from './company_logo.png'
+import companyLogo from '../../reports/company_logo.png'
 
 
 
@@ -94,13 +96,14 @@ const AttendanceReport = () => {
   /* ================= STATE ================= */
   const [plants, setPlants] = useState([]);
   const [zoneFilter, setZoneFilter] = useState("All");
+  const [phaseFilter, setPhaseFilter] = useState("All");
 const [employeeMap, setEmployeeMap] = useState({});
   const [selectedPlants, setSelectedPlants] = useState([]);
 const [fromDate, setFromDate] = useState(today);
 const [toDate, setToDate] = useState(today);
 const [dateError, setDateError] = useState("");
 const [reportGenerated, setReportGenerated] = useState(false);
-
+const [filterType, setFilterType] = useState("ALL"); 
 
 
   // attendanceMap = { plantId: { employeeId: { date: true/false }}}
@@ -123,14 +126,36 @@ const [reportGenerated, setReportGenerated] = useState(false);
     ).sort((a, b) => Number(a) - Number(b));
   }, [plants]);
 
-  /* ================= FILTER PLANTS BY ZONE ================= */
-  const filteredPlants = useMemo(() => {
-    if (zoneFilter === "All") return plants;
+  /* =================Phases================= */
 
-    return plants.filter(
-      p => String(p.zones) === String(zoneFilter)
-    );
-  }, [plants, zoneFilter]);
+const phases = useMemo(() => {
+  if (!Array.isArray(plants)) return [];
+
+  return Array.from(
+    new Set(
+      plants
+        .map((p) => p.plantPhase)
+        .filter((p) => p !== null && p !== undefined)
+    )
+  ).sort((a, b) => Number(a) - Number(b));
+}, [plants]);
+
+  /* ================= FILTER PLANTS BY ZONE ================= */
+const filteredPlants = useMemo(() => {
+  return plants.filter((p) => {
+
+    const zoneMatch =
+      zoneFilter === "All" ||
+      String(p.zones) === String(zoneFilter);
+
+    const phaseMatch =
+      phaseFilter === "All" ||
+      String(p.plantPhase) === String(phaseFilter);
+
+    return zoneMatch && phaseMatch;
+
+  });
+}, [plants, zoneFilter, phaseFilter]);
 
   const matchingCount = filteredPlants.length;
 
@@ -138,15 +163,24 @@ const [reportGenerated, setReportGenerated] = useState(false);
 useEffect(() => {
   if (!plants.length) return;
 
-  const ids =
-    zoneFilter === "All"
-      ? plants.map(p => p.plantID)
-      : plants
-          .filter(p => String(p.zones) === String(zoneFilter))
-          .map(p => p.plantID);
+ const ids = plants
+  .filter((p) => {
+
+    const zoneMatch =
+      zoneFilter === "All" ||
+      String(p.zones) === String(zoneFilter);
+
+    const phaseMatch =
+      phaseFilter === "All" ||
+      String(p.plantPhase) === String(phaseFilter);
+
+    return zoneMatch && phaseMatch;
+
+  })
+  .map((p) => p.plantID);
 
   setSelectedPlants(ids);
-}, [plants, zoneFilter]);
+}, [plants, zoneFilter, phaseFilter]);
 
 
   /* ================= PLANT SELECTION ================= */
@@ -222,44 +256,168 @@ const loadReport = async () => {
   const empMap = {};
   const attMap = {};
 
-  // ✅ Fetch operations ONCE
-  const allOperations = await getEmployeeOperationsByDateRange(
+  /* ================= ACTIVE OPERATIONS ================= */
+  const activeOperations = await getEmployeeOperationsByDateRange(
     fromDate,
     toDate
   );
 
+  /* ================= HISTORY OPERATIONS ================= */
+  const historyOperations = await getEmployeeOperationsByDateRangeFull(
+    fromDate,
+    toDate
+  );
+console.log("History Operations", historyOperations);
   for (const plantId of selectedPlants) {
-    // Employees per plant
-    const employees = await getEmployeesByPlant(plantId);
-    empMap[plantId] = employees || [];
 
+    /* ================= 1. ACTIVE EMPLOYEES ================= */
+    const employees = await getEmployeesByPlant(plantId);
+
+const activeEmployees = (employees || [])
+  .filter(emp => {
+    // ✅ Exclude future joiners
+    return emp.dateOfJoining <= toDate;
+  })
+  .map(emp => {
+    let tag = "";
+
+    if (
+      emp.dateOfJoining >= fromDate &&
+      emp.dateOfJoining <= toDate
+    ) {
+      tag = "NEW";
+    }
+
+    return {
+      ...emp,
+      tag,
+      uniqueKey: `${emp.employeeId}_${emp.dateOfJoining}`
+    };
+  });
+
+    /* ================= INIT ================= */
+    empMap[plantId] = [...activeEmployees];
     attMap[plantId] = {};
 
-    // Init employees
-    employees.forEach(emp => {
-      attMap[plantId][emp.employeeId] = {};
+   activeEmployees.forEach(emp => {
+  attMap[plantId][emp.uniqueKey] = {}; 
+});
+
+    /* ================= ACTIVE ATTENDANCE ================= */
+activeOperations
+  .filter(op => op.plantId === plantId)
+  .forEach(op => {
+    const date = op.plantOp.operationDate;
+    const value = getAttendanceValue(op.plantOp);
+
+    // 🔥 FIX: find correct employee
+  const emp = activeEmployees.find(
+  e => e.employeeId === op.employeeId
+);
+
+if (!emp) return;
+
+// ✅ Ignore if employee has exit date and op is after it
+if (emp.dateOfLeaving && op.plantOp.operationDate > emp.dateOfLeaving) {
+  return;
+}
+
+    if (!emp) return;
+
+    const key = emp.uniqueKey;
+
+    if (!attMap[plantId][key]) {
+      attMap[plantId][key] = {};
+    }
+
+    attMap[plantId][key][date] = {
+  value: value,
+  remark: op.plantOp.attendanceRemark || null
+};
+
+  });
+  
+
+    /* ================= 2. EXIT EMPLOYEES ================= */
+// 🔥 Extract employees from history operations
+const exitEmpMap = {};
+
+historyOperations
+  .filter(op => op.plantId === plantId)
+  .forEach(op => {
+    const key = `${op.employeeId}_${op.dateOfJoining}`;
+
+    exitEmpMap[key] = {
+      employeeId: op.employeeId,
+      employeeName: op.employeeName,
+      designation: op.designation,
+      dateOfJoining: op.dateOfJoining,
+      dateOfLeaving: op.dateOfLeaving,
+      tag: "EXIT",
+      uniqueKey: key
+    };
+  });
+
+const exitEmployees = Object.values(exitEmpMap).filter(emp => {
+  if (!emp.dateOfLeaving) return true;
+
+  // ✅ If FULL RANGE → include only if overlap exists
+  return emp.dateOfLeaving >= fromDate;
+});
+
+// const exitEmployees = (deletedEmployees || [])
+//   .filter(emp => {
+//     const exit = emp.dateOfLeaving;
+
+//     // ✅ Include if employee was active during range
+//     return exit && exit >= fromDate;
+//   })
+//   .map(emp => ({
+//     ...emp,
+//     tag: "EXIT"
+//   }));
+
+
+    /* ================= ADD EXIT EMPLOYEES ================= */
+    exitEmployees.forEach(emp => {
+      // avoid duplicates
+      if (!attMap[plantId][emp.uniqueKey]) {
+  empMap[plantId].push(emp);
+  attMap[plantId][emp.uniqueKey] = {};
+}
     });
 
-    // Filter operations per plant
-    allOperations
-      .filter(op => op.plantId === plantId)
-      .forEach(op => {
-        const date = op.plantOp.operationDate;
-        const value = getAttendanceValue(op.plantOp);
+    /* ================= EXIT ATTENDANCE ================= */
+ historyOperations
+  .filter(op => op.plantId === plantId)
+  .forEach(op => {
+    const key = `${op.employeeId}_${op.dateOfJoining}`;
 
-        if (!attMap[plantId][op.employeeId]) {
-          attMap[plantId][op.employeeId] = {};
-        }
+    if (!attMap[plantId][key]) return;
 
-        attMap[plantId][op.employeeId][date] = value;
-      });
+    const exitDate = op.dateOfLeaving;
+
+(op.operations || []).forEach(operation => {
+  const date = operation.operationDate;
+
+  // ✅ IGNORE AFTER EXIT DATE
+  if (exitDate && date > exitDate) return;
+
+  const value = getAttendanceValue(operation);
+
+  attMap[plantId][key][date] = {
+    value: value,
+    remark: operation.attendanceRemark || null // if available
+  };
+});
+
+  });
   }
 
   setEmployeeMap(empMap);
   setAttendanceMap(attMap);
   setReportGenerated(true);
 };
-
 
 
 const loadEmployees = async () => {
@@ -285,13 +443,42 @@ const getCellValue = (plantId, empId, date) => {
   return attendanceMap?.[plantId]?.[empId]?.[date] ?? "";
 };
 
-const getTotalDays = (plantId, empId) => {
-  const records = attendanceMap?.[plantId]?.[empId] || {};
-  return Object.values(records).reduce((sum, v) => sum + v, 0);
+const getTotalDays = (plantId, empKey) => {
+  const records = attendanceMap?.[plantId]?.[empKey] || {};
+
+  return Object.values(records).reduce((sum, v) => {
+   const value = Number(v?.value ?? 0); // ensure 0.5 stays 0.5
+    return sum + value;
+  }, 0);
 };
 
 const displayValue = (v) => {
   return v === null || v === undefined || v === "" ? "-" : v;
+};
+
+const getFilteredEmployees = (plantId, employees) => {
+  if (fromDate === toDate) {
+  return employees.filter(emp => {
+    
+    if (emp.dateOfLeaving && emp.dateOfLeaving < fromDate) {
+      return false; // ❌ remove exited before selected day
+    }
+
+    if (filterType === "ALL") return true;
+
+    const status = getEmployeeStatus(plantId, emp);
+    return status === filterType;
+  });
+}
+
+return employees;
+
+  if (filterType === "ALL") return employees;
+
+  return employees.filter(emp => {
+    const status = getEmployeeStatus(plantId, emp);
+    return status === filterType;
+  });
 };
 
 const downloadExcel = async () => {
@@ -330,7 +517,9 @@ const downloadExcel = async () => {
   for (const [zone, zonePlants] of Object.entries(zoneMap)) {
     const sheet = workbook.addWorksheet(`Zone_${zone}`);
 
-  const lastColIndex = 4 + dateColumns.length + 1; // TOTAL WORKING DAYS
+const lastColIndex =
+  4 + dateColumns.length + (fromDate === toDate ? 1 : 0) + 1;
+  // TOTAL WORKING DAYS
 const lastColLetter = sheet.getColumn(lastColIndex).letter;
 
     sheet.getRow(1).height = 30;
@@ -392,14 +581,17 @@ sheet.getCell("A3").font = {
     const headerRowIndex = 6;
     const headerRow = sheet.getRow(headerRowIndex);
 
-    headerRow.values = [
-      "Sl No",
-      "NAME",
-      "DESIGNATION",
-      "DOJ (DD/MM/YYYY)",
-      ...dateColumns.map(d => Number(d.split("-")[2])),
-      "TOTAL WORKING DAYS"
-    ];
+headerRow.values = [
+  "Sl No",
+  "NAME",
+  "DESIGNATION",
+  "DOJ (DD/MM/YYYY)",
+  ...dateColumns.map(d => Number(d.split("-")[2])),
+
+  ...(fromDate === toDate ? ["REMARK"] : []), // ✅ ADD HERE
+
+  "TOTAL WORKING DAYS"
+];
 
 headerRow.eachCell((cell, colNumber) => {
   cell.font = {
@@ -436,71 +628,119 @@ headerRow.eachCell((cell, colNumber) => {
     // const lastColIndex = 4 + dateColumns.length + 1;
 
     /* ===== PLANT + EMPLOYEE DATA ===== */
-    for (const plant of zonePlants) {
-      /* ===== PLANT SEPARATOR ===== */
-      const endColLetter =
-        sheet.getColumn(lastColIndex).letter;
+    /* ===== PLANT + EMPLOYEE DATA ===== */
+for (const plant of zonePlants) {
 
-      sheet.mergeCells(`A${rowPtr}:${endColLetter}${rowPtr}`);
-      const plantRow = sheet.getRow(rowPtr);
+  const allEmployees = employeeMap[plant.plantID] || [];
 
-      plantRow.getCell(1).value =
-        `ID-${plant.plantID}-${plant.plantName.toUpperCase()}`;
+  const employees = getFilteredEmployees(
+    plant.plantID,
+    allEmployees
+  );
 
-      plantRow.font = {
-        name: "Times New Roman",
-        bold: true,
-        color: { argb: "FF9C0006" }
-      };
+  // ✅ STEP 1: SKIP PLANT FIRST
+  if (employees.length === 0) continue;
 
-      plantRow.alignment = {
-        horizontal: "center",
-        vertical: "middle"
-      };
+  // ✅ STEP 2: CREATE HEADER ONLY IF DATA EXISTS
+  const endColLetter =
+    sheet.getColumn(lastColIndex).letter;
 
-      plantRow.eachCell({ includeEmpty: true }, cell => {
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FFFFF2CC" }
-        };
-        cell.border = {
-          top: { style: "thin" },
-          bottom: { style: "thin" },
-          left: { style: "thin" },
-          right: { style: "thin" }
-        };
-      });
+  sheet.mergeCells(`A${rowPtr}:${endColLetter}${rowPtr}`);
+  const plantRow = sheet.getRow(rowPtr);
 
-      rowPtr++;
+  plantRow.getCell(1).value =
+    `ID-${plant.plantID}-${plant.plantName.toUpperCase()}`;
 
-      /* ===== EMPLOYEES ===== */
-      const employees = employeeMap[plant.plantID] || [];
-      let sl = 1;
+  plantRow.font = {
+    name: "Times New Roman",
+    bold: true,
+    color: { argb: "FF9C0006" }
+  };
 
-      employees.forEach(emp => {
-        const rowData = [
-          sl++,
-          emp.employeeName,
-          emp.designation,
-          emp.dateOfJoining
-            ? formatDDMMYYYY(emp.dateOfJoining)
-            : "-"
-        ];
+  plantRow.alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
 
-        dateColumns.forEach(date => {
-          const v =
-            attendanceMap?.[plant.plantID]?.[emp.employeeId]?.[date];
-          rowData.push(v ?? "");
-        });
+  plantRow.eachCell({ includeEmpty: true }, cell => {
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFFFF2CC" }
+    };
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
 
-        rowData.push(getTotalDays(plant.plantID, emp.employeeId));
+  rowPtr++;
 
-        const row = sheet.addRow(rowData);
+  // ✅ STEP 3: EMPLOYEE LOOP
+  let sl = 1;
 
+  employees.forEach(emp => {
+    const nameWithTag =
+      emp.tag === "NEW"
+  ? `${emp.employeeName} (NEW - ${
+      emp.dateOfJoining
+        ? formatDDMMYYYY(emp.dateOfJoining)
+        : "-"
+    })`
+        : emp.tag === "EXIT"
+        ? `${emp.employeeName} (EXIT - ${
+            emp.dateOfLeaving
+              ? formatDDMMYYYY(emp.dateOfLeaving)
+              : "-"
+          })`
+        : emp.employeeName;
+
+    const rowData = [
+      sl++,
+      nameWithTag,
+      emp.designation,
+      emp.dateOfJoining
+        ? formatDDMMYYYY(emp.dateOfJoining)
+        : "-"
+    ];
+
+ dateColumns.forEach(date => {
+  const record =
+    attendanceMap?.[plant.plantID]?.[emp.uniqueKey]?.[date];
+
+  rowData.push(record?.value ?? "");
+});
+
+// if (fromDate === toDate) {
+//   const record =
+//     attendanceMap?.[plant.plantID]?.[emp.uniqueKey]?.[fromDate];
+
+//   rowData.push(record?.remark || "-");
+// }
+
+ if (fromDate === toDate) {
+  const record =
+    attendanceMap?.[plant.plantID]?.[emp.uniqueKey]?.[fromDate];
+
+  rowData.push(record?.remark || "-");
+}
+
+rowData.push(getTotalDays(plant.plantID, emp.uniqueKey));
+
+
+    const row = sheet.addRow(rowData);
+
+/* ✅ APPLY STYLING BACK */
 row.eachCell((cell, colNumber) => {
   cell.font = { name: "Times New Roman" };
-  cell.alignment = { horizontal: "center", vertical: "middle" };
+
+  cell.alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
+
   cell.border = {
     top: { style: "thin" },
     bottom: { style: "thin" },
@@ -511,31 +751,52 @@ row.eachCell((cell, colNumber) => {
   const dateColStart = 5;
   const dateIndex = colNumber - dateColStart;
 
+  // Sunday highlight
   if (dateColumns[dateIndex] && isSunday(dateColumns[dateIndex])) {
     cell.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FFDDEEFF" } // Sunday body
+      fgColor: { argb: "FFDDEEFF" }
     };
   }
 
+  // Absent (0) → Red
   if (cell.value === 0) {
-    cell.font = { bold: true, color: { argb: "FF9C0006" } };
-  } else if (cell.value === 0.5) {
-    cell.font = { bold: true, color: { argb: "FF9C6500" } };
+    cell.font = {
+      bold: true,
+      color: { argb: "FF9C0006" }
+    };
+  }
+
+  // Half day (0.5) → Orange
+  else if (cell.value === 0.5) {
+    cell.font = {
+      bold: true,
+      color: { argb: "FF9C6500" }
+    };
   }
 });
 
+/* ✅ NAME COLOR TAGGING */
+const nameCell = row.getCell(2);
 
-        row.getCell(lastColIndex).font = {
-          name: "Times New Roman",
-          bold: true,
-          color: { argb: "FF006100" }
-        };
+if (emp.tag === "NEW") {
+  nameCell.font = { color: { argb: "FF006100" }, bold: true };
+}
 
-        rowPtr++;
-      });
-    }
+if (emp.tag === "EXIT") {
+  nameCell.font = { color: { argb: "FF9C0006" }, bold: true };
+}
+
+/* ✅ TOTAL COLUMN STYLE */
+row.getCell(lastColIndex).font = {
+  bold: true,
+  color: { argb: "FF006100" }
+};
+
+rowPtr++;
+  });
+}
 
     sheet.columns = [
       { width: 6 },
@@ -564,9 +825,55 @@ saveAs(
 
 };
 
+const getEmployeeStatus = (plantId, emp) => {
+  const selectedDateISO = new Date(fromDate)
+    .toISOString()
+    .split("T")[0];
 
+const record =
+  attendanceMap?.[plantId]?.[emp.uniqueKey]?.[selectedDateISO];
 
+const value = record?.value;
+  // ✅ Treat undefined/null as ABSENT
+  if (value === undefined || value === null) return "ABSENT";
 
+  // ✅ Present if any work done
+  if (value > 0) return "PRESENT";
+
+  return "ABSENT";
+};
+
+const globalCounts = useMemo(() => {
+  if (fromDate !== toDate) return null;
+
+  let total = 0;
+  let present = 0;
+  let absent = 0;
+
+  Object.entries(employeeMap).forEach(([plantId, employees]) => {
+    employees.forEach(emp => {
+      total++;
+
+      const selectedDateISO = new Date(fromDate)
+        .toISOString()
+        .split("T")[0];
+
+ const record =
+  attendanceMap?.[plantId]?.[emp.uniqueKey]?.[selectedDateISO];
+
+const v = Number(record?.value ?? 0);
+
+      present += v;
+      absent += (1 - v);
+    });
+  });
+
+  return {
+    total,
+    present: Number(present.toFixed(1)),
+    absent: Number(absent.toFixed(1))
+  };
+}, [employeeMap, attendanceMap, fromDate, toDate]);
   /* ================= UI ================= */
 return (
   <div className="max-w-7xl mx-auto p-4">
@@ -622,7 +929,30 @@ return (
           ))}
         </select>
       </div>
+<div>
+  <label className="text-[10px] font-bold uppercase">
+    Phase
+  </label>
 
+  <select
+    value={phaseFilter}
+    onChange={(e) => setPhaseFilter(e.target.value)}
+    className="border p-2 rounded text-xs mt-1"
+  >
+    <option value="All">
+      All Phases
+    </option>
+
+    {phases.map((phase) => (
+      <option
+        key={phase}
+        value={String(phase)}
+      >
+        Phase {phase}
+      </option>
+    ))}
+  </select>
+</div>
       {/* GENERATE */}
 <button
   disabled={!plants.length || selectedPlants.length === 0}
@@ -636,6 +966,47 @@ return (
   Generate Report
 </button>
 
+{fromDate === toDate && (
+  <div className="flex gap-4 mt-4 text-xs font-bold">
+
+    <label>
+      <input
+        type="radio"
+        checked={filterType === "ALL"}
+        onChange={() => setFilterType("ALL")}
+      />
+      <span className="ml-1">All</span>
+    </label>
+
+    <label>
+      <input
+        type="radio"
+        checked={filterType === "PRESENT"}
+        onChange={() => setFilterType("PRESENT")}
+      />
+      <span className="ml-1 text-green-600">Present</span>
+    </label>
+
+    <label>
+      <input
+        type="radio"
+        checked={filterType === "ABSENT"}
+        onChange={() => setFilterType("ABSENT")}
+      />
+      <span className="ml-1 text-red-600">Absent</span>
+    </label>
+
+  </div>
+)}
+{/* <div className="flex flex-col justify-end">
+  <label className="text-[10px] font-bold uppercase">
+    Filtered Plants
+  </label>
+
+  <div className="mt-1 px-4 py-2 rounded bg-blue-50 border border-blue-200 text-blue-700 text-sm font-bold">
+    {matchingCount} Plants
+  </div>
+</div> */}
     </div>
 
     {dateError && (
@@ -667,6 +1038,24 @@ return (
       </div>
     )}
 
+{fromDate === toDate && globalCounts && (
+  <div className="bg-white border rounded-xl p-4 mt-6 flex gap-8 text-sm font-bold">
+
+    <span>
+      Total: {globalCounts.total}
+    </span>
+
+    <span className="text-green-600">
+      Present: {globalCounts.present}
+    </span>
+
+    <span className="text-red-600">
+      Absent: {globalCounts.absent}
+    </span>
+
+  </div>
+)}
+
     {/* ===== ATTENDANCE OUTPUT (PLANT-WISE) ===== */}
     {reportGenerated && Object.keys(employeeMap).length > 0 && (
       <div className="mt-10 space-y-10">
@@ -675,6 +1064,9 @@ return (
           const plant = plants.find(
             p => p.plantID === Number(plantId)
           );
+
+
+
 
           return (
             <div
@@ -693,6 +1085,7 @@ return (
 
                   <thead className="bg-slate-100 font-bold">
                     <tr>
+                    <th className="border p-2">S.No</th>
                       <th className="border p-2">Emp ID</th>
                       <th className="border p-2">Employee Name</th>
                       <th className="border p-2">Designation</th>
@@ -706,23 +1099,41 @@ return (
                           {d.split("-")[2]}
                         </th>
                       ))}
-
+{fromDate === toDate && (
+  <th className="border p-2 text-center">Remark</th>
+)}
                       <th className="border p-2 text-center">TOTAL</th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {employees.map(emp => (
+     {getFilteredEmployees(plantId, employees).map((emp, index) => (
                       <tr
-                        key={emp.employeeId}
+                        key={emp.uniqueKey}
                         className="hover:bg-slate-50"
                       >
-                        <td className="border p-2 text-center">
-                          {emp.employeeId}
-                        </td>
-                        <td className="border p-2 font-semibold">
-                          {emp.employeeName}
-                        </td>
+                        {/* ✅ S.NO */}
+  <td className="border p-2 text-center">
+    {index + 1}
+  </td>
+                       <td className="border p-2 text-center">
+  {emp.employeeId}
+</td>
+                      <td className="border p-2 font-semibold">
+  {emp.employeeName}
+
+{emp.tag === "NEW" && (
+  <span className="ml-1 text-green-600 text-[10px] font-bold">
+    (NEW - {emp.dateOfJoining ? formatDDMMYYYY(emp.dateOfJoining) : "—"})
+  </span>
+)}
+
+  {emp.tag === "EXIT" && (
+    <span className="ml-1 text-red-600 text-[10px] font-bold">
+      (EXIT - {emp.dateOfLeaving ? formatDDMMYYYY(emp.dateOfLeaving) : "—"})
+    </span>
+  )}
+</td>
                         <td className="border p-2">
                           {emp.designation}
                         </td>
@@ -734,8 +1145,11 @@ return (
                         </td>
 
                         {dateColumns.map(date => {
-                          const value =
-                            attendanceMap?.[plantId]?.[emp.employeeId]?.[date];
+const record =
+  attendanceMap?.[plantId]?.[emp.uniqueKey]?.[date];
+
+const value = record?.value;
+
 
                           return (
                             <td
@@ -746,9 +1160,18 @@ return (
                             </td>
                           );
                         })}
+{fromDate === toDate && (
+  <td className="border p-2 text-center font-bold text-blue-600">
+    {(() => {
+      const record =
+        attendanceMap?.[plantId]?.[emp.uniqueKey]?.[fromDate];
 
+      return record?.remark ? record.remark : "-";
+    })()}
+  </td>
+)}
                         <td className="border p-2 text-center font-bold text-green-600">
-                          {getTotalDays(plantId, emp.employeeId)}
+                          {getTotalDays(plantId, emp.uniqueKey)}
                         </td>
                       </tr>
                     ))}

@@ -8,6 +8,11 @@ import {
   ResponsiveContainer
 } from "recharts";
 import WaveCircle from "./WaveCircle";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+// import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
 import { 
   Droplets, 
@@ -20,6 +25,7 @@ import {
 } from "lucide-react";
 import { getAllPlants } from "../../services/plantService";
 import { getOperationsByDate } from "../../services/operationService";
+import companyLogo from '../reports/company_logo1.jpg'
 /* ================= UTILS ================= */
 const formatIndianNumber = (num) => {
   if (num === 0) return "0";
@@ -38,7 +44,7 @@ const KPICard = ({ label, value, theme, icon }) => (
         {React.cloneElement(icon, { size: 18 })}
       </div>
       <div>
-        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-900">
           {label}
         </p>
         <p className="text-xl font-black text-slate-900">
@@ -86,7 +92,12 @@ const CustomTooltip = ({ active, payload, label, mode }) => {
 
 /* ================= MAIN COMPONENT ================= */
 
-export default function SludgeReports({ date, zone, setZones }) {
+export default function SludgeReports({
+  date,
+  zone,
+  setZones,
+  selectedPlants = [],
+}) {
   
   const navigate = useNavigate();
 
@@ -97,10 +108,8 @@ export default function SludgeReports({ date, zone, setZones }) {
   const [processedMode, setProcessedMode] = useState("processed");
 
   // ⭐ Sort states
-const [receivedSortBy, setReceivedSortBy] = useState("metric"); // metric | plantId
-const [processedSortBy, setProcessedSortBy] = useState("metric"); // metric | plantId
-
-
+const [receivedSort, setReceivedSort] = useState("desc"); 
+const [processedSort, setProcessedSort] = useState("desc");
   // ⭐ Routing helper to sludge report view
 const handlePlantClick = (plant, mode) => {
 navigate(
@@ -159,11 +168,23 @@ useEffect(() => {
     .catch(console.error);
 }, [setZones]);
 
-  const zonePlants = useMemo(() => 
-    zone === "All" ? plants : plants.filter(p => Number(p.zones) === Number(zone)), 
-    [plants, zone]
-  );
+const zonePlants = useMemo(() => {
+  let filtered =
+    zone === "All"
+      ? plants
+      : plants.filter(
+          (p) => Number(p.zones) === Number(zone)
+        );
 
+  // FILTER BY SELECTED PLANTS
+  if (selectedPlants.length > 0) {
+    filtered = filtered.filter((p) =>
+      selectedPlants.includes(p.plantID)
+    );
+  }
+
+  return filtered;
+}, [plants, zone, selectedPlants]);
   // fetch operations -----------
   useEffect(() => {
   if (!date) return;
@@ -237,33 +258,33 @@ const chartData = useMemo(() => {
  const receivedSorted = useMemo(() => {
   const sorted = [...chartData];
 
-  if (receivedSortBy === "plantId") {
-    return sorted.sort((a, b) => a.plantID - b.plantID); // ASC
+  if (receivedSort === "plantId") {
+    return sorted.sort((a, b) => a.plantID - b.plantID);
   }
 
-  // metric DESC
+  const key = receivedMode === "received" ? "received" : "tankLevel";
+
   return sorted.sort((a, b) =>
-    receivedMode === "received"
-      ? b.received - a.received
-      : b.tankLevel - a.tankLevel
+    receivedSort === "asc"
+      ? a[key] - b[key]
+      : b[key] - a[key]
   );
-}, [chartData, receivedMode, receivedSortBy]);
-
-
+}, [chartData, receivedMode, receivedSort]);
 const processedSorted = useMemo(() => {
   const sorted = [...chartData];
 
-  if (processedSortBy === "plantId") {
-    return sorted.sort((a, b) => a.plantID - b.plantID); // ASC
+  if (processedSort === "plantId") {
+    return sorted.sort((a, b) => a.plantID - b.plantID);
   }
 
-  // metric DESC
+  const key = processedMode === "processed" ? "processed" : "biochar";
+
   return sorted.sort((a, b) =>
-    processedMode === "processed"
-      ? b.processed - a.processed
-      : b.biochar - a.biochar
+    processedSort === "asc"
+      ? a[key] - b[key]
+      : b[key] - a[key]
   );
-}, [chartData, processedMode, processedSortBy]);
+}, [chartData, processedMode, processedSort]);
 
   // const processedSorted = useMemo(() => [...chartData].sort((a, b) => processedMode === "processed" ? b.processed - a.processed : b.biochar - a.biochar), [chartData, processedMode]);
 
@@ -278,6 +299,247 @@ const avgProcessed =
     : 0;
 
   const chartWidth = Math.max(zonePlants.length * 80, 1000);
+
+  /* ---------------- ENTRY COUNTS ---------------- */
+
+// entries for Received / Tank graph
+const receivedEntryCount = useMemo(() => {
+  const key = receivedMode === "received" ? "received" : "tankLevel";
+
+  return chartData.filter(d => Number(d[key]) > 0).length;
+}, [chartData, receivedMode]);
+
+// entries for Processed / Biochar graph
+const processedEntryCount = useMemo(() => {
+  const key = processedMode === "processed" ? "processed" : "biochar";
+
+  return chartData.filter(d => Number(d[key]) > 0).length;
+}, [chartData, processedMode]);
+
+const addCompanyHeader = (doc, reportTitle) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  /* ===== LOGO ===== */
+  doc.addImage(companyLogo, "JPEG", 8, 6, 25, 15);
+
+  /* ===== COMPANY NAME ===== */
+  doc.setFont("times", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(200, 0, 0);
+  doc.text("MVR TECHNOLOGY", pageWidth / 2, 14, { align: "center" });
+
+  /* ===== SUBTITLE ===== */
+  doc.setFontSize(12);
+  doc.setTextColor(0);
+  doc.text("FSTP RAJASTHAN", pageWidth / 2, 21, { align: "center" });
+
+  /* ===== REPORT TITLE ===== */
+  doc.setFontSize(12);
+  doc.setFont("times", "bold");
+  doc.text(reportTitle, pageWidth / 2, 27, { align: "center" });
+};
+
+const downloadReceivedPDF = () => {
+  const doc = new jsPDF();
+
+  let selectedKey;
+  let selectedLabel;
+  let reportTitle;
+
+  if (receivedMode === "received") {
+    selectedKey = "received";
+    selectedLabel = "Sludge Received (L)";
+    reportTitle = "Sludge Received Report";
+  } else {
+    selectedKey = "tankLevel";
+    selectedLabel = "Tank Level (L)";
+    reportTitle = "Sludge Tanklevel Report";
+  }
+
+  addCompanyHeader(doc, reportTitle);
+
+  const tableData = receivedSorted.map((item, index) => [
+    index + 1,
+    item.plantID,
+    item.name,
+    item.kld,
+    item[selectedKey],
+  ]);
+
+  autoTable(doc, {
+    startY: 35, // 👈 IMPORTANT (below header)
+    head: [["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel]],
+    body: tableData,
+  });
+
+  doc.save(`${reportTitle}.pdf`);
+};
+
+const downloadProcessedPDF = () => {
+  const doc = new jsPDF();
+
+  let selectedKey;
+  let selectedLabel;
+  let reportTitle;
+
+  if (processedMode === "processed") {
+    selectedKey = "processed";
+    selectedLabel = "Sludge Processed (L)";
+    reportTitle = "Sludge Processed Report";
+  } else {
+    selectedKey = "biochar";
+    selectedLabel = "Biochar Produced (Kg)";
+    reportTitle = "Sludge Biochar Report";
+  }
+
+  addCompanyHeader(doc, reportTitle);
+
+  const tableData = processedSorted.map((item, index) => [
+    index + 1,
+    item.plantID,
+    item.name,
+    item.kld,
+    item[selectedKey],
+  ]);
+
+  autoTable(doc, {
+    startY: 35,
+    head: [["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel]],
+    body: tableData,
+  });
+
+  doc.save(`${reportTitle}.pdf`);
+};
+const downloadExcel = async (type) => {
+  let data = [];
+  let selectedKey;
+  let selectedLabel;
+  let fileName;
+  let reportTitle;
+
+  if (type === "received") {
+    if (receivedMode === "received") {
+      selectedKey = "received";
+      selectedLabel = "Sludge Received (L)";
+      reportTitle = "Sludge Received Report";
+      fileName = "Sludge_Received_Report.xlsx";
+    } else {
+      selectedKey = "tankLevel";
+      selectedLabel = "Tank Level (L)";
+      reportTitle = "Sludge Tanklevel Report";
+      fileName = "Sludge_Tanklevel_Report.xlsx";
+    }
+    data = receivedSorted;
+  }
+
+  if (type === "processed") {
+    if (processedMode === "processed") {
+      selectedKey = "processed";
+      selectedLabel = "Sludge Processed (L)";
+      reportTitle = "Sludge Processed Report";
+      fileName = "Sludge_Processed_Report.xlsx";
+    } else {
+      selectedKey = "biochar";
+      selectedLabel = "Biochar Produced (Kg)";
+      reportTitle = "Sludge Biochar Report";
+      fileName = "Sludge_Biochar_Report.xlsx";
+    }
+    data = processedSorted;
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Report");
+
+  /* ===== LOGO ===== */
+  const imageId = workbook.addImage({
+    base64: await fetch(companyLogo)
+      .then(res => res.blob())
+      .then(blob => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      })),
+    extension: "jpeg",
+  });
+
+  sheet.addImage(imageId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: 120, height: 60 },
+  });
+
+  /* ===== COMPANY NAME ===== */
+  sheet.mergeCells("A1:E1");
+  const companyCell = sheet.getCell("A1");
+  companyCell.value = "MVR TECHNOLOGY";
+  companyCell.font = {  name: "Times New Roman",size: 16, bold: true, color: { argb: "FF0000" } };
+  companyCell.alignment = { vertical: "middle", horizontal: "center" };
+
+  /* ===== SUBTITLE ===== */
+  sheet.mergeCells("A2:E2");
+  const subCell = sheet.getCell("A2");
+  subCell.value = "FSTP RAJASTHAN";
+  subCell.font = {  name: "Times New Roman",size: 12, bold: true };
+  subCell.alignment = { horizontal: "center" };
+
+  /* ===== REPORT TITLE ===== */
+  sheet.mergeCells("A3:E3");
+  const titleCell = sheet.getCell("A3");
+  titleCell.value = reportTitle;
+  titleCell.font = { name: "Times New Roman",size: 12, bold: true };
+  titleCell.alignment = { horizontal: "center" };
+
+  /* ===== TABLE HEADERS ===== */
+  const headers = ["S.No", "Plant ID", "Plant Name", "KLD", selectedLabel];
+  const headerRow = sheet.addRow(headers);
+
+  headerRow.eachCell((cell) => {
+    cell.font = { name: "Times New Roman",bold: true };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top: { style: "thin" },
+      bottom: { style: "thin" },
+      left: { style: "thin" },
+      right: { style: "thin" },
+    };
+  });
+
+  /* ===== TABLE DATA ===== */
+  data.forEach((item, index) => {
+    const row = sheet.addRow([
+      index + 1,
+      item.plantID,
+      item.name,
+      item.kld,
+      item[selectedKey],
+    ]);
+
+    row.eachCell((cell) => {
+      cell.font = {
+    name: "Times New Roman"
+  };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      };
+    });
+  });
+
+  /* ===== COLUMN WIDTH ===== */
+  sheet.columns = [
+    { width: 8 },
+    { width: 12 },
+    { width: 25 },
+    { width: 10 },
+    { width: 20 },
+  ];
+
+  /* ===== DOWNLOAD ===== */
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), fileName);
+};
 
   // UI ----------------
  return (
@@ -317,15 +579,21 @@ const avgProcessed =
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
       <div className="lg:col-span-3 p-4 rounded-xl shadow-md bg-white">
         <div className="flex justify-between items-center mb-3">
+  <div className="flex items-center gap-3">
   <h3 className="text-blue-800 font-semibold uppercase text-xs tracking-wider">
     {receivedMode === "received"
       ? "Received Sludge Analytics"
       : "Tank Level Monitoring"}
   </h3>
 
+  <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+    Entries: {receivedEntryCount}
+  </span>
+</div>
+
   <div className="flex items-center gap-3">
-    {/* MODE TOGGLE */}
-    <div className="flex p-1 rounded-lg bg-slate-100">
+    {/* MODE TOGGLE  #bdb3b3 */}
+    <div className="flex p-1 rounded-lg bg-slate-100 text-white">
       <button
         onClick={() => setReceivedMode("received")}
         className={`px-4 py-1.5 text-xs font-bold rounded-md ${
@@ -350,16 +618,31 @@ const avgProcessed =
     </div>
 
     {/* SORT BY */}
-    <select
-      value={receivedSortBy}
-      onChange={(e) => setReceivedSortBy(e.target.value)}
-      className="border rounded-md px-2 py-1 text-xs font-bold bg-white text-slate-700"
-    >
-      <option value="metric">
-        Sort by {receivedMode === "received" ? "Received ↓" : "Tank ↓"}
-      </option>
-      <option value="plantId">Sort by Plant ID ↑</option>
-    </select>
+   <div className="flex items-center gap-3">
+  <select
+    value={receivedSort}
+    onChange={(e) => setReceivedSort(e.target.value)}
+    className="border rounded-md px-2 py-1 text-xs font-bold bg-white text-slate-700"
+  >
+    <option value="desc">Descending ↓</option>
+    <option value="asc">Ascending ↑</option>
+    <option value="plantId">Plant ID</option>
+  </select>
+
+  <button
+    onClick={() => downloadReceivedPDF()}
+    className="bg-blue-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-blue-700"
+  >
+    PDF
+  </button>
+
+  <button
+ onClick={() => downloadExcel("received")}
+  className="bg-green-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-green-700"
+>
+  Excel
+</button>
+</div>
   </div>
 </div>
 
@@ -460,11 +743,17 @@ const avgProcessed =
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mt-6">
       <div className="lg:col-span-3 p-4 rounded-xl shadow-md bg-white">
 <div className="flex justify-between items-center mb-3">
+  <div className="flex items-center gap-3">
   <h3 className="text-blue-800 font-semibold uppercase text-xs tracking-wider">
     {processedMode === "processed"
       ? "Sludge Processed Volume"
       : "Biochar Production Yield"}
   </h3>
+
+  <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+    Entries: {processedEntryCount}
+  </span>
+</div>
 
   <div className="flex items-center gap-3">
     {/* MODE TOGGLE */}
@@ -493,16 +782,31 @@ const avgProcessed =
     </div>
 
     {/* SORT BY */}
-    <select
-      value={processedSortBy}
-      onChange={(e) => setProcessedSortBy(e.target.value)}
-      className="border rounded-md px-2 py-1 text-xs font-bold bg-white text-slate-700"
-    >
-      <option value="metric">
-        Sort by {processedMode === "processed" ? "Processed ↓" : "Biochar ↓"}
-      </option>
-      <option value="plantId">Sort by Plant ID ↑</option>
-    </select>
+    <div className="flex items-center gap-3">
+  <select
+    value={processedSort}
+    onChange={(e) => setProcessedSort(e.target.value)}
+    className="border rounded-md px-2 py-1 text-xs font-bold bg-white text-slate-700"
+  >
+    <option value="desc">Descending ↓</option>
+    <option value="asc">Ascending ↑</option>
+    <option value="plantId">Plant ID</option>
+  </select>
+
+  <button
+    onClick={() => downloadProcessedPDF()}
+    className="bg-blue-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-blue-700"
+  >
+    PDF
+  </button>
+<button
+  onClick={() => downloadExcel("processed")}
+  className="bg-green-600 text-white px-3 py-1 text-xs font-bold rounded-md hover:bg-green-700"
+>
+   Excel
+</button>
+
+</div>
   </div>
 </div>
 

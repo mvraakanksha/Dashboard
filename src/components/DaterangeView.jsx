@@ -25,7 +25,9 @@ import companyLogo1  from './reports/company_logo1.jpg'
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'
 import { useNavigate } from "react-router-dom";
-import machineryImg from '../assets/machinery.jpeg';
+import machineryImg from '../../src/assets/machinery.jpeg'
+import machineryImgwithoutmotor from '../assets/machinery without motor.jpeg';
+
 import { X } from "lucide-react";
 
 
@@ -72,7 +74,7 @@ const MODULES = {
       { key: "pelletsUsed", label: "Pellets Used", color: "#ea580c" },
       { key: "polymerUsed", label: "Polymer Used", color: "#9333ea" }
     ],
-    yAxis: "Quantity"
+    yAxis: "Quantity(Kg)"
   },
   cumulative: {
     title: "Cumulative Flow",
@@ -129,6 +131,33 @@ const formatValue = (value, key) => {
   return Number(num).toLocaleString("en-IN");
 };
 
+const getUnit = (key) => {
+  switch (key) {
+    case "sludgeReceived":
+    case "sludgeProcessed":
+    case "cumulativeFlow":
+      return "L";
+
+    case "biochar":
+    case "pelletsUsed":
+    case "polymerUsed":
+      return "Kg";
+
+    case "importPower":
+    case "solarPower":
+      return "Kwh";
+
+    case "runHours":
+      return "Hrs";
+
+    case "totalDistance":
+      return "Km";
+
+    default:
+      return "";
+  }
+};
+
 const DateRangeTooltip = ({ active, payload, label, module }) => {
   if (!active || !payload || payload.length === 0) return null;
 
@@ -168,7 +197,8 @@ if (!row) return null;
                 className="font-bold"
                 style={{ color: p.fill }}
               >
-                {formatValue(p.value, p.dataKey)}
+               {formatValue(p.value, p.dataKey)} {getUnit(p.dataKey)}
+
               </span>
             </div>
           );
@@ -231,6 +261,7 @@ export default function DaterangeView() {
   const [fromDate, setFromDate] = useState(TODAY);
   const [toDate, setToDate] = useState(TODAY);
   const [zone, setZone] = useState("All");
+  const [phase, setPhase] = useState("All");
 const [previewImage, setPreviewImage] = useState(null);
 
   const [plants, setPlants] = useState([]);
@@ -244,14 +275,39 @@ const [vehiclesByPlant, setVehiclesByPlant] = useState({});
 const [sortBy, setSortBy] = useState("label"); // label | plantId | metric
 const [showMachinery, setShowMachinery] = useState(false);
 
+const [machineryType, setMachineryType] = useState("with"); 
+// with | without
+
   /* ================= FETCH PLANTS ================= */
-  useEffect(() => {
-    getAllPlants().then((res) => {
-      setPlants(res || []);
-      const uniqueZones = [...new Set((res || []).map(p => p.zones))].sort();
-      setZones(uniqueZones);
-    });
-  }, []);
+const [phases, setPhases] = useState([]);
+
+useEffect(() => {
+  getAllPlants().then((res) => {
+    const data = res || [];
+
+    setPlants(data);
+
+    const uniqueZones = [
+      ...new Set(
+        data
+          .map((p) => p.zones)
+          .filter((z) => z !== null && z !== undefined)
+      ),
+    ].sort((a, b) => Number(a) - Number(b));
+
+    setZones(uniqueZones);
+
+    const uniquePhases = [
+      ...new Set(
+        data
+          .map((p) => p.plantPhase)
+          .filter((p) => p !== null && p !== undefined)
+      ),
+    ].sort((a, b) => Number(a) - Number(b));
+
+    setPhases(uniquePhases);
+  });
+}, []);
 
   /* ================= FETCH OPERATIONS ================= */
  /* ================= FETCH OPERATIONS (NON-VEHICLE MODULES) ================= */
@@ -264,7 +320,7 @@ useEffect(() => {
       .then(res => setOperations(res || []))
       .finally(() => setLoading(false));
   }
-}, [fromDate, toDate, zone, module]);
+}, [fromDate, toDate, zone, phase, module]);
 
 
 
@@ -299,7 +355,7 @@ useEffect(() => {
       .then(res => setVehicleOps(res || []))
       .finally(() => setLoading(false));
   }
-}, [fromDate, toDate, zone, module]);
+}, [fromDate, toDate, zone, phase, module]);
 
 /* ================= FETCH VEHICLE MASTER (VEHICLE NUMBER) ================= */
 /* ================= FETCH VEHICLE MASTER (VEHICLE NUMBER) ================= */
@@ -405,10 +461,14 @@ if (module === "vehicle") {
 
 };
 
+const selectedMachineryImage =
+  machineryType === "with"
+    ? machineryImg
+    : machineryImgwithoutmotor;
 
 const handleDownloadMachineryImage = () => {
   const link = document.createElement("a");
-  link.href = machineryImg;
+ link.href = selectedMachineryImage;
   link.download = "machinery.png";
   document.body.appendChild(link);
   link.click();
@@ -418,11 +478,19 @@ const handleDownloadMachineryImage = () => {
 
 
   /* ================= FILTER PLANTS BY ZONE ================= */
-  const visiblePlants = useMemo(() => {
-    if (zone === "All") return plants;
-    return plants.filter(p => String(p.zones) === String(zone));
-  }, [plants, zone]);
+const visiblePlants = useMemo(() => {
+  return plants.filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
 
+    const phaseMatch =
+      phase === "All" ||
+      String(p.plantPhase) === String(phase);
+
+    return zoneMatch && phaseMatch;
+  });
+}, [plants, zone, phase]);
   /* ================= AGGREGATE OPERATIONS ================= */
   const aggregatedByPlant = useMemo(() => {
     const map = {};
@@ -874,6 +942,18 @@ const motors = [
       />
     </div>
 
+<div className="min-w-[140px]">
+  <Select
+    label="Phase"
+    value={phase}
+    onChange={setPhase}
+    options={[
+      "All",
+      ...phases.map((p) => String(p)),
+    ]}
+  />
+</div>
+
     {/* MODULE TOGGLE */}
     <div className="flex flex-col gap-1">
       <span className="text-xs font-bold text-slate-600 tracking-wide">
@@ -1042,31 +1122,72 @@ const motors = [
 
 {showMachinery && (
 <div className="bg-white rounded-xl shadow p-4 space-y-4">
+
+<div className="flex items-center justify-between">
   <h3 className="font-bold text-blue-900">
     Machinery Layout
   </h3>
 
-  {/* Image + Table Side by Side */}
-  <div className="flex flex-col md:flex-row gap-6 items-start">
+<div className="flex gap-2">
+  <button
+    onClick={() => setMachineryType("with")}
+    className={`px-3 py-1 text-sm font-semibold rounded-md transition
+      ${
+        machineryType === "with"
+          ? "bg-blue-600 text-white"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+  >
+    With Motors
+  </button>
 
+  <button
+    onClick={() => setMachineryType("without")}
+    className={`px-3 py-1 text-sm font-semibold rounded-md transition
+      ${
+        machineryType === "without"
+          ? "bg-blue-600 text-white"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+  >
+    Without Motors
+  </button>
+</div>
+</div>
+
+  {/* Image + Table Side by Side */}
+<div
+  className={`flex gap-6 ${
+    machineryType === "with"
+      ? "flex-col md:flex-row items-start"
+      : "flex-col items-center"
+  }`}
+>
     {/* Image Section - 70% */}
-    <div className="w-full md:w-[60%] flex justify-center">
-      <img
-        src={machineryImg}
-        alt="Machinery"
-        onClick={() => setPreviewImage(machineryImg)}
-        className="w-full max-h-[400px] object-contain  cursor-pointer hover:scale-[1.01] transition"
-      />
-    </div>
+<div
+  className={`flex justify-center w-full ${
+    machineryType === "with" ? "md:w-[60%]" : ""
+  }`}
+>
+  <img
+    src={selectedMachineryImage}
+    alt="Machinery"
+    onClick={() => setPreviewImage(selectedMachineryImage)}
+    className="w-full max-h-[500px] max-w-[1000px] object-contain cursor-pointer transition-all duration-300 hover:scale-[1.01]"
+  />
+</div>
 
     {/* Table Section - 30% */}
+   
 {/* Table Section - 30% */}
-<div className="w-full md:w-[40%]">
-  
+<div className="w-full md:w-[50%]">
+    {machineryType === "with" && (
   <div className="border border-gray-300  overflow-hidden">
     
     {/* Scrollable Wrapper */}
+   
     <div className="max-h-[400px] overflow-y-auto">
+
       <table className="w-full text-sm border-collapse">
         
  <thead className="bg-blue-100 text-blue-900 sticky top-0 z-10">
@@ -1092,14 +1213,16 @@ const motors = [
     </div>
 
   </div>
+      )}
 </div>
 
 
   </div>
 
   {/* Download Button */}
-<div className="flex justify-center gap-200 mt-4">
-  
+<div className="flex justify-center gap-220 mt-4">
+
+  {/* IMAGE DOWNLOAD — always */}
   <button
     onClick={handleDownloadMachineryImage}
     className="px-4 py-2 text-sm font-bold rounded-md
@@ -1108,14 +1231,16 @@ const motors = [
     Download Image
   </button>
 
-  <button
-    onClick={handleDownloadMotorsPdf}
-    className="px-4 py-2 text-sm font-bold rounded-md
-               bg-blue-600 text-white hover:bg-blue-700 transition"
-  >
-    Download PDF
-  </button>
-
+  {/* PDF ONLY WHEN WITH MOTORS */}
+  {machineryType === "with" && (
+    <button
+      onClick={handleDownloadMotorsPdf}
+      className="px-4 py-2 text-sm font-bold rounded-md
+                 bg-blue-600 text-white hover:bg-blue-700 transition"
+    >
+      Download PDF
+    </button>
+  )}
 </div>
 
 </div>
@@ -1278,7 +1403,9 @@ const motors = [
     ))}
   </div>
 
-  <p className="text-center text-sm font-bold mt-4">Plants</p>
+<p className="text-center text-sm font-bold mt-4">
+  Plants ({visiblePlants.length})
+</p>
 </div>
 
 
@@ -1348,12 +1475,16 @@ const Select = ({ label, value, onChange, options }) => (
     >
       {options.map(o => (
         <option key={o} value={o}>
-          {label === "Zone"
-            ? o === "All"
-              ? "All Zones"
-              : `Zone ${o}`
-            : o.charAt(0).toUpperCase() + o.slice(1)}
-        </option>
+  {label === "Zone"
+    ? o === "All"
+      ? "All Zones"
+      : `Zone ${o}`
+    : label === "Phase"
+    ? o === "All"
+      ? "All Phases"
+      : `Phase ${o}`
+    : o.charAt(0).toUpperCase() + o.slice(1)}
+</option>
       ))}
     </select>
   </div>
@@ -1386,7 +1517,7 @@ const VehicleKpiCard = ({
     </div>
 
     {/* Label */}
-    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+    <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">
       {label}
     </p>
 
@@ -1397,7 +1528,7 @@ const VehicleKpiCard = ({
 
     {/* Optional sub value */}
     {subValue && (
-      <p className="text-xs font-semibold mt-1 text-slate-600">
+      <p className="text-xs font-semibold mt-1 text-slate-700">
         {subValue}
       </p>
     )}

@@ -9,8 +9,8 @@ import {
   sumVehicleMetricForDate
 } from "./ReportTotals";
 
-import companyLogo from "../reports/company_logo.png";
-import mainLogo from "../reports/logo.png";
+import companyLogo from "../company_logo.png";
+import mainLogo from "../logo.png";
 
 /* ================= HELPERS ================= */
 
@@ -56,6 +56,23 @@ const getTopVehiclesForPlantExcel = (plantRow, dates) => {
     .slice(0, 2)
     .map(([v]) => v);
 };
+const getVehiclesForPlant = (r, dates) => {
+  const vehiclesSet = new Set();
+
+  dates.forEach(d => {
+    const rows = r.values?.[d]?.vehicleRows || [];
+    rows.forEach(v => {
+      if (v.vehicleNo) {
+        vehiclesSet.add(normalizeVehicleNo(v.vehicleNo));
+      }
+    });
+  });
+
+  const vehicles = Array.from(vehiclesSet);
+
+  return [vehicles[0] || null, vehicles[1] || null];
+};
+
 
 const sumVehicleMetricBySlotExcel = (plantRow, dates, metric, vehicleNo) => {
   if (!vehicleNo) return 0;
@@ -110,10 +127,7 @@ const formatIndian = (val) => {
   if (val === null || val === undefined || val === "-") return "-";
   const num = Number(val);
   if (isNaN(num)) return val;
-  return num.toLocaleString("en-IN", {
-    minimumFractionDigits: Number.isInteger(num) ? 0 : 2,
-    maximumFractionDigits: 2
-  });
+  return num; 
 };
 // MULTI PLANT — SIDE TOTALS
 const shouldExcludeExcelMultiSideTotal = (m) => {
@@ -164,7 +178,33 @@ const shouldIncludeSideTotal = (m) => {
 const safeDate = (d) => formatDisplayDate(d).replaceAll("/", "-");
 
 /* ================= MAIN EXPORT ================= */
+const safeMerge = (sheet, r1, c1, r2, c2) => {
+  const merges = Object.values(sheet._merges || {});
 
+  const isOverlapping = merges.some(m => {
+    return !(
+      r2 < m.top ||
+      r1 > m.bottom ||
+      c2 < m.left ||
+      c1 > m.right
+    );
+  });
+
+  if (!isOverlapping) {
+    sheet.mergeCells(r1, c1, r2, c2);
+  }
+};
+const setCellNumericValue = (cell, val, isBold = false) => {
+  applyCellStyle(cell, isBold);
+  const num = Number(val);
+  if (val === "-" || val === null || isNaN(num)) {
+    cell.value = val ?? "-";
+    return;
+  }
+  const rounded = Math.round(num * 100) / 100;
+  cell.value = rounded;
+  cell.numFmt = Number.isInteger(rounded) ? '#,##,##0' : '#,##,##0.00';
+};
 export default async function CustomizedExcel(previewData, dateRange) {
   if (!previewData) return;
 
@@ -174,7 +214,9 @@ export default async function CustomizedExcel(previewData, dateRange) {
   const singlePlantRow = isSinglePlant ? rows[0] : null;
 
   const nonVehicleMetrics = metrics.filter(m => m.module !== "vehicle");
-  const isVehicleEnabled = metrics.some(m => m.module === "vehicle");
+const vehicleMetrics = metrics.filter(m => m.module === "vehicle");
+
+const isVehicleEnabled = vehicleMetrics.length > 0;
 
   const showVehicleOdometer = metrics.some(
     m => m.module === "vehicle" && m.metric === "odometer"
@@ -211,12 +253,40 @@ sheet.getCell("H3").value =
 
   while (sheet.rowCount < 4) sheet.addRow([]);
   
+const vehicleCache = new Map();
+
+rows.forEach(r => {
+  const vehicles = [];
+
+  for (const d of dates) {
+    const vRows = r.values?.[d]?.vehicleRows || [];
+
+    vRows.forEach(v => {
+      const vn = normalizeVehicleNo(v.vehicleNo);
+      if (vn && !vehicles.includes(vn)) {
+        vehicles.push(vn);
+      }
+    });
+
+    if (vehicles.length >= 2) break; // ✅ stop early
+  }
+
+  vehicleCache.set(r.plant.plantID, {
+    v1: vehicles[0] || null,
+    v2: vehicles[1] || null
+  });
+});
 
 
   let finalTotalRow = null;
 
-  const excelSideTotalMetrics = metrics.filter(shouldIncludeSideTotal);
-
+const excelSideTotalMetrics = metrics
+  .filter(m => shouldIncludeSideTotal(m))
+  .filter(m => {
+    if (m.module === "vehicle") return isVehicleEnabled;
+    return true;
+  });
+  
   /* =====================================================
         SINGLE PLANT
      ===================================================== */
@@ -343,289 +413,235 @@ if (showVehicleTrips)
   /* =====================================================
         MULTI PLANT
      ===================================================== */
-  else {
-    const staticHeaders = ["S.No", "Plant ID", "Plant Name", "KLD"];
-    const headerRow1 = [...staticHeaders];
-    const headerRow2 = staticHeaders.map(() => "");
+/* ================= OPTIMIZED MULTI PLANT SECTION ================= */
+else {
+  const staticHeaders = ["S.No", "Plant ID", "Plant Name", "KLD"];
+  const headerRow1 = [...staticHeaders];
+  const headerRow2 = staticHeaders.map(() => "");
 
-    dates.forEach(date => {
-      const colsForDate =
-        nonVehicleMetrics.length +
-        (isVehicleEnabled ? 1 : 0) +
-        (showVehicleOdometer ? 2 : 0) +
-        (showVehicleDistance ? 1 : 0) +
-        (showVehicleTrips ? 1 : 0);
+  // 1. Pre-calculate column spans to avoid repetitive math
+  const colsPerDate = nonVehicleMetrics.length + (isVehicleEnabled ? 1 : 0) + 
+                     (showVehicleOdometer ? 2 : 0) + (showVehicleDistance ? 1 : 0) + 
+                     (showVehicleTrips ? 1 : 0);
 
- headerRow1.push(formatDisplayDate(date), ...Array(colsForDate - 1).fill(""));
-
-      nonVehicleMetrics.forEach(m => headerRow2.push(m.label));
-
-      if (isVehicleEnabled) headerRow2.push("Vehicle No");
-      if (showVehicleOdometer) headerRow2.push("Odometer AM", "Odometer PM");
-      if (showVehicleDistance) headerRow2.push("Distance");
-      if (showVehicleTrips) headerRow2.push("Trips");
-    });
+  dates.forEach(date => {
+    headerRow1.push(formatDisplayDate(date), ...Array(colsPerDate - 1).fill(""));
+    nonVehicleMetrics.forEach(m => headerRow2.push(m.label));
+    if (isVehicleEnabled) headerRow2.push("Vehicle No");
+    if (showVehicleOdometer) headerRow2.push("Odometer AM", "Odometer PM");
+    if (showVehicleDistance) headerRow2.push("Distance");
+    if (showVehicleTrips) headerRow2.push("Trips");
+  });
 
   excelSideTotalMetrics.forEach(m => {
-  if (m.module === "vehicle") {
-    headerRow1.push(
-      `${m.label} By V1`,
-      `${m.label} By V2`,
-      `${m.label} Total`
-    );
-    headerRow2.push("", "", "");
-  } else {
-    headerRow1.push(`${m.label} Total`);
-    headerRow2.push("");
-  }
-});
+    if (m.module === "vehicle") {
+      headerRow1.push(`${m.label} By V1`, `${m.label} By V2`, `${m.label} Total`);
+      headerRow2.push("", "", "");
+    } else {
+      headerRow1.push(`${m.label} Total`);
+      headerRow2.push("");
+    }
+  });
 
+  const row5 = sheet.addRow(headerRow1);
+  const row6 = sheet.addRow(headerRow2);
 
-    const row5 = sheet.addRow(headerRow1);
-    const row6 = sheet.addRow(headerRow2);
-    
-    // 🔽 MERGE SIDE TOTAL HEADERS VERTICALLY
-// 🔽 MERGE SIDE TOTAL HEADERS VERTICALLY
-let sideTotalStartCol =
-  staticHeaders.length +
-  dates.length *
-    (nonVehicleMetrics.length +
-      (isVehicleEnabled ? 1 : 0) +
-      (showVehicleOdometer ? 2 : 0) +
-      (showVehicleDistance ? 1 : 0) +
-      (showVehicleTrips ? 1 : 0)) +
-  1;
+  // 2. Optimized Styling: Style entire row once
+  [row5, row6].forEach(r => {
+    r.eachCell(c => applyCellStyle(c, true, { type: "pattern", pattern: "solid", fgColor: { argb: "FFB7DEE8" } }));
+  });
 
-excelSideTotalMetrics.forEach(m => {
-  if (m.module === "vehicle") {
-    // 🚗 Vehicle → 3 columns (V1, V2, Total)
-    sheet.mergeCells(row5.number, sideTotalStartCol, row6.number, sideTotalStartCol);
-    sheet.mergeCells(row5.number, sideTotalStartCol + 1, row6.number, sideTotalStartCol + 1);
-    sheet.mergeCells(row5.number, sideTotalStartCol + 2, row6.number, sideTotalStartCol + 2);
-    sideTotalStartCol += 3;
-  } else {
-    // 🧮 Non-vehicle → 1 column
-    sheet.mergeCells(row5.number, sideTotalStartCol, row6.number, sideTotalStartCol);
-    sideTotalStartCol += 1;
-  }
-});
+  // 3. Merging Logic (Batch merges)
+  let sideTotalStartCol = staticHeaders.length + (dates.length * colsPerDate) + 1;
+  const sideTotalColStart = sideTotalStartCol;
 
+  staticHeaders.forEach((_, i) => safeMerge(sheet, row5.number, i + 1, row6.number, i + 1));
 
-    [row5, row6].forEach(r =>
-      r.eachCell(c =>
-        applyCellStyle(c, true, {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FFB7DEE8" }
-        })
-      )
-    );
+  let colCursor = staticHeaders.length + 1;
+  dates.forEach(() => {
+    safeMerge(sheet, row5.number, colCursor, row5.number, colCursor + colsPerDate - 1);
+    colCursor += colsPerDate;
+  });
 
-    // staticHeaders.forEach((_, i) =>
-    //   sheet.mergeCells(row5.number, i + 1, row6.number, i + 1)
-    // );
-staticHeaders.forEach((_, i) => {
-  const col = i + 1;
-  const address = `${row5.number}:${col}-${row6.number}:${col}`;
+  excelSideTotalMetrics.forEach(m => {
+    const span = m.module === "vehicle" ? 3 : 1;
+    for (let i = 0; i < span; i++) {
+      safeMerge(sheet, row5.number, sideTotalStartCol + i, row6.number, sideTotalStartCol + i);
+    }
+    sideTotalStartCol += span;
+  });
 
-  // ✅ Merge ONLY if not already merged
-  const isMerged = Object.values(sheet._merges || {}).some(
-    m =>
-      m.top === row5.number &&
-      m.bottom === row6.number &&
-      m.left === col &&
-      m.right === col
-  );
+  // 4. Optimized Row Generation
+  rows.forEach((r, i) => {
+    const plantID = r.plant.plantID;
+    const { v1: pV1, v2: pV2 } = vehicleCache.get(plantID) || {};
+    const maxVehicleRows = isVehicleEnabled ? Math.max(...dates.map(d => r.values?.[d]?.vehicleRows?.length || 1), 2) : 1;
+    const startRow = sheet.rowCount + 1;
+    r.__excelSideTotals = [];
 
-  if (!isMerged) {
-    sheet.mergeCells(row5.number, col, row6.number, col);
-  }
-});
-
-    let colCursor = staticHeaders.length + 1;
-    const colsPerDate =
-      nonVehicleMetrics.length +
-      (isVehicleEnabled ? 1 : 0) +
-      (showVehicleOdometer ? 2 : 0) +
-      (showVehicleDistance ? 1 : 0) +
-      (showVehicleTrips ? 1 : 0);
-
-    dates.forEach(() => {
-      sheet.mergeCells(
-        row5.number,
-        colCursor,
-        row5.number,
-        colCursor + colsPerDate - 1
-      );
-      colCursor += colsPerDate;
+    // Pre-calculate side totals for this plant once to avoid O(n^2)
+    const plantSideTotals = excelSideTotalMetrics.map(m => {
+      if (m.module === "vehicle") {
+        const v1Val = sumVehicleMetricBySlotExcel(r, dates, m.metric, pV1);
+        const v2Val = sumVehicleMetricBySlotExcel(r, dates, m.metric, pV2);
+        return { metric: m.metric, v1: v1Val, v2: v2Val, total: v1Val + v2Val, isVehicle: true };
+      }
+      const val = sumMetricOverall([r], dates, m.metric);
+      return { metric: m.metric, total: val, isVehicle: false };
     });
+    r.__excelSideTotals = plantSideTotals;
 
-    rows.forEach((r, i) => {
+    for (let vIdx = 0; vIdx < Math.min(maxVehicleRows, 2); vIdx++) {
       const rowData = [
-        i + 1,
-        r.plant.plantID,
-        r.plant.plantName,
-        r.plant.kld
+        vIdx === 0 ? i + 1 : "",
+        vIdx === 0 ? plantID : "",
+        vIdx === 0 ? r.plant.plantName : "",
+        vIdx === 0 ? r.plant.kld : ""
       ];
-r.__excelSideTotals = [];
 
       dates.forEach(date => {
-        nonVehicleMetrics.forEach(m =>
-          rowData.push(formatIndian(r.values?.[date]?.[m.metric]))
-        );
+        const vehicles = r.values?.[date]?.vehicleRows || [];
+        const targetVN = vIdx === 0 ? pV1 : pV2;
+        const vehicle = vehicles.find(x => normalizeVehicleNo(x.vehicleNo) === normalizeVehicleNo(targetVN)) || {};
 
-        if (isVehicleEnabled) rowData.push("-");
-        if (showVehicleOdometer) rowData.push("-", "-");
-        if (showVehicleDistance)
-          rowData.push(
-            formatIndian(sumVehicleMetricForDate([r], date, "distance"))
-          );
-        if (showVehicleTrips)
-          rowData.push(
-            formatIndian(sumVehicleMetricForDate([r], date, "trips"))
-          );
+        if (vIdx === 0) {
+          nonVehicleMetrics.forEach(m => rowData.push(formatIndian(r.values?.[date]?.[m.metric])));
+        } else {
+          nonVehicleMetrics.forEach(() => rowData.push(""));
+        }
+
+        if (isVehicleEnabled) {
+          rowData.push(vehicle.vehicleNo || "-");
+          if (showVehicleOdometer) rowData.push(vehicle.am ?? "-", vehicle.pm ?? "-");
+          if (showVehicleDistance) rowData.push(vehicle.distance ?? 0);
+          if (showVehicleTrips) rowData.push(vehicle.trips ?? 0);
+        }
       });
 
-excelSideTotalMetrics.forEach(m => {
-  if (m.module === "vehicle") {
-    const [pV1, pV2] = getTopVehiclesForPlantExcel(r, dates);
-
-    const v1Val = sumVehicleMetricBySlotExcel(r, dates, m.metric, pV1);
-    const v2Val = sumVehicleMetricBySlotExcel(r, dates, m.metric, pV2);
-
-    rowData.push(
-      formatIndian(v1Val),
-      formatIndian(v2Val),
-      formatIndian(v1Val + v2Val)
-    );
-
-    // 👇 STORE RAW NUMBERS
-r.__excelSideTotals.push({
-  metric: m.metric,
-  v1: v1Val,
-  v2: v2Val,
-  total: v1Val + v2Val
-});
-
-  } else {
-    const val = sumMetricOverall([r], dates, m.metric);
-    rowData.push(formatIndian(val));
-
-r.__excelSideTotals.push({
-  metric: m.metric,
-  total: val
-});
-
-  }
-});
-// console.log(rows.map(r => r.__excelSideTotals));
-
+      // Side Totals Columns
+      if (vIdx === 0) {
+        plantSideTotals.forEach(st => {
+          if (st.isVehicle) rowData.push(st.v1, st.v2, st.total);
+          else rowData.push(st.total);
+        });
+      } else {
+        plantSideTotals.forEach(st => st.isVehicle ? rowData.push("", "", "") : rowData.push(""));
+      }
 
       const excelRow = sheet.addRow(rowData);
-      excelRow.eachCell(c => applyCellStyle(c));
-    });
-
-    finalTotalRow = ["TOTAL", "", "", ""];
-
-    dates.forEach(date => {
-      nonVehicleMetrics.forEach(m => {
-        const value = shouldExcludeExcelMultiBottomTotal(m)
-          ? "-"
-          : sumMetricForDate(rows, date, m.metric);
-
-        finalTotalRow.push(
-          typeof value === "number" ? formatIndian(value) : "-"
-        );
+      excelRow.eachCell(cell => {
+        applyCellStyle(cell);
+        if (typeof cell.value === 'number') {
+          cell.numFmt = Number.isInteger(cell.value) ? '#,##,##0' : '#,##,##0.00';
+        }
       });
+    }
 
-      if (isVehicleEnabled) finalTotalRow.push("-");
-      if (showVehicleOdometer) finalTotalRow.push("-", "-");
-
-      if (showVehicleDistance)
-        finalTotalRow.push(
-          formatIndian(sumVehicleMetricForDate(rows, date, "distance"))
-        );
-
-      if (showVehicleTrips)
-        finalTotalRow.push(
-          formatIndian(sumVehicleMetricForDate(rows, date, "trips"))
-        );
+    const endRow = sheet.rowCount;
+    // Batch Merging for the plant block
+    [1, 2, 3, 4].forEach(c => safeMerge(sheet, startRow, c, endRow, c));
+    let sideCol = sideTotalColStart;
+    plantSideTotals.forEach(st => {
+      const span = st.isVehicle ? 3 : 1;
+      for (let i = 0; i < span; i++) safeMerge(sheet, startRow, sideCol + i, endRow, sideCol + i);
+      sideCol += span;
     });
+  });
+/* =====================================================
+      BOTTOM TOTAL CALCULATION (AFTER ALL ROWS)
+===================================================== */
 
+// 1. Initialize the footer with static labels
+finalTotalRow = ["TOTAL", "", "", ""];
 
+// 2. Add totals for every Date column
+dates.forEach(date => {
+  // Non-Vehicle Metrics
+  nonVehicleMetrics.forEach(m => {
+    const value = shouldExcludeExcelMultiBottomTotal(m)
+      ? "-"
+      : sumMetricForDate(rows, date, m.metric);
+    finalTotalRow.push(value);
+  });
 
-//     const [v1, v2] = (() => {
-//   const usage = {};
-//   rows.forEach(r => {
-//     dates.forEach(d => {
-//       r.values?.[d]?.vehicleRows?.forEach(v => {
-//         const key = normalizeVehicleNo(v.vehicleNo);
-//         usage[key] = (usage[key] || 0) + (Number(v.distance) || 0);
-//       });
-//     });
-//   });
-//   return Object.entries(usage)
-//     .sort((a, b) => b[1] - a[1])
-//     .slice(0, 2)
-//     .map(([v]) => v);
-// })();
+  // Vehicle Placeholders / Totals
+  if (isVehicleEnabled) finalTotalRow.push("-"); // Vehicle No Column
+  
+  if (showVehicleOdometer) {
+    finalTotalRow.push("-", "-"); // AM and PM columns usually don't sum
+  }
 
+  if (showVehicleDistance) {
+    finalTotalRow.push(sumVehicleMetricForDate(rows, date, "distance") || 0);
+  }
 
-    // ✅ ADD SIDE TOTALS AT BOTTOM (MATCH PREVIEW)
-// ✅ SIDE TOTALS AT BOTTOM — SUM OF ROW VALUES (MATCH UI)
-// ✅ SIDE TOTALS AT BOTTOM — EXACT HEADER MATCH
-// ✅ SIDE TOTALS AT BOTTOM — EXACT PREVIEW MATCH
-// ✅ EXCEL FOOTER — EXACT PREVIEW MATCH (ROW-BASED)
+  if (showVehicleTrips) {
+    finalTotalRow.push(sumVehicleMetricForDate(rows, date, "trips") || 0);
+  }
+});
+
+// 3. Add totals for the "Side Total" columns (Far Right)
 excelSideTotalMetrics.forEach(m => {
-
-  // 🚗 VEHICLE
   if (m.module === "vehicle") {
-    let v1 = 0;
-    let v2 = 0;
+    let grandV1 = 0;
+    let grandV2 = 0;
 
     rows.forEach(r => {
-      const t = r.__excelSideTotals?.find(x => x.metric === m.metric);
-      if (!t) return;
-
-      v1 += t.v1 || 0;
-      v2 += t.v2 || 0;
+      const st = r.__excelSideTotals?.find(x => x.metric === m.metric);
+      if (st) {
+        // Swap logic applied here if required by your preview
+        grandV1 += Number(st.v2 || 0); 
+        grandV2 += Number(st.v1 || 0);
+      }
     });
 
     finalTotalRow.push(
-      formatIndian(v1),
-      formatIndian(v2),
-      formatIndian(v1 + v2)
+      grandV1, 
+      grandV2, 
+      grandV1 + grandV2
     );
-    return;
-  }
+  } else {
+    let grandTotal = 0;
+    // Exclude specific lab metrics from bottom total if needed
+    const isExcluded = m.module === "lab" && m.metric !== "cumulativeFlow";
 
-  // 🧮 NON-VEHICLE
-// 🧮 NON-VEHICLE (MULTI PLANT BOTTOM TOTAL)
-if (m.module === "lab" && m.metric !== "cumulativeFlow") {
-  finalTotalRow.push("-");
-  return;
+    if (isExcluded) {
+      finalTotalRow.push("-");
+    } else {
+      rows.forEach(r => {
+        const st = r.__excelSideTotals?.find(x => x.metric === m.metric);
+        grandTotal += Number(st?.total || 0);
+      });
+      finalTotalRow.push(grandTotal);
+    }
+  }
+});
+
+/* =====================================================
+      APPEND TOTAL ROW TO SHEET
+===================================================== */
+if (finalTotalRow) {
+  const totalExcelRow = sheet.addRow(finalTotalRow);
+  
+  totalExcelRow.eachCell((cell) => {
+    // Apply styling: Bold, Borders, and Number Formatting
+    applyCellStyle(cell, true); 
+    
+    const val = Number(cell.value);
+    if (!isNaN(val) && cell.value !== "" && cell.value !== null) {
+      const rounded = Math.round(val * 100) / 100;
+      cell.value = rounded;
+      cell.numFmt = Number.isInteger(rounded) ? '#,##,##0' : '#,##,##0.00';
+    } else if (cell.value === 0) {
+      cell.value = 0;
+      cell.numFmt = '#,##,##0';
+    } else {
+      cell.value = cell.value || "-";
+    }
+  });
 }
-
-let total = 0;
-rows.forEach(r => {
-  const t = r.__excelSideTotals?.find(x => x.metric === m.metric);
-  if (!t) return;
-  total += t.total || 0;
-});
-
-finalTotalRow.push(formatIndian(total));
-
-});
-
-  }
-
   /* ================= ADD TOTAL ROW ================= */
-
-  if (finalTotalRow) {
-    const totalExcelRow = sheet.addRow(finalTotalRow);
-    totalExcelRow.eachCell(c => applyCellStyle(c, true));
-  }
-
+}
   sheet.columns.forEach((c, i) => (c.width = i < 4 ? 14 : 12));
 
   const buffer = await workbook.xlsx.writeBuffer();

@@ -163,28 +163,33 @@ import { useNavigate } from "react-router-dom";
 
 const AttendanceDashboard = ({ attendancePercent, present, absent, total, isDark, cardClass }) => {
  
-  const Counter = ({ value, duration = 1.5 }) => {
+const Counter = ({ value, duration = 1.5, decimals = 1 }) => {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     let start = 0;
-    const finalValue = Math.round(value || 0);
+    const finalValue = Number(value) || 0; // ✅ keep decimal
     const increment = finalValue / (duration * 60);
 
     const timer = setInterval(() => {
       start += increment;
+
       if (start >= finalValue) {
         setCount(finalValue);
         clearInterval(timer);
       } else {
-        setCount(Math.floor(start));
+        setCount(start);
       }
     }, 1000 / 60);
 
     return () => clearInterval(timer);
   }, [value, duration]);
 
-  return <span>{count}</span>;
+  return (
+    <span>
+      {Number.isInteger(count) ? count : count.toFixed(decimals)}
+    </span>
+  );
 };
 
   const getStatus = (percent) => {

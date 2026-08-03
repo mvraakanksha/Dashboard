@@ -6,10 +6,12 @@ import {
   YAxis,
   Tooltip,
   LabelList,
-  CartesianGrid
+  CartesianGrid,
+  ResponsiveContainer
 } from "recharts";
+import { Activity, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Zap } from "lucide-react";
+
 import { getAllPlants } from '../../services/plantService'
 import { getOperationsByDate } from '../../services/operationService'
 
@@ -72,7 +74,7 @@ const formatDDMMYYYY = (dateStr) => {
 };
 
 /* ================= TOOLTIP ================= */
-const PowerTooltip = ({ active, payload, label }) => {
+const PowerTooltip = ({ active, payload, label, selectedPlants = [], }) => {
   if (!active || !payload || payload.length === 0) return null;
 
   const row = payload[0].payload;
@@ -86,12 +88,12 @@ const PowerTooltip = ({ active, payload, label }) => {
     <div className="bg-white border shadow-md rounded p-3 text-xs w-64">
       <p className="font-bold text-blue-900">PID: {row.plantId} - {row.label} - {row.kld} KLD</p>
       {row.powerCompletedOn && (
-  <p className="text-[11px] font-semibold text-slate-500 mt-1">
+  <p className="text-[11px] font-semibold text-slate-700 mt-1">
      Power completed On : {formatDDMMYYYY(row.powerCompletedOn)}
   </p> 
 )}
 {row.solarCompletedOn && (
-  <p className="text-[11px] font-semibold text-slate-500">
+  <p className="text-[11px] font-semibold text-slate-700">
     Solar completed On : {formatDDMMYYYY(row.solarCompletedOn)}
   </p>
 )}
@@ -101,8 +103,12 @@ const PowerTooltip = ({ active, payload, label }) => {
           <p className="font-semibold text-red-700">
             Power Consumption : {importItem.value.toFixed(2)} Kwh
           </p>
-          <p>AM: {row.amImp ?? "-"}</p>
-          <p>PM: {row.pmImp ?? "-"}</p>
+       <p>
+  AM: {row.amImp != null ? Number(row.amImp).toFixed(2) : "-"}
+</p>
+<p>
+  PM: {row.pmImp != null ? Number(row.pmImp).toFixed(2) : "-"}
+</p>
         </div>
       )}
 
@@ -111,8 +117,12 @@ const PowerTooltip = ({ active, payload, label }) => {
           <p className="font-semibold text-green-700">
             Solar Power Generated : {exportItem.value.toFixed(2)} Kwh
           </p>
-          <p>AM: {row.amExp ?? "-"}</p>
-          <p>PM: {row.pmExp ?? "-"}</p>
+         <p>
+  AM: {row.amExp != null ? Number(row.amExp).toFixed(2) : "-"}
+</p>
+<p>
+  PM: {row.pmExp != null ? Number(row.pmExp).toFixed(2) : "-"}
+</p>
         </div>
       )}
 
@@ -128,7 +138,7 @@ const PowerTooltip = ({ active, payload, label }) => {
 };
 
 /* ================= PAGE ================= */
-export default function Power({ date, zone }) {
+export default function Power({ date, zone, selectedPlants = [], }) {
  
   const navigate = useNavigate();
 
@@ -168,12 +178,37 @@ useEffect(() => {
   loadOperations();
 }, [date]);
 
-
 const theme = {
-  blue: { bg: "bg-blue-50", border: "border-blue-100", barColor: "bg-blue-600", iconColor: "text-blue-600" },
-  emerald: { bg: "bg-emerald-50", border: "border-emerald-100", barColor: "bg-emerald-600", iconColor: "text-emerald-600" },
-  rose: { bg: "bg-rose-50", border: "border-rose-100", barColor: "bg-rose-600", iconColor: "text-rose-600" },
-  indigo: { bg: "bg-indigo-50", border: "border-indigo-100", barColor: "bg-indigo-600", iconColor: "text-indigo-600" },
+  blue: {
+    bg: "bg-blue-50",
+    border: "border-blue-100",
+    barColor: "bg-blue-600",
+    iconColor: "text-blue-600",
+  },
+  emerald: {
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
+    barColor: "bg-emerald-600",
+    iconColor: "text-emerald-600",
+  },
+  rose: {
+    bg: "bg-rose-50",
+    border: "border-rose-100",
+    barColor: "bg-rose-600",
+    iconColor: "text-rose-600",
+  },
+  indigo: {
+    bg: "bg-indigo-50",
+    border: "border-indigo-100",
+    barColor: "bg-indigo-600",
+    iconColor: "text-indigo-600",
+  },
+  amber: {
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    barColor: "bg-amber-500",
+    iconColor: "text-amber-600",
+  },
 };
 
   // const zones = [...new Set(plants.map(p => p.zones))].sort((a, b) => a - b);
@@ -181,38 +216,67 @@ const theme = {
   /* 🔽 SORTED BY POWER CONSUMPTION (DESCENDING) */
 const rawChartData = useMemo(() => {
   return plants
-   .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => {
-      const op = operations.find(o => o.plantId === p.plantID)?.operation;
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
+    .map((p) => {
+      const op = operations.find(
+        (o) => o.plantId === p.plantID
+      )?.operation;
 
       const importPower =
-        op?.powerReadingAmImport != null && op?.powerReadingPmImport != null
-          ? Math.max(op.powerReadingPmImport - op.powerReadingAmImport, 0)
+        op?.powerReadingAmImport != null &&
+        op?.powerReadingPmImport != null
+          ? Math.max(
+              op.powerReadingPmImport -
+                op.powerReadingAmImport,
+              0
+            )
           : 0;
 
       const exportPower =
-        op?.powerReadingAmExport != null && op?.powerReadingPmExport != null
-          ? Math.max(op.powerReadingPmExport - op.powerReadingAmExport, 0)
+        op?.powerReadingAmExport != null &&
+        op?.powerReadingPmExport != null
+          ? Math.max(
+              op.powerReadingPmExport -
+                op.powerReadingAmExport,
+              0
+            )
           : 0;
 
-      const runHours = op?.plantRunningHrs ?? 0;
+      const runHours =
+        op?.plantRunningHrs ?? 0;
 
       return {
         label: p.plantName,
         plantId: p.plantID,
-        kld:p.kld,
-         powerCompletedOn: p.permanentPowerDateOfCompletion, 
-         solarCompletedOn: p.solarDateOfCompletion,
+        kld: p.kld,
+        powerCompletedOn:
+          p.permanentPowerDateOfCompletion,
+        solarCompletedOn:
+          p.solarDateOfCompletion,
+
         importPower: +importPower.toFixed(2),
         exportPower: +exportPower.toFixed(2),
         runHours: +runHours.toFixed(2),
+
         amImp: op?.powerReadingAmImport,
         pmImp: op?.powerReadingPmImport,
         amExp: op?.powerReadingAmExport,
         pmExp: op?.powerReadingPmExport
       };
     });
-}, [plants, operations, zone]);
+}, [plants, operations, zone, selectedPlants]);
+
+const totalPlants = rawChartData.length;
 const chartData = useMemo(() => {
   const data = [...rawChartData];
 
@@ -245,6 +309,28 @@ const chartData = useMemo(() => {
   const avgExport = chartData.length ? totalExport / chartData.length : 0;
   const totalRunHours = chartData.reduce((s, p) => s + p.runHours, 0);
   const avgRunHours = chartData.length ? totalRunHours / chartData.length : 0;
+  /* ---------------- ENTRY COUNT ---------------- */
+
+const entryCount = useMemo(() => {
+  if (!chartData?.length) return 0;
+
+  switch (sortBy) {
+    case "export":
+      return chartData.filter(d => d.exportPower > 0).length;
+
+    case "run":
+      return chartData.filter(d => d.runHours > 0).length;
+
+    case "id":
+      return chartData.filter(
+        d => d.importPower > 0 || d.exportPower > 0 || d.runHours > 0
+      ).length;
+
+    case "import":
+    default:
+      return chartData.filter(d => d.importPower > 0).length;
+  }
+}, [chartData, sortBy]);
   const KPICard = ({ label, value, unit, theme, icon, isDark, subLabel }) => (
   <div
     className={`group relative overflow-hidden p-4 rounded-xl border
@@ -269,7 +355,7 @@ const chartData = useMemo(() => {
       <div>
         <p
           className={`text-[10px] font-black uppercase tracking-wider ${
-            isDark ? "text-slate-400" : "text-slate-500"
+            isDark ? "text-slate-400" : "text-slate-900"
           }`}
         >
           {label}
@@ -285,7 +371,7 @@ const chartData = useMemo(() => {
         </p>
 
         {subLabel && (
-          <p className="text-xs mt-1 text-slate-400 font-semibold">
+          <p className="text-xs mt-1 text-slate-700 font-semibold">
             {subLabel}
           </p>
         )}
@@ -318,8 +404,14 @@ const chartData = useMemo(() => {
 
       {/* KPI CARDS */}
       <div className="flex-1 bg-white rounded-2xl p-6 shadow">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+<KPICard
+  label="Total Plants"
+  value={totalPlants}
+  unit=""
+  theme={theme.amber}
+  icon={<Activity size={18} />}
+/>
           <KPICard label="Total Power Consumption" value={totalImport.toFixed(2)} unit="Kwh" theme={theme.rose} icon={<Zap size={18} />} />
           <KPICard label="Total Solar Power Generated" value={totalExport.toFixed(2)} unit="Kwh" theme={theme.emerald} icon={<Zap size={18} />} />
           <KPICard label="Avg Power Consumption" value={avgImport.toFixed(2)} unit="Kwh" theme={theme.blue} icon={<Zap size={18} />} />
@@ -347,54 +439,100 @@ const chartData = useMemo(() => {
       </div>
     </div>
 
-    {/* GRAPH */}
-    <div className="bg-white rounded-2xl shadow-lg p-6">
-      <div className="overflow-x-auto">
-        <div style={{ width: chartData.length * 90, minWidth: "100%", height: 450 }}>
-          <BarChart
-            width={chartData.length * 90}
-            height={450}
-            data={chartData}
-            margin={{ top: 30, right: 30, left: 70, bottom: 80 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="label"
-              interval={0}
-              height={70}
-              tick={(props) => (
-                <ClickableTick
-                  {...props}
-                  plantMap={plantMap}
-                  onPlantClick={openPlantView}
-                />
-              )}
+   {/* GRAPH */}
+<div className="bg-white rounded-2xl shadow-lg p-6">
+
+  <div className="flex items-center gap-3 mb-3">
+    <h3 className="font-bold text-blue-900 text-lg">
+      Power Analytics
+    </h3>
+
+    <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+      Entries: {entryCount}
+    </span>
+  </div>
+   <div className="overflow-x-auto">
+  <div
+    style={{
+      width:
+        chartData.length > 10
+          ? chartData.length * 120
+          : "100%",
+      height: 420,
+    }}
+  >
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={chartData}
+        margin={{
+          top: 40,
+          right: 30,
+          left: 80,
+          bottom: 80,
+        }}
+   barCategoryGap={55}
+      >
+        <CartesianGrid strokeDasharray="3 3" />
+
+        <XAxis
+          dataKey="label"
+          interval={0}
+          height={50}
+          tick={(props) => (
+            <ClickableTick
+              {...props}
+              plantMap={plantMap}
+              onPlantClick={openPlantView}
             />
-            <YAxis
-              label={{
-                value: "Power (Kwh) / Run Hours",
-                angle: -90,
-                position: "insideLeft",
-                dy: 80
-              }}
-            />
-            <Tooltip content={<PowerTooltip />} />
+          )}
+        />
 
-            <Bar dataKey="importPower" fill="#af0000" barSize={22}>
-              <LabelList content={(p) => <BarValueLabel {...p} fill="#af0000" />} />
-            </Bar>
+        <YAxis
+          label={{
+            value: "Power (Kwh) / Run Hours",
+            angle: -90,
+            position: "insideLeft",
+            offset: -20,
+            dy: 60,
+            fontWeight: "bold",
+          }}
+        />
 
-            <Bar dataKey="exportPower" fill="#018f20" barSize={22}>
-              <LabelList content={(p) => <BarValueLabel {...p} fill="#018f20" />} />
-            </Bar>
+        <Tooltip content={<PowerTooltip />} />
 
-            <Bar dataKey="runHours" fill="#1e40af" barSize={22}>
-              <LabelList content={(p) => <BarValueLabel {...p} fill="#1e40af" />} />
-            </Bar>
-          </BarChart>
-        </div>
-      </div>
+        <Bar
+          dataKey="importPower"
+          fill="#af0000"
+          barSize={24}
+        
+          label={
+            <BarValueLabel fill="#af0000" />
+          }
+        />
 
+        <Bar
+          dataKey="exportPower"
+          fill="#018f20"
+          barSize={24}
+          
+          label={
+            <BarValueLabel fill="#018f20" />
+          }
+        />
+
+        <Bar
+          dataKey="runHours"
+          fill="#1e40af"
+          barSize={24}
+          
+          label={
+            <BarValueLabel fill="#1e40af" />
+          }
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  </div>
+</div>
       {/* LEGEND */}
       <div className="flex flex-wrap justify-center gap-4 mt-4 font-bold text-sm">
         <div className="flex items-center gap-2">

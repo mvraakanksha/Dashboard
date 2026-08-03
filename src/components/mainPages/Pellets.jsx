@@ -95,7 +95,7 @@ const getLastEnteredStock = (ops, stockKey) => {
 };
 
 
-export default function Pellets({ isDark, date, zone }) {
+export default function Pellets({ isDark, date, zone, selectedPlants = [],  }) {
   const navigate = useNavigate();
 
   const [plants, setPlants] = useState([]);
@@ -202,12 +202,23 @@ const lastStockMap = useMemo(() => {
   /* ---------------- BUILD CHART DATA ---------------- */
 const chartData = useMemo(() => {
   return plants
-    .filter(
-      (p) => zone === "All" || String(p.zones) === String(zone)
-    )
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
     .map((p) => {
-      const op = ops.find((o) => o.plantId === p.plantID &&
-    o.operation?.operationDate === date)?.operation;
+      const op = ops.find(
+        (o) =>
+          o.plantId === p.plantID &&
+          o.operation?.operationDate === date
+      )?.operation;
 
       const lastStock = lastStockMap[p.plantID] || {};
 
@@ -219,14 +230,21 @@ const chartData = useMemo(() => {
         pelletsUsed: op?.pillets ?? 0,
         polymerUsed: op?.polymerUsage ?? 0,
 
-        // ✅ LAST ENTERED (non-null) stock
-        pelletsStock: lastStock.pelletsStock ?? null,
-        polymerStock: lastStock.polymerStock ?? null
+        pelletsStock:
+          lastStock.pelletsStock ?? null,
+
+        polymerStock:
+          lastStock.polymerStock ?? null,
       };
     });
-}, [plants, ops, zone, lastStockMap]);
-
-
+}, [
+  plants,
+  ops,
+  zone,
+  selectedPlants,
+  date,
+  lastStockMap,
+]);
 
 // const hasLowPelletsStock = useMemo(() => {
 //   return chartData.some(
@@ -262,8 +280,8 @@ const getStockAlert = (value, materialType) => {
 
   if (value === 0) return "red";
 
-  if (materialType === "pellets" && value <= 100) return "yellow";
-  if (materialType === "polymer" && value <= 5) return "yellow";
+  if (materialType === "pellets" && value <= 200) return "yellow";
+  if (materialType === "polymer" && value <= 20) return "yellow";
 
   return null;
 };
@@ -388,7 +406,37 @@ const selectedKey = useMemo(() => {
     : "polymerStock";
 }, [materialType, sortBy]);
 
+/* ---------------- ENTRY COUNT ---------------- */
+const entryCount = useMemo(() => {
+  if (!sortedChartData?.length) return 0;
 
+  return sortedChartData.filter((p) => {
+    const value = p[selectedKey];
+
+    // ignore null or zero → no visible bar
+    return value !== null && value !== undefined && Number(value) > 0;
+  }).length;
+
+}, [sortedChartData, selectedKey]);
+
+/* ---------------- ENTRY LABEL ---------------- */
+const entryLabel = useMemo(() => {
+
+  if (sortBy === "plantId") {
+    return "Plants With Data";
+  }
+
+  if (sortBy === "used") {
+    return materialType === "pellets"
+      ? "Entries"
+      : "Entries ";
+  }
+
+  return materialType === "pellets"
+    ? "Entries"
+    : "Entries";
+
+}, [materialType, sortBy]);
   // const barColor =
   //   materialType === "pellets" ? "#800000" : "#003366";
 
@@ -442,7 +490,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
       <div>
         <p
           className={`text-[10px] font-black uppercase tracking-wider ${
-            isDark ? "text-slate-400" : "text-slate-500"
+            isDark ? "text-slate-400" : "text-slate-900"
           }`}
         >
           {label}
@@ -488,7 +536,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
       >
         Pellets and Polymer Report
       </h2>
-      <p className="text-xs tracking-widest font-bold text-slate-400">
+      <p className="text-xs tracking-widest font-bold text-slate-900">
         Pellets & Polymer Usage and Stock Monitoring
       </p>
     </div>
@@ -563,7 +611,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
 >
   <label
     className={`text-xs font-semibold mb-1 ${
-      isDark ? "text-slate-300" : "text-gray-700"
+      isDark ? "text-slate-300" : "text-gray-800"
     }`}
   >
     Select Material 
@@ -592,7 +640,18 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
 
       {/* ================= GRAPH ================= */}
     <div className="p-6 rounded-[2rem] border bg-white border-slate-100 shadow-xl">
+{/* GRAPH HEADER */}
+<div className="flex items-center justify-between mb-3">
 
+  <h3 className="font-bold text-blue-900 text-lg flex items-center gap-3">
+    Material Analytics
+
+    <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+      {entryLabel}: {entryCount}
+    </span>
+  </h3>
+
+</div>
 
   {/* 🔼 SORT CONTROL */}
 <div className="flex justify-end mb-3">

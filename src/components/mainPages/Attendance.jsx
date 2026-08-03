@@ -4,12 +4,15 @@ import {
   ResponsiveContainer, LabelList, CartesianGrid, Label
 } from "recharts";
 import { useNavigate } from "react-router-dom";
-import { Users, UserCheck, UserMinus, Activity } from "lucide-react";
+import { Users, UserCheck, UserMinus, Activity , Layers} from "lucide-react";
 
 import { getAllPlants } from "../../services/plantService";
 import {
   getEmployeesByPlant,
-  getEmployeeOperationsByDate
+  getEmployeeOperationsByDate,
+  getDeletedEmployeesByPlantAndDate,
+  getEmployeeOperationsByDateRangeFull
+
 } from "../../services/employeeService";
 
 /* ---------------- UTIL ---------------- */
@@ -63,7 +66,7 @@ const ClickableTick = ({ x, y, payload, plantMap, onPlantClick, isDark }) => {
       y={y + 10}
       textAnchor="end"
       fill={isDark ? "#94a3b8" : "#003f8a"}
-      fontSize={11}
+      fontSize={window.innerWidth < 640 ? 9 : 11}
       fontWeight={600}
       transform={`rotate(-45 ${x} ${y + 10})`}
       style={{ cursor: "pointer", textDecoration: "underline" }}
@@ -79,38 +82,72 @@ const CustomTooltip = ({ active, payload, label, isDark }) => {
   if (!active || !payload?.length) return null;
   const plant = payload[0].payload;
 
-  return (
-    <div className={`p-2 rounded shadow-lg border text-xs ${
-      isDark ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"
-    }`}>
-      <p className="font-bold text-blue-500 mb-1">PID: {plant.plantId} - {plant.label} - {plant.kld} KLD</p>
-      {plant.employees.map((e) => {
-        const op = plant.attendance.find(x => x.employeeId === e.employeeId);
+return (
+  <div
+    className={`p-2 rounded shadow-lg border text-xs ${
+      isDark
+        ? "bg-slate-800 border-slate-700 text-white"
+        : "bg-white border-slate-200 text-slate-800"
+    }`}
+  >
+    <p className="font-bold text-blue-500 mb-1">
+      PID: {plant.plantId} - {plant.label} - {plant.kld} KLD
+    </p>
+
+    {plant.employees
+      .filter((e) => {
+        if (!e.dateOfJoining) return false;
+
+        // ✅ exclude future joiners
+        if (e.dateOfJoining > plant.date) return false;
+
+        // ✅ exclude employees already left
+        if (e.dateOfLeaving && e.dateOfLeaving < plant.date) return false;
+
+        return true;
+      })
+      .map((e) => {
+        const key = `${e.employeeId}_${e.dateOfJoining}`;
+        const op = plant.attendanceMap?.[key];
+
         return (
-          <p key={e.employeeId} className="border-t pt-1 mt-1">
-            {e.designation}:
+          <p key={key} className="border-t pt-1 mt-1">
+            <span className="font-medium">{e.designation}</span>:
             <span className="font-semibold">
-              {" "}AM {mark(op?.plantOp?.attendanceAm)} | PM {mark(op?.plantOp?.attendancePm)}
+              {" "}AM {mark(op?.plantOp?.attendanceAm)} | PM{" "}
+              {mark(op?.plantOp?.attendancePm)}
             </span>
           </p>
         );
       })}
-    </div>
-  );
+  </div>
+);
+
 };
 
 
 /* ================= MAIN ================= */
-export default function Attendance({ isDark, date, zone }) {
+export default function Attendance({ isDark, date, zone, selectedPlants }) {
   const navigate = useNavigate();
 
   const [plants, setPlants] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [attendanceOps, setAttendanceOps] = useState([]);
+const [historyOps, setHistoryOps] = useState([]);
+
 const [attendanceSortMode, setAttendanceSortMode] =
   useState("attendanceDesc");
 
   const abortRef = useRef(null);
+
+  
+const DESIGNATION_ORDER = [
+  "Supervisor",
+  "Operator",
+  "Driver",
+  "Helper",
+  "Security Guard"
+];
 
   /* ---------- LOAD PLANTS ---------- */
   useEffect(() => {
@@ -149,6 +186,8 @@ useEffect(() => {
           )
         )
       );
+const history = await getEmployeeOperationsByDateRangeFull(date, date);
+setHistoryOps(history);
 
       setEmployees(employeesData.flat());
     } catch (err) {
@@ -163,34 +202,137 @@ useEffect(() => {
   return () => abortRef.current?.abort();
 }, [date]);
 
+const isEmployeeValid = (emp, selectedDate) => {
+  if (!emp.dateOfJoining) return false;
 
+  const doj = emp.dateOfJoining;
+  const dol = emp.dateOfLeaving;
+
+  if (doj > selectedDate) return false;
+
+  if (dol && dol < selectedDate) return false;
+
+  return true;
+};
   /* ---------- CALCULATE PER PLANT ---------- */
 const employeesByPlant = useMemo(() => {
   const map = {};
-  employees.forEach(e => {
-    (map[e.plantId] ||= []).push(e);
+
+employees.forEach(e => {
+  if (!isEmployeeValid(e, date)) return;
+
+  const key = `${e.employeeId}_${e.dateOfJoining}`;
+
+  map[e.plantId] ||= [];
+
+  if (!map[e.plantId].some(
+    x => `${x.employeeId}_${x.dateOfJoining}` === key
+  )) {
+    map[e.plantId].push(e);
+  }
+});
+  // 🔥 ADD EXIT EMPLOYEES FROM HISTORY
+  historyOps.forEach(op => {
+    const emp = {
+      employeeId: op.employeeId,
+      plantId: op.plantId,
+      employeeName: op.employeeName,
+      designation: op.designation,
+      dateOfJoining: op.dateOfJoining,
+      dateOfLeaving: op.dateOfLeaving
+    };
+
+    if (!isEmployeeValid(emp, date)) return;
+
+    const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+map[op.plantId] ||= [];
+
+if (!map[op.plantId].some(e => `${e.employeeId}_${e.dateOfJoining}` === key)) {
+  map[op.plantId].push(emp);
+}
   });
+
   return map;
-}, [employees]);
+}, [employees, historyOps, date]);
 
 const attendanceByPlant = useMemo(() => {
   const map = {};
-  attendanceOps.forEach(o => {
+attendanceOps.forEach(o => {
+  const empList = employeesByPlant[o.plantId] || [];
+
+  const isValid = empList.some(
+    e => e.employeeId === o.employeeId
+  );
+
+  if (isValid) {
     (map[o.plantId] ||= []).push(o);
-  });
+  }
+});
   return map;
 }, [attendanceOps]);
+
+// const empLookup = useMemo(() => {
+//   const map = {};
+
+//   employees.forEach(e => {
+//     map[e.employeeId] = e;
+//   });
+
+//   historyOps.forEach(e => {
+//     map[e.employeeId] = e;
+//   });
+
+//   return map;
+// }, [employees, historyOps]);
+
+/* ---------- ATTENDANCE MAP ---------- */
+const attendanceMap = useMemo(() => {
+  const map = {};
+
+  // ACTIVE
+attendanceOps.forEach(o => {
+  const empList = employeesByPlant[o.plantId] || [];
+
+  empList.forEach(emp => {
+    if (emp.employeeId === o.employeeId) {
+      const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+      map[key] = o;
+    }
+  });
+});
+historyOps.forEach(o => {
+  const key = `${o.employeeId}_${o.dateOfJoining}`;
+
+  const validOp = (o.operations || []).find(op => {
+    if (!o.dateOfLeaving) return true;
+
+    return op.operationDate <= o.dateOfLeaving;
+  });
+
+  if (validOp) {
+    map[key] = {
+      plantOp: validOp
+    };
+  }
+});
+  return map;
+}, [attendanceOps, historyOps]);
 
 
 const calculatePlant = useCallback(
   (plantId) => {
     const emps = employeesByPlant[plantId] || [];
-    const ops  = attendanceByPlant[plantId] || [];
+    const ops = attendanceByPlant[plantId] || [];
 
     let presentUnits = 0;
 
     emps.forEach(emp => {
-      const rec = ops.find(o => o.employeeId === emp.employeeId);
+     const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+const rec = attendanceMap[key];
+
+      if (!isEmployeeValid(emp, date)) return;
+
+      if (emp.dateOfLeaving && emp.dateOfLeaving < date) return;
 
       if (
         rec?.plantOp?.attendanceAm === true &&
@@ -206,18 +348,33 @@ const calculatePlant = useCallback(
       }
     });
 
-    return { presentUnits, employees: emps, attendance: ops };
+    return {
+      presentUnits,
+      employees: emps,
+      attendance: ops   // ✅ FIX
+    };
   },
-  [employeesByPlant, attendanceByPlant]
+  [employeesByPlant, attendanceMap, attendanceByPlant, date]
 );
 
 
   /* ---------- BUILD CHART DATA ---------- */
 const allPlantsData = useMemo(() => {
   return plants
-    .filter(p => zone === "All" || String(p.zones) === String(zone))
-    .map(p => {
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
+    .map((p) => {
       const stats = calculatePlant(p.plantID);
+
       return {
         label: p.plantName,
         plantId: p.plantID,
@@ -225,11 +382,24 @@ const allPlantsData = useMemo(() => {
         presentUnits: stats.presentUnits,
         employees: stats.employees,
         attendance: stats.attendance,
-        totalEmployees: p.noOfEmployees ?? stats.employees.length
+        attendanceMap,
+        date,
+
+        totalEmployees: stats.employees.filter((e) =>
+          isEmployeeValid(e, date)
+        ).length,
       };
     });
-}, [plants, zone, calculatePlant]);
+}, [
+  plants,
+  zone,
+  selectedPlants,
+  calculatePlant,
+  attendanceMap,
+  date,
+]);
 
+const totalPlants = allPlantsData.length;
 
   const sortedAttendanceData = useMemo(() => {
   const data = [...allPlantsData];
@@ -244,15 +414,196 @@ const allPlantsData = useMemo(() => {
   }
 }, [allPlantsData, attendanceSortMode]);
 
+/* ---------------- ENTRY COUNT ---------------- */
+const entryCount = useMemo(() => {
+  if (!sortedAttendanceData?.length) return 0;
 
+  return sortedAttendanceData.filter(
+    p => Number(p.presentUnits) > 0
+  ).length;
 
+}, [sortedAttendanceData]);
   /* ---------- KPIs ---------- */
-  const totalEmployees = allPlantsData.reduce((s, p) => s + p.totalEmployees, 0);
-  const totalPresent = allPlantsData.reduce((s, p) => s + p.presentUnits, 0);
-  const totalAbsent = totalEmployees - totalPresent;
-  const avgAttendance = allPlantsData.length
-    ? (totalPresent / allPlantsData.length).toFixed(1)
-    : 0;
+/* ---------- KPIs (CORRECT LOGIC) ---------- */
+
+const zonePlantIds = useMemo(() => {
+  return plants
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
+    .map((p) => p.plantID);
+}, [plants, zone, selectedPlants]);
+
+const zoneEmployees = useMemo(() => {
+  return zonePlantIds.flatMap(pid => employeesByPlant[pid] || []);
+}, [employeesByPlant, zonePlantIds]);
+
+/* ---------- DESIGNATION SUMMARY ---------- */
+/* ---------- DESIGNATION SUMMARY (CORRECT HALF DAY LOGIC) ---------- */
+const designationSummary = useMemo(() => {
+  const summary = {};
+
+const zonePlantIds = plants
+  .filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
+
+    const plantMatch =
+      selectedPlants.length === 0 ||
+      selectedPlants.includes(p.plantID);
+
+    return zoneMatch && plantMatch;
+  })
+  .map((p) => p.plantID);
+
+const zoneEmployees = zonePlantIds.flatMap(
+  pid => employeesByPlant[pid] || []
+);
+
+zoneEmployees.forEach(emp => {
+  if (!isEmployeeValid(emp, date)) return;
+
+  const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+  const rec = attendanceMap[key];
+
+  if (!summary[emp.designation]) {
+    summary[emp.designation] = { present: 0, absent: 0 };
+  }
+
+  // 🔥 DEFAULT: fully absent
+  let presentValue = 0;
+
+  // ✅ Only calculate if valid record exists
+  if (rec?.plantOp) {
+    const opDate = rec.plantOp.operationDate;
+
+    // 🔥 Ignore operations AFTER leaving
+    if (emp.dateOfLeaving && opDate > emp.dateOfLeaving) {
+      presentValue = 0;
+    } else {
+      if (
+        rec.plantOp.attendanceAm === true &&
+        (rec.plantOp.attendancePm === null ||
+         rec.plantOp.attendancePm === true)
+      ) {
+        presentValue = 1;
+      } else if (
+        rec.plantOp.attendanceAm === true ||
+        rec.plantOp.attendancePm === true
+      ) {
+        presentValue = 0.5;
+      }
+    }
+  }
+
+  summary[emp.designation].present += presentValue;
+  summary[emp.designation].absent += (1 - presentValue);
+});
+
+  return summary;
+}, [
+  employees,
+  attendanceMap,
+  plants,
+  zone,
+  selectedPlants,
+  employeesByPlant,
+  date,
+]);
+
+const strengthSummary = useMemo(() => {
+  const summary = {};
+
+  // init all designations
+  DESIGNATION_ORDER.forEach(d => {
+    summary[d] = 0;
+  });
+
+  // ✅ only zone plants
+const zonePlantIds = plants
+  .filter((p) => {
+    const zoneMatch =
+      zone === "All" ||
+      String(p.zones) === String(zone);
+
+    const plantMatch =
+      selectedPlants.length === 0 ||
+      selectedPlants.includes(p.plantID);
+
+    return zoneMatch && plantMatch;
+  })
+  .map((p) => p.plantID);
+
+  const zoneEmployees = zonePlantIds.flatMap(
+    pid => employeesByPlant[pid] || []
+  );
+
+  zoneEmployees.forEach(emp => {
+    if (!isEmployeeValid(emp, date)) return;
+
+    if (summary.hasOwnProperty(emp.designation)) {
+      summary[emp.designation] += 1;
+    }
+  });
+
+  return summary;
+}, [
+  employeesByPlant,
+  plants,
+  zone,
+  selectedPlants,
+  date,
+]);
+
+const totalEmployees = zoneEmployees.length;
+
+const totalPresent = zoneEmployees.reduce((sum, emp) => {
+  if (!isEmployeeValid(emp, date)) return sum;
+
+  const key = `${emp.employeeId}_${emp.dateOfJoining}`;
+  const rec = attendanceMap[key];
+
+  let presentValue = 0; // ✅ default absent
+
+  if (rec?.plantOp) {
+    const opDate = rec.plantOp.operationDate;
+
+    if (emp.dateOfLeaving && opDate > emp.dateOfLeaving) {
+      presentValue = 0;
+    } else {
+      if (
+        rec.plantOp.attendanceAm === true &&
+        (rec.plantOp.attendancePm === null ||
+         rec.plantOp.attendancePm === true)
+      ) {
+        presentValue = 1;
+      } else if (
+        rec.plantOp.attendanceAm === true ||
+        rec.plantOp.attendancePm === true
+      ) {
+        presentValue = 0.5;
+      }
+    }
+  }
+
+  return sum + presentValue;
+
+}, 0);
+
+const totalAbsent = totalEmployees - totalPresent;
+
+const avgAttendance = zonePlantIds.length
+  ? (totalPresent / zonePlantIds.length).toFixed(1)
+  : 0;
 
 const plantMap = useMemo(() => {
   return Object.fromEntries(
@@ -282,59 +633,106 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
 
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center gap-4 mb-2">
+      
+       <div className="min-h-screen p-6 bg-gradient-to-br from-[#CFE2FF] via-[#BBD8FE] to-[#013B88]">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-2">
                 <div className={`p-3 rounded-2xl ${isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-600 text-white"}`}>
                     <Activity className="w-6 h-6" />
                 </div>
-                <h2 className={`text-2xl font-black tracking-tight uppercase ${isDark ? "text-slate-100" : "text-blue-900"}`}>
+                <h2 className={`text-xl sm:text-2xl font-black tracking-tight uppercase ${isDark ? "text-slate-100" : "text-blue-900"}`}>
                     Attendance Analytics
                 </h2>
             </div>
 
             {/* KPI ROW WITH DYNAMIC COLORS AND DOWN BAR */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {[
-  { label: "Total Strength", value: totalEmployees, icon: <Users />, themeKey: "blue" },
-  { label: "Total Present", value: totalPresent, icon: <UserCheck />, themeKey: "emerald" },
-  { label: "Total Absent", value: totalAbsent, icon: <UserMinus />, themeKey: "rose" },
-  { label: "Avg Per Plant", value: avgAttendance, icon: <Activity />, themeKey: "amber" }
-].map((c, i) => {
-  const theme = METRIC_THEMES(isDark)[c.themeKey];
+{/* ================= PREMIUM KPI CARDS ================= */}
+ <div className="rounded-2xl p-5 sm:p-4 sm:p-6 bg-white shadow-lg mb-5">
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5 ">
 
-  return (
-    <div
-      key={i}
-      className={`group relative overflow-hidden p-5 rounded-2xl transition-all ${theme.staticBg}`}
-    >
-      {/* Bottom Bar */}
+  {[
+     { label: "Total Plants", value: totalPlants, icon: <Layers/>, themeKey: "amber" },
+    { label: "Total Strength", value: totalEmployees, icon: <Users />, themeKey: "blue", type: "strength" },
+    { label: "Total Present", value: totalPresent, icon: <UserCheck />, themeKey: "emerald", type: "present" },
+    { label: "Total Absent", value: totalAbsent, icon: <UserMinus />, themeKey: "rose", type: "absent" },
+    { label: "Avg Per Plant", value: avgAttendance, icon: <Activity />, themeKey: "amber" }
+  ].map((c, i) => {
+    const theme = METRIC_THEMES(isDark)[c.themeKey];
+
+    return (
+      
       <div
-        className={`absolute bottom-0 left-0 h-1 w-full ${theme.bar}
-          scale-x-0 origin-left transition-transform duration-500 ease-out
+  key={i}
+  className={`group relative overflow-hidden rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-xl transition-all border ${theme.staticBg}`}
+>
+        {/* Bottom Animated Bar */}
+        <div
+          className={`absolute bottom-0 left-0 h-1 w-full ${theme.bar}
+          scale-x-0 origin-left transition-transform duration-500
           group-hover:scale-x-100`}
-      />
+        />
 
-      {/* ICON */}
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${theme.iconHoverBg} ${theme.text}`}>
-        {c.icon}
+        {/* ICON */}
+        <div className={`absolute top-4 right-4 w-9 h-9 rounded-lg flex items-center justify-center ${theme.iconHoverBg} ${theme.text}`}>
+          {c.icon}
+        </div>
+
+        {/* LABEL */}
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
+          {c.label}
+        </p>
+
+        {/* VALUE */}
+        <p className={`text-2xl sm:text-3xl font-extrabold mt-2 ${theme.text}`}>
+          {c.value}
+        </p>
+
+        {/* DESIGNATION BREAKDOWN */}
+        {(c.type === "present" || c.type === "absent" || c.type === "strength") && (
+          <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
+            {DESIGNATION_ORDER.map((desig) => {
+              const present = designationSummary[desig]?.present || 0;
+              const absent = designationSummary[desig]?.absent || 0;
+              const strength = strengthSummary[desig] || 0;
+
+              let value = 0;
+
+              if (c.type === "present") value = present;
+              if (c.type === "absent") value = absent;
+              if (c.type === "strength") value = strength;
+
+              return (
+                <div
+                  key={desig}
+                  className="flex justify-between text-xs font-medium text-slate-800"
+                >
+                  <span>{desig}</span>
+                  <span className="font-bold text-slate-800">
+                    {typeof value === "number" ? value.toFixed(1) : value}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-
-      {/* LABEL */}
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-        {c.label}
-      </p>
-
-      {/* VALUE */}
-      <p className={`text-xl font-black mt-1 ${theme.text}`}>
-        {c.value}
-      </p>
-    </div>
-  );
-})}
-            </div>
+    );
+  })}
+</div>
+</div>
 
             {/* GRAPH SECTION WITH LABELS */}
-            <div className={`p-6 rounded-[2rem] border bg-white border-slate-100 shadow-xl"}`}>
+           {/* GRAPH SECTION WITH LABELS */}
+<div className="p-4 sm:p-6 rounded-3xl border bg-white border-slate-100 shadow-xl">
+
+  <div className="flex items-center gap-3 mb-3">
+    <h3 className="font-bold text-blue-900 text-lg">
+      Attendance Overview
+    </h3>
+
+    <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+      Entries: {entryCount}
+    </span>
+  </div>
                             <div className="flex justify-end mb-3">
   <div className="flex-col justify-end">
     <span className="text-xs font-semibold text-slate-500">
@@ -357,12 +755,16 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
   </div>
 </div>
                 <div className="overflow-x-auto">
-                    <div style={{ width: zone === "All" ? allPlantsData.length * 80 : "100%", minWidth: "100%" }}>
+                    <div
+  style={{
+    width: zone === "All" ? Math.max(allPlantsData.length * 70, 600) : "100%"
+  }}
+>
                  
    
 
 
-                        <ResponsiveContainer width="100%" height={450}>
+                        <ResponsiveContainer width="100%" height={window.innerWidth < 640 ? 320 : 450}>
                             <BarChart data={sortedAttendanceData} margin={{ top: 40, right: 30, left: 40, bottom: 100 }}>
 
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "#334155" : "#e2e8f0"} />
@@ -370,7 +772,7 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
                                 <XAxis 
                                     dataKey="label" 
                                     interval={0} 
-                                    height={80}
+                                    height={window.innerWidth < 640 ? 100 : 80}
                                     tick={(props) => <ClickableTick {...props} plantMap={plantMap} onPlantClick={(p) => navigate(`/attendance-view/${p.plantId}`)} isDark={isDark} />} 
                                 >
                                     {/* <Label value="FSTP PLANTS" offset={-60} position="insideBottom" fill={isDark ? "#94a3b8" : "#475569"} fontSize={12} fontWeight={800} /> */}

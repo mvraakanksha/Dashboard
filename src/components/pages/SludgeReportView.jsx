@@ -13,7 +13,9 @@ import {
   useSearchParams,
   useNavigate,
 } from "react-router-dom";
+import { Layers, Droplets, Recycle, Box } from "lucide-react";
 import { getOperationsByDateRange } from "../../services/operationService";
+import { getVehicleOperationsByDateRange } from "../../services/vehicleService";
 import { getPlantById } from "../../services/plantService";
 
 /* ---------------- UTILITIES ---------------- */
@@ -99,7 +101,58 @@ const formatDisplayDate = (dateString) => {
 
   return `${day}-${month}-${year}`;
 };
+/* ================= THEME ================= */
+const theme = {
+  blue: {
+    bg: "bg-blue-50",
+    border: "border-blue-100",
+    barColor: "bg-blue-600",
+    iconColor: "text-blue-600",
+  },
+  indigo: {
+    bg: "bg-indigo-50",
+    border: "border-indigo-100",
+    barColor: "bg-indigo-600",
+    iconColor: "text-indigo-600",
+  },
+  emerald: {
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
+    barColor: "bg-emerald-600",
+    iconColor: "text-emerald-600",
+  },
+  amber: {
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    barColor: "bg-amber-600",
+    iconColor: "text-amber-600",
+  },
+};
+const KPICard = ({ label, value, theme, icon, children }) => (
+  <div className={`group relative overflow-hidden p-6 rounded-xl border ${theme.bg} ${theme.border} shadow-sm hover:shadow-md`}>
+    
+    <div className={`absolute bottom-0 left-0 h-1.5 w-full ${theme.barColor} origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
 
+    <div className="flex flex-col gap-2">
+      <div className={`p-2 w-fit rounded-lg bg-white shadow-sm ${theme.iconColor}`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-900">
+          {label}
+        </p>
+        <p className="text-xl font-black text-slate-900">
+          {value}
+        </p>
+        {children && (
+  <div className="mt-2 text-xs font-medium text-slate-900 ">
+    {children}
+  </div>
+)}
+      </div>
+    </div>
+  </div>
+);
 /* ---------------- MAIN COMPONENT ---------------- */
 export default function SludgeReportView() {
   const navigate = useNavigate();
@@ -108,7 +161,8 @@ export default function SludgeReportView() {
   const urlMode = params.get("mode") || "received";
 const [activeMode, setActiveMode] = useState(urlMode);
 const [allTankData, setAllTankData] = useState([]);
-
+const [operationsData, setOperationsData] = useState([]);
+const [vehicleOperationsData, setVehicleOperationsData] = useState([]);
   /* -------- PLANT DETAILS -------- */
   const [plantDetails, setPlantDetails] = useState(null);
 
@@ -117,6 +171,7 @@ const [allTankData, setAllTankData] = useState([]);
     formatDate(subtractDays(new Date(), 10))
   );
   const [toDate, setToDate] = useState(formatDate(new Date()));
+  const today = new Date().toISOString().split("T")[0];
   const [daywiseData, setDaywiseData] = useState([]);
 
   /* ---------------- FETCH PLANT DETAILS ---------------- */
@@ -141,14 +196,25 @@ const fetchDaywise = useCallback(async () => {
       subtractDays(new Date(fromDate), 30)
     );
 
-    const result = await getOperationsByDateRange(
-      extendedFromDate,
-      toDate
-    );
+const [tankResult, selectedResult, vehicleResult] = await Promise.all([
+  getOperationsByDateRange(extendedFromDate, toDate), // for tank fallback
+  getOperationsByDateRange(fromDate, toDate),         // for KPI counts
+  getVehicleOperationsByDateRange(fromDate, toDate),
+]);
 
+setOperationsData(
+  selectedResult.filter(
+    (item) => String(item.plantId) === String(plantId)
+  )
+);
+setVehicleOperationsData(
+  vehicleResult.filter(
+    (item) => String(item.plantId) === String(plantId)
+  )
+);
     // 1️⃣ Build map FIRST
     const map = {};
-    result.forEach((item) => {
+    tankResult.forEach((item) => {
       if (String(item.plantId) === String(plantId)) {
         map[item.operation.operationDate] = item.operation;
       }
@@ -248,7 +314,21 @@ const toTankLevel = getLastAvailableTankLevel(toDate);
 
   const avgValue =
     daywiseData.length > 0 ? totalValue / daywiseData.length : 0;
+/* ---------------- TRIPS CALCULATIONS ---------------- */
 
+/* ---------------- TRIPS CALCULATIONS ---------------- */
+
+const ownVehicleTrips = vehicleOperationsData.reduce(
+  (sum, item) =>
+    sum + (item.vehicleOp?.noOfTrips || 0),
+  0
+);
+
+const privateVehicleTrips = operationsData.reduce(
+  (sum, item) =>
+    sum + (item.operation?.noOfTripsPrivateVehicle || 0),
+  0
+);
   const labels = {
     received: ["Total Sludge Received (L)", "Average Sludge Received (L)"],
     tank: ["Total Tank Level (L)", "Average Tank Level (L)"],
@@ -291,87 +371,110 @@ const toTankLevel = getLastAvailableTankLevel(toDate);
         </span>
       </h2>
 
-      {/* KPI + FILTERS (UNCHANGED) */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-        <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
-      <div
-  className={`grid grid-cols-1 sm:grid-cols-2 ${
-    activeMode === "biochar"
-      ? "lg:grid-cols-2"
-      : "lg:grid-cols-4"
-  } gap-4`}
->
+    {/* KPI + FILTERS */}
+<div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
 
-{/* TOTAL + AVERAGE */}
-{[0, 1].map((i) => (
-  <div
-    key={i}
-    className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center"
-  >
-    <p className="text-sm font-medium">
-      {labels[activeMode][i]}
-    </p>
-    <h2 className="text-xl font-extrabold text-green-400 mt-3">
-      {formatIndianRounded(i === 0 ? totalValue : avgValue)}
-    </h2>
-  </div>
-))}
+  {/* KPI CARDS SECTION */}
+  <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-10">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-{/* EXTRA TANK CARDS */}
-{activeMode !== "biochar" && (
-  <>
-    <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center">
-      <p className="text-sm font-medium">
-       Tank Level on {formatDisplayDate(fromDate)}
-
-      </p>
-      <h2 className="text-xl font-extrabold text-green-400 mt-3">
-        {formatIndianRounded(fromTankLevel)} L
-      </h2>
-    </div>
-
-    <div className="bg-[#013B88] text-white rounded-xl px-6 py-8 text-center shadow-md min-h-[150px] flex flex-col justify-center">
-      <p className="text-sm font-medium">
-       Tank Level on {formatDisplayDate(toDate)}
-
-      </p>
-      <h2 className="text-xl font-extrabold text-green-400 mt-3">
-        {formatIndianRounded(toTankLevel)} L
-      </h2>
-    </div>
-  </>
+      {/* TOTAL */}
+     {/* TOTAL */}
+{activeMode !== "tank" && (
+  <KPICard
+    label={labels[activeMode][0]}
+    value={formatIndianRounded(totalValue)}
+    theme={theme.blue}
+    icon={<Layers size={18} />}
+  />
 )}
 
-          </div>
-        </div>
+{/* AVERAGE */}
+{activeMode === "received" ? (
+  <KPICard
+    label={
+      <span className="text-sm font-black text-slate-900">
+        Vehicle Trips Count -{" "}
+        {formatIndianRounded(
+          ownVehicleTrips + privateVehicleTrips
+        )}
+      </span>
+    }
+    value={
+      <span className="text-sm font-semibold text-indigo-700">
+        Own Vehicle Trips: {formatIndianRounded(ownVehicleTrips)}
+      </span>
+    }
+    theme={theme.indigo}
+    icon={<Droplets size={18} />}
+  >
+    <div className="text-sm font-semibold text-indigo-700">
+      Private Vehicle Trips:{" "}
+      {formatIndianRounded(privateVehicleTrips)}
+    </div>
+  </KPICard>
+) : activeMode !== "tank" ? (
+  <KPICard
+    label={labels[activeMode][1]}
+    value={formatIndianRounded(avgValue)}
+    theme={theme.indigo}
+    icon={<Droplets size={18} />}
+  />
+) : null}
+      {/* EXTRA TANK CARDS (ONLY WHEN NOT BIOCHAR) */}
+      {activeMode !== "biochar" && (
+        <>
+          <KPICard
+            label={`Tank Level on ${formatDisplayDate(fromDate)}`}
+            value={`${formatIndianRounded(fromTankLevel)} L`}
+            theme={theme.amber}
+            icon={<Box size={18} />}
+          />
 
-        <div className="lg:col-span-1 bg-white rounded-xl shadow-md p-4 flex flex-col justify-center gap-3">
-          <div>
-            <label className="text-xs font-semibold text-gray-700">From</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="border p-2 rounded-md w-full"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-700">To</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="border p-2 rounded-md w-full"
-            />
-          </div>
-          <button
-            onClick={fetchDaywise}
-            className="bg-blue-700 text-white py-2 rounded-lg font-semibold"
-          >
-            GET
-          </button>
-        </div>
-      </div>
+          <KPICard
+            label={`Tank Level on ${formatDisplayDate(toDate)}`}
+            value={`${formatIndianRounded(toTankLevel)} L`}
+            theme={theme.emerald}
+            icon={<Recycle size={18} />}
+          />
+        </>
+      )}
+
+    </div>
+  </div>
+
+  {/* DATE FILTER SECTION (UNCHANGED) */}
+  <div className="lg:col-span-1 bg-white rounded-xl shadow-md p-4 flex flex-col justify-center gap-3">
+    <div>
+      <label className="text-xs font-semibold text-gray-700">From</label>
+      <input
+        type="date"
+        value={fromDate}
+        onChange={(e) => setFromDate(e.target.value)}
+        className="border p-2 rounded-md w-full"
+      />
+    </div>
+
+    <div>
+      <label className="text-xs font-semibold text-gray-700">To</label>
+      <input
+        type="date"
+        max={today}
+        value={toDate}
+        onChange={(e) => setToDate(e.target.value)}
+        className="border p-2 rounded-md w-full"
+      />
+    </div>
+
+    <button
+      onClick={fetchDaywise}
+      className="bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800 transition"
+    >
+      GET
+    </button>
+  </div>
+
+</div>
 
       {/* CHART (UNCHANGED) */}
       <div className="bg-white shadow-xl rounded-xl p-6 w-full">
