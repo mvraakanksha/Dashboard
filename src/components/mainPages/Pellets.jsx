@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { Box } from "lucide-react";
 import { getAllPlants } from "../../services/plantService";
 import { getOperationsByDateRange } from "../../services/operationService";
+import { getInventoryDashboard, getDashboardSummaryCount} from "../../services/dashboardService";
 
 const formatIN = (value, decimals = 1) => {
   if (value === null || value === undefined || isNaN(value)) return "0";
@@ -95,11 +96,13 @@ const getLastEnteredStock = (ops, stockKey) => {
 };
 
 
-export default function Pellets({ isDark, date, zone }) {
+export default function Pellets({ isDark, date, zone, selectedPlants = [],  }) {
   const navigate = useNavigate();
 
   const [plants, setPlants] = useState([]);
   const [ops, setOps] = useState([]);
+  const [inventorySummary, setInventorySummary] = useState(null);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
 const [sortBy, setSortBy] = useState("stock"); // "stock" | "plantId"
 
   const [materialType, setMaterialType] = useState("pellets");
@@ -171,9 +174,47 @@ useEffect(() => {
   loadOps();
 }, [date]);
 
+useEffect(() => {
+  if (!date) return;
 
+  const loadInventorySummary = async () => {
+    try {
+      const data = await getInventoryDashboard({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
 
+      setInventorySummary(data || {});
+    } catch (err) {
+      console.error("Failed to fetch inventory summary", err);
+      setInventorySummary(null);
+    }
+  };
 
+  loadInventorySummary();
+}, [date, zone, selectedPlants]);
+
+useEffect(() => {
+  if (!date) return;
+
+  const loadDashboardSummary = async () => {
+    try {
+      const data = await getDashboardSummaryCount({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
+
+      setDashboardSummary(data || {});
+    } catch (err) {
+      console.error("Failed to fetch dashboard summary", err);
+      setDashboardSummary(null);
+    }
+  };
+
+  loadDashboardSummary();
+}, [date, zone, selectedPlants]);
 
 const lastStockMap = useMemo(() => {
   const map = {};
@@ -202,12 +243,23 @@ const lastStockMap = useMemo(() => {
   /* ---------------- BUILD CHART DATA ---------------- */
 const chartData = useMemo(() => {
   return plants
-    .filter(
-      (p) => zone === "All" || String(p.zones) === String(zone)
-    )
+    .filter((p) => {
+      const zoneMatch =
+        zone === "All" ||
+        String(p.zones) === String(zone);
+
+      const plantMatch =
+        selectedPlants.length === 0 ||
+        selectedPlants.includes(p.plantID);
+
+      return zoneMatch && plantMatch;
+    })
     .map((p) => {
-      const op = ops.find((o) => o.plantId === p.plantID &&
-    o.operation?.operationDate === date)?.operation;
+      const op = ops.find(
+        (o) =>
+          o.plantId === p.plantID &&
+          o.operation?.operationDate === date
+      )?.operation;
 
       const lastStock = lastStockMap[p.plantID] || {};
 
@@ -219,14 +271,21 @@ const chartData = useMemo(() => {
         pelletsUsed: op?.pillets ?? 0,
         polymerUsed: op?.polymerUsage ?? 0,
 
-        // ✅ LAST ENTERED (non-null) stock
-        pelletsStock: lastStock.pelletsStock ?? null,
-        polymerStock: lastStock.polymerStock ?? null
+        pelletsStock:
+          lastStock.pelletsStock ?? null,
+
+        polymerStock:
+          lastStock.polymerStock ?? null,
       };
     });
-}, [plants, ops, zone, lastStockMap]);
-
-
+}, [
+  plants,
+  ops,
+  zone,
+  selectedPlants,
+  date,
+  lastStockMap,
+]);
 
 // const hasLowPelletsStock = useMemo(() => {
 //   return chartData.some(
@@ -262,8 +321,8 @@ const getStockAlert = (value, materialType) => {
 
   if (value === 0) return "red";
 
-  if (materialType === "pellets" && value <= 100) return "yellow";
-  if (materialType === "polymer" && value <= 5) return "yellow";
+  if (materialType === "pellets" && value <= 200) return "yellow";
+  if (materialType === "polymer" && value <= 20) return "yellow";
 
   return null;
 };
@@ -346,33 +405,23 @@ const sortedChartData = useMemo(() => {
 /* ---------------- METRICS ---------------- */
 
 // USED
-const totalPelletsUsed = chartData.reduce(
-  (s, p) => s + p.pelletsUsed,
-  0
-);
+const totalPelletsUsed =
+  inventorySummary?.pelletsUsed || 0;
 
-const totalPolymerUsed = chartData.reduce(
-  (s, p) => s + p.polymerUsed,
-  0
-);
+const totalPelletsStock =
+  inventorySummary?.pelletsStock || 0;
 
-// STOCK (last entered, summed)
-const totalPelletsStock = chartData.reduce(
-  (s, p) => s + (p.pelletsStock !== null ? p.pelletsStock : 0),
-  0
-);
-
-const totalPolymerStock = chartData.reduce(
-  (s, p) => s + (p.polymerStock !== null ? p.polymerStock : 0),
-  0
-);
-
-// AVERAGE USED
 const avgPellets =
-  chartData.length > 0 ? totalPelletsUsed / chartData.length : 0;
+  inventorySummary?.avgPelletsPerPlant || 0;
+
+const totalPolymerUsed =
+  (inventorySummary?.polymerUsed || 0) * 1000;
+
+const totalPolymerStock =
+  inventorySummary?.polymerStock || 0;
 
 const avgPolymer =
-  chartData.length > 0 ? totalPolymerUsed / chartData.length : 0;
+  (inventorySummary?.avgPolymerPerPlant || 0) * 1000;
 
 
 const selectedKey = useMemo(() => {
@@ -388,7 +437,37 @@ const selectedKey = useMemo(() => {
     : "polymerStock";
 }, [materialType, sortBy]);
 
+/* ---------------- ENTRY COUNT ---------------- */
+const entryCount = useMemo(() => {
+  if (!sortedChartData?.length) return 0;
 
+  return sortedChartData.filter((p) => {
+    const value = p[selectedKey];
+
+    // ignore null or zero → no visible bar
+    return value !== null && value !== undefined && Number(value) > 0;
+  }).length;
+
+}, [sortedChartData, selectedKey]);
+
+/* ---------------- ENTRY LABEL ---------------- */
+const entryLabel = useMemo(() => {
+
+  if (sortBy === "plantId") {
+    return "Plants With Data";
+  }
+
+  if (sortBy === "used") {
+    return materialType === "pellets"
+      ? "Entries"
+      : "Entries ";
+  }
+
+  return materialType === "pellets"
+    ? "Entries"
+    : "Entries";
+
+}, [materialType, sortBy]);
   // const barColor =
   //   materialType === "pellets" ? "#800000" : "#003366";
 
@@ -442,7 +521,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
       <div>
         <p
           className={`text-[10px] font-black uppercase tracking-wider ${
-            isDark ? "text-slate-400" : "text-slate-500"
+            isDark ? "text-slate-400" : "text-slate-900"
           }`}
         >
           {label}
@@ -488,7 +567,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
       >
         Pellets and Polymer Report
       </h2>
-      <p className="text-xs tracking-widest font-bold text-slate-400">
+      <p className="text-xs tracking-widest font-bold text-slate-900">
         Pellets & Polymer Usage and Stock Monitoring
       </p>
     </div>
@@ -504,7 +583,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
   <KPICard
     label="Total Plants"
-    value={chartData.length}
+    value={dashboardSummary?.totalPlants || 0}
     theme={theme.blue}
     icon={<Box />}
     isDark={isDark}
@@ -563,7 +642,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
 >
   <label
     className={`text-xs font-semibold mb-1 ${
-      isDark ? "text-slate-300" : "text-gray-700"
+      isDark ? "text-slate-300" : "text-gray-800"
     }`}
   >
     Select Material 
@@ -592,7 +671,18 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
 
       {/* ================= GRAPH ================= */}
     <div className="p-6 rounded-[2rem] border bg-white border-slate-100 shadow-xl">
+{/* GRAPH HEADER */}
+<div className="flex items-center justify-between mb-3">
 
+  <h3 className="font-bold text-blue-900 text-lg flex items-center gap-3">
+    Material Analytics
+
+    <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">
+      {entryLabel}: {entryCount}
+    </span>
+  </h3>
+
+</div>
 
   {/* 🔼 SORT CONTROL */}
 <div className="flex justify-end mb-3">

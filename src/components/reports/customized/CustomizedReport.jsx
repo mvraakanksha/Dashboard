@@ -16,11 +16,11 @@ import {
   sumVehicleMetricForDate
 } from "./ReportTotals";
 
-import CustomizedExcel from './CustomizedExcel'
-import CustomizedPdf from "./CustomizedPdf";
+import CustomizedExcel from '../customized/CustomizedExcel'
+import CustomizedPdf from '../customized/CustomizedPdf'
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import companyLogo from './company_logo1.jpg'
+import companyLogo from '../company_logo1.jpg'
 
 import {
  
@@ -31,8 +31,8 @@ import {
 
 
 /* ================= API ================= */
-import { getAllPlants } from '../../services/plantService'
-import { getVehiclesByPlant, getVehicleOperationsByDateRange } from "../../services/vehicleService";
+import { getAllPlants } from '../../../services/plantService'
+import { getVehiclesByPlant, getVehicleOperationsByDateRange } from "../../../services/vehicleService";
 
 import {
   getOperationsByDate,
@@ -41,7 +41,7 @@ import {
   getLabOperationsByDate,
   getLabOperationsByDateRange,
  
-} from '../../services/operationService';
+} from '../../../services/operationService';
 
 
 
@@ -89,7 +89,7 @@ vehicle: {
     ],
   },
   pellets: {
-    label: "Pellets",
+    label: "Stock",
     options: [
       { id: "pelletsUsed", label: "Pellets Used (Kg)" },
       { id: "pelletsStock", label: "Pellets Stock (Kg)" },
@@ -112,7 +112,7 @@ vehicle: {
   PrivateVehicle: {
   label: "Private Vehicle",
   options: [
-     { id: "privateTrips", label: "Private Vehicle Trips" } // ✅ NEW
+     { id: "privateTrips", label: "Private Vehicle Trips" } 
   ]
 },
 };
@@ -149,7 +149,7 @@ vehicle: {
     ],
   },
   pellets: {
-    label: "Pellets",
+    label: "Stock",
     dataKey: "inventory",
     options: [
       { id: "pelletsUsed", label: "Pellets Used (Kg)" },
@@ -292,19 +292,19 @@ const sumSinglePlantVehicleMetric = (plantRow, dates, metric) => {
 
 
 const getTopVehiclesForPlant = (plantRow, dates) => {
-  const usage = {};
+  const vehicles = [];
 
   dates.forEach(d => {
     plantRow.values?.[d]?.vehicleRows?.forEach(v => {
-      const key = normalizeVehicleNo(v.vehicleNo);
-      usage[key] = (usage[key] || 0) + (Number(v.distance) || 0);
+      const vn = normalizeVehicleNo(v.vehicleNo);
+
+      if (vn && !vehicles.includes(vn)) {
+        vehicles.push(vn);
+      }
     });
   });
 
-  return Object.entries(usage)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2)
-    .map(([v]) => v);
+  return vehicles.slice(0, 2); // ✅ FIXED ORDER (NO SORT)
 };
 
 const sumVehicleMetricForDateAllPlants = (rows, date, metric) => {
@@ -370,6 +370,7 @@ export default function CustomizedReport() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [zoneFilter, setZoneFilter] = useState("All");
+  const [phaseFilter, setPhaseFilter] = useState("All");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
 const [selectedPlants, setSelectedPlants] = useState([]);
 const [dateError, setDateError] = useState("");
@@ -707,7 +708,13 @@ const zones = useMemo(() => {
   ).sort((a, b) => a - b);
 }, [plants]);
 
+const phases = useMemo(() => {
+  if (!Array.isArray(plants)) return [];
 
+  return Array.from(
+    new Set(plants.map((p) => p.plantPhase).filter((p) => p != null))
+  ).sort((a, b) => Number(a) - Number(b));
+}, [plants]);
 
   const activeInfraKeys = Object.keys(infraFilters).filter(
     (k) => infraFilters[k]
@@ -717,8 +724,21 @@ const zones = useMemo(() => {
   /* ================= FILTERED PLANTS ================= */
 const filteredPlants = useMemo(() => {
   return plants.filter((p) => {
-    if (zoneFilter !== "All" && String(p.zones) !== String(zoneFilter))
+    // Zone filter
+    if (
+      zoneFilter !== "All" &&
+      String(p.zones) !== String(zoneFilter)
+    ) {
       return false;
+    }
+
+    // Phase filter
+    if (
+      phaseFilter !== "All" &&
+      String(p.plantPhase) !== String(phaseFilter)
+    ) {
+      return false;
+    }
 
     // TOTAL → no infra filtering
     if (infraFilters.TOTAL) return true;
@@ -731,17 +751,25 @@ const filteredPlants = useMemo(() => {
 
     return true;
   });
-}, [plants, zoneFilter, infraFilters]);
+}, [plants, zoneFilter, phaseFilter, infraFilters]);
 
-const initialized = useRef(false);
+// const initialized = useRef(false);
+
+// useEffect(() => {
+//   if (!initialized.current && filteredPlants.length) {
+//     setSelectedPlants(filteredPlants.map(p => p.plantID));
+//     initialized.current = true;
+//   }
+// }, [filteredPlants]);
 
 useEffect(() => {
-  if (!initialized.current && filteredPlants.length) {
-    setSelectedPlants(filteredPlants.map(p => p.plantID));
-    initialized.current = true;
-  }
-}, [filteredPlants]);
-
+  setSelectedPlants(filteredPlants.map((p) => p.plantID));
+}, [zoneFilter, phaseFilter, filteredPlants]);
+ 
+useEffect(() => {
+  setShowPreview(false);
+  setPreviewData(null);
+}, [zoneFilter, reportTypes]);
 
 /* ================= HELPER TOGGLES (ADD HERE) ================= */
 
@@ -815,7 +843,8 @@ const handlePreview = async () => {
 
 
   
-  const cacheKey = JSON.stringify({
+const cacheKey = JSON.stringify({
+  zone: zoneFilter, // ✅ ADD THIS LINE
   plants: selectedPlants,
   from: dateRange.from,
   to: dateRange.to,
@@ -823,7 +852,6 @@ const handlePreview = async () => {
     m => `${m.module}:${m.metric}`
   )
 });
-
 const getVehicleMasterCached = async (plantID) => {
   if (!vehicleMasterCacheRef.current[plantID]) {
     vehicleMasterCacheRef.current[plantID] =
@@ -1152,6 +1180,29 @@ useEffect(() => {
   </div>
 </div>
 
+<div>
+  <label className="text-[10px] font-bold text-slate-500 uppercase">
+    Phase
+  </label>
+
+  <div className="flex items-center gap-2 mt-1">
+    <Filter size={16} />
+
+    <select
+      value={phaseFilter}
+      onChange={(e) => setPhaseFilter(e.target.value)}
+      className="border p-2 rounded text-xs"
+    >
+      <option value="All">All Phases</option>
+
+      {phases.map((phase) => (
+        <option key={phase} value={String(phase)}>
+          Phase {phase}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
       </div>
 
 
@@ -1607,6 +1658,72 @@ return dates.reduce(
 
 }, [dates, singlePlantRow]);
 
+const overviewTotals = useMemo(() => {
+  if (!metrics?.length) return [];
+
+  const list = [];
+
+  const isVehicleEnabled = metrics.some(
+    m => m.module === "vehicle"
+  );
+
+  /* ================= TOTAL SELECTED PLANTS (NEW) ================= */
+  list.push({
+    label: "Selected Plants",
+    value: rows.length
+  });
+
+  /* ================= TOTAL VEHICLES ================= */
+  if (isVehicleEnabled) {
+    const vehicleSet = new Set();
+
+    rows.forEach(r => {
+      dates.forEach(d => {
+        r.values?.[d]?.vehicleRows?.forEach(v => {
+          if (v?.vehicleNo) {
+            vehicleSet.add(
+              String(v.vehicleNo).trim().toUpperCase()
+            );
+          }
+        });
+      });
+    });
+
+    list.push({
+      label: "Vehicles",
+      value: vehicleSet.size
+    });
+  }
+
+  /* ================= EXISTING TOTALS ================= */
+  metrics.forEach(m => {
+    const isVehicle = m.module === "vehicle";
+
+    const shouldExclude =
+      (m.module === "lab" && m.metric !== "cumulativeFlow") ||
+      m.metric === "tankLevel" ||
+      m.metric?.toLowerCase()?.includes("stock") ||
+      (isVehicle && m.metric === "odometer");
+
+    if (shouldExclude) return;
+
+    let value = 0;
+
+    if (isVehicle) {
+      value = sumVehicleMetricOverall(rows, dates, m.metric);
+    } else {
+      value = sumMetricOverall(rows, dates, m.metric);
+    }
+
+    list.push({
+      label: m.label,
+      value
+    });
+  });
+
+  return list;
+}, [metrics, rows, dates]);
+
 
   return (
     <div className="bg-white rounded-xl border shadow-sm p-4 space-y-4">
@@ -1641,6 +1758,26 @@ return dates.reduce(
           </button>
         </div>
       </div>
+
+{/* Totals Label */}
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
+
+  {overviewTotals.map(t => (
+    <div
+      key={t.label}
+      className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm"
+    >
+      <p className="text-[11px] text-slate-900 font-semibold">
+         Total {t.label}
+      </p>
+
+      <p className="text-xl font-bold text-indigo-700">
+        {formatIndian(t.value)}
+      </p>
+    </div>
+  ))}
+
+</div>
 
       {/* TABLE */}
       <div className="overflow-x-auto">
@@ -1863,12 +2000,17 @@ return dates.reduce(
       </td>
 
       {/* Non-vehicle totals */}
-      {nonVehicleMetrics.map(m => {
-const shouldExclude =
-  (m.module === "lab" && m.metric !== "cumulativeFlow") ||
-  m.metric === "tankLevel" ||
-  m.metric.toLowerCase().includes("stock");
+{nonVehicleMetrics.map(m => {
 
+  const isLab =
+    m.module === "lab" && m.metric !== "cumulativeFlow";
+
+  const isTankLevel = m.metric === "tankLevel";
+
+  const isStock =
+    m.metric?.toLowerCase()?.includes("stock");
+
+  const shouldExclude = isLab || isTankLevel || isStock;
 
   return (
     <td key={m.metric} className="border p-2 text-center">
@@ -2057,7 +2199,20 @@ const shouldExclude =
 
     .flatMap(m => {
    if (m.module === "vehicle") {
-const [pV1, pV2] = getTopVehiclesForPlant(r, dates);
+    
+let masterRows = [];
+
+for (const d of dates) {
+  const rowsForDate = r.values?.[d]?.vehicleRows || [];
+
+  if (rowsForDate.length > 0) {
+    masterRows = rowsForDate;
+    break;
+  }
+}
+
+const pV1 = masterRows[0]?.vehicleNo;
+const pV2 = masterRows[1]?.vehicleNo;
 
 const v1Value = sumVehicleMetricBySlot(r, dates, m.metric, pV1);
 const v2Value = sumVehicleMetricBySlot(r, dates, m.metric, pV2);
@@ -2163,7 +2318,22 @@ const v2Value = sumVehicleMetricBySlot(r, dates, m.metric, pV2);
     let v2Total = 0;
 
     rows.forEach(r => {
-      const [pV1, pV2] = getTopVehiclesForPlant(r, dates);
+      const firstDate = dates[0];
+
+let masterRows = [];
+
+for (const d of dates) {
+  const rowsForDate = r.values?.[d]?.vehicleRows || [];
+
+  if (rowsForDate.length > 0) {
+    masterRows = rowsForDate;
+    break;
+  }
+}
+
+//exchnaged
+const pV1 = masterRows[0]?.vehicleNo;
+const pV2 = masterRows[1]?.vehicleNo;
 
       v1Total += sumVehicleMetricBySlot(r, dates, m.metric, pV1);
       v2Total += sumVehicleMetricBySlot(r, dates, m.metric, pV2);

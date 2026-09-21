@@ -6,12 +6,12 @@ import { saveAs } from "file-saver";
 import ExcelJS from "exceljs";
 
 // import mainLogo from '../reports/logo.png';
-import mainLogo from '../reports/logo1.jpg';
-// import companyLogo from '../reports/company_logo.png'
-import companyLogo from '../reports/company_logo1.jpg'
+import mainLogo from '../../reports/logo1.jpg';
+// import comonthlympanyLogo from '../reports/company_logo.png'
+import companyLogo from '../../reports/company_logo1.jpg'
 
-import { getAllPlants } from "../../services/plantService";
-import { getOperationsByDateRange } from "../../services/operationService";
+import { getAllPlants } from "../../../services/plantService";
+import { getOperationsByDateRange } from "../../../services/operationService";
 /* ================= API ================= */
 
 const formatDisplayDate = (dateString) => {
@@ -63,6 +63,7 @@ const imageToBase64Compressed = (image, quality = 0.5, maxWidth = 800) => {
     };
   });
 };
+
 const formatMonthYear = (monthStr) => {
   if (!monthStr) return "";
 
@@ -75,28 +76,62 @@ const formatMonthYear = (monthStr) => {
 
   return `${monthNames[Number(month) - 1]} ${year}`;
 };
+
+const toYMD = (date) => {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const da = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${da}`;
+};
+
+const getMonthEnd = (monthStr) => {
+  const [y, m] = monthStr.split("-");
+  return new Date(y, m, 0);
+};
+
 export default function MonthlyReportPage() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [plantMaster, setPlantMaster] = useState({});
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 const [refreshKey, setRefreshKey] = useState(0);
+const [plants, setPlants] = useState([]);
+const [zoneFilter, setZoneFilter] = useState("All");
+const [phaseFilter, setPhaseFilter] = useState("All");
 
   /* ================= LOAD PLANTS ================= */
 useEffect(() => {
-  getAllPlants().then((list) => {
-    const map = {};
-    (list || []).forEach((p) => {
-      map[p.plantID] = {
-        name: p.plantName,
-        district: p.district,
-        kld: p.kld,
-        permanentPower: p.permanentPower, // ✅ ADD THIS
-      };
-    });
-    setPlantMaster(map);
+getAllPlants().then((list) => {
+  setPlants(list || []);
+
+  const map = {};
+  (list || []).forEach((p) => {
+map[p.plantID] = {
+  name: p.plantName,
+  district: p.district,
+  kld: p.kld,
+  permanentPowerDate: p.permanentPowerDateOfCompletion,
+  mnitDate: p.mnitDateOfCompletion,
+  zone: p.zones,
+  phase: p.plantPhase,
+};
   });
+
+  setPlantMaster(map);
+});
 }, []);
+const getMonthDates = (monthStr) => {
+  const [year, month] = monthStr.split("-").map(Number);
+
+  const lastDay = new Date(year, month, 0).getDate();
+
+  return {
+    startDate: `${year}-${String(month).padStart(2, "0")}-01`,
+    endDate: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+    lastDay,
+  };
+};
 
   const formattedMonth = formatMonthYear(month);
 
@@ -105,15 +140,12 @@ useEffect(() => {
 
   setLoading(true);
   setRows([]);
-  const [year, monthNum] = month.split("-");
+const { startDate, endDate, lastDay } = getMonthDates(month);
 
-  // ✅ Start = first day of month
-  const startDate = `${year}-${monthNum}-01`;
-
-  // ✅ End = first day of NEXT month (API exclusive end)
-  const endDate = new Date(year, Number(monthNum), 1)
-    .toISOString()
-    .split("T")[0];
+console.log("Selected Month:", month);
+console.log("Start Date:", startDate);
+console.log("End Date:", endDate);
+console.log("Last Day:", lastDay);
 
   const temp = {};
 
@@ -124,66 +156,255 @@ rangeData.forEach((r) => {
   const pid = r.plantId;
   const op = r.operation;
 
-
-  
-  if (!temp[pid]) {
-    temp[pid] = {
-      plantId: pid,
-      sludgeReceived: 0,
-      sludgeProcessed: 0,
-      oldSludge: 0,
-      remaining: 0, // month-end PM
-      
-    };
-  }
-
-  // ✅ Old sludge = AM of 1st day
-  if (op?.operationDate === startDate) {
-    temp[pid].oldSludge = Number(op?.sludgeTankLevelAm || 0);
-  }
-
-  // ✅ Month totals
-  temp[pid].sludgeReceived += Number(op?.sludgeReceived || 0);
-  temp[pid].sludgeProcessed += Number(op?.sludgeProcessed || 0);
-
-  // ✅ VERY IMPORTANT: overwrite with latest PM value
-   if (
-  op?.sludgeTankLevelPm != null &&
-  (!temp[pid].lastPmDate ||
-    op.operationDate > temp[pid].lastPmDate)
-) {
-  temp[pid].remaining = Number(op.sludgeTankLevelPm);
-  temp[pid].lastPmDate = op.operationDate;
+if (!temp[pid]) {
+  temp[pid] = {
+    plantId: pid,
+    ops: [],                 // ⭐ STORE ALL OPS
+    sludgeReceived: 0,
+    sludgeProcessed: 0,
+  };
 }
+
+temp[pid].ops.push({
+  ...op,
+  _date: op._date
 });
 
-    const finalRows = Object.values(temp).map((r) => {
-      const meta = plantMaster[r.plantId] || {};
-      const total = r.oldSludge + r.sludgeReceived;
+temp[pid].sludgeReceived += Number(op?.sludgeReceived || 0);
+temp[pid].sludgeProcessed += Number(op?.sludgeProcessed || 0);
 
-      return {
-        plantId: r.plantId,
-        district: meta.district,
-        name: meta.name,
-        kld: meta.kld,
-         permanentPower: meta.permanentPower, // ✅ ADD THIS
-        sludgeReceived: r.sludgeReceived,
-        oldSludge: r.oldSludge,
-        total,
-        sludgeProcessed: r.sludgeProcessed,
-        remaining: r.remaining,
 
+  // ✅ VERY IMPORTANT: overwrite with latest PM value
+//    if (
+//   op?.sludgeTankLevelPm != null &&
+//   (!temp[pid].lastPmDate ||
+//     op.operationDate > temp[pid].lastPmDate)
+// ) {
+//   temp[pid].remaining = Number(op.sludgeTankLevelPm);
+//   temp[pid].lastPmDate = op.operationDate;
+// }
+});
+
+const getPreviousMonth = (monthStr) => {
+  const [year, month] = monthStr.split("-").map(Number);
+
+  const date = new Date(year, month - 2); // go 1 month back
+
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}`;
+};
+
+const previousMonth = getPreviousMonth(month);
+
+const prevStart = `${previousMonth}-01`;
+const prevEndDateObj = new Date(previousMonth.split("-")[0], previousMonth.split("-")[1], 0);
+const prevEnd = toYMD(new Date(prevEndDateObj.getFullYear(), prevEndDateObj.getMonth(), prevEndDateObj.getDate() + 1));
+
+let previousMonthData = {};
+
+try {
+  const prevRangeData = await getOperationsByDateRange(prevStart, prevEnd);
+
+  const tempPrev = {};
+
+  prevRangeData.forEach((r) => {
+    const pid = r.plantId;
+    const op = r.operation;
+
+    if (!tempPrev[pid]) {
+      tempPrev[pid] = {
+        ops: [],
       };
-    });
+    }
 
-    setRows(finalRows);
+    tempPrev[pid].ops.push(op);
+  });
+
+Object.keys(plantMaster).forEach((pid) => {
+  const ops = tempPrev[pid]?.ops || [];
+
+  previousMonthData[pid] = getClosingSludge(
+    ops,
+    prevStart,
+    prevEnd
+  );
+});
+
+} catch (e) {
+  console.error("Previous month load error", e);
+}
+
+const getOpeningSludge = (ops, startDate, endDate) => {
+  if (!ops?.length) return 0;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Build date map (same like closing)
+  const map = {};
+
+  ops.forEach(op => {
+    if (!op.operationDate) return;
+
+    const d = toYMD(op.operationDate);
+    const time = new Date(d);
+
+    if (time < start || time >= end) return;
+
+    if (!map[d]) {
+      map[d] = { am: null, pm: null };
+    }
+
+    if (op.sludgeTankLevelAm != null) {
+      map[d].am = Number(op.sludgeTankLevelAm);
+    }
+
+    if (op.sludgeTankLevelPm != null) {
+      map[d].pm = Number(op.sludgeTankLevelPm);
+    }
+  });
+
+  // 🔥 Walk forward from month start
+  let cursor = new Date(start);
+
+  while (cursor < end) {
+    const key = toYMD(cursor);
+    const day = map[key];
+
+    if (day) {
+      if (day.am != null) return day.am;   // 1️⃣ AM first
+      if (day.pm != null) return day.pm;   // 2️⃣ then PM
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return 0;
+};
+
+const getClosingSludge = (ops, startDate, endDate) => {
+  if (!ops?.length) return 0;
+
+const start = new Date(startDate);
+
+// selected month's actual last day
+const monthEnd = new Date(endDate);
+
+  // ⭐ Build date map
+  const map = {};
+
+  ops.forEach(op => {
+    if (!op.operationDate) return;
+
+    const d = toYMD(op.operationDate);
+
+    const time = new Date(d);
+ if (time < start || time > monthEnd) return;
+    if (!map[d]) {
+      map[d] = { am: null, pm: null };
+    }
+
+    if (op.sludgeTankLevelAm != null) {
+      map[d].am = Number(op.sludgeTankLevelAm);
+    }
+
+    if (op.sludgeTankLevelPm != null) {
+      map[d].pm = Number(op.sludgeTankLevelPm);
+    }
+  });
+
+  // ⭐ walk backward from month end
+  let cursor = new Date(monthEnd);
+
+  while (cursor >= start) {
+    const key = toYMD(cursor); // ⭐ NO ISO STRING
+
+    const day = map[key];
+
+    if (day) {
+      if (day.pm != null) return day.pm; // PM first
+      if (day.am != null) return day.am; // then AM
+    }
+
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return 0;
+};
+
+const finalRows = Object.entries(plantMaster)
+  .map(([pid, meta]) => {
+    const op = temp[pid] || {
+      sludgeReceived: 0,
+      sludgeProcessed: 0,
+      ops: [],
+    };
+
+const oldSludge = getOpeningSludge(op.ops || [], startDate, endDate);
+
+    const remaining = getClosingSludge(op.ops || [], startDate, endDate);
+    const total = oldSludge + op.sludgeReceived;
+
+   return {
+  plantId: Number(pid),
+  district: meta.district,
+  name: meta.name,
+  kld: meta.kld,
+  zone: meta.zone,
+  phase: meta.phase,
+  permanentPowerDate: meta.permanentPowerDate,
+  mnitDate: meta.mnitDate,
+  sludgeReceived: op.sludgeReceived,
+  sludgeProcessed: op.sludgeProcessed,
+  oldSludge,
+  total,
+  remaining,
+};
+  })
+.filter((r) => {
+  const zoneMatch =
+    zoneFilter === "All" ||
+    String(r.zone) === String(zoneFilter);
+
+  const phaseMatch =
+    phaseFilter === "All" ||
+    String(r.phase) === String(phaseFilter);
+
+  return zoneMatch && phaseMatch;
+});
+
+  const [y, m] = month.split("-");
+const monthEnd = new Date(y, m, 0);
+
+const visibleRows = finalRows.filter(r => {
+  if (!r.mnitDate) return false; // not activated
+
+  return new Date(r.mnitDate) <= monthEnd;
+});
+
+
+const withStatus = visibleRows.map(r => {
+  const completion = r.permanentPowerDate;
+
+  const noPower =
+    !completion ||
+    new Date(completion) > monthEnd;
+
+  return {
+    ...r,
+    noPower
+  };
+});
+
+setRows(withStatus);
+
   } catch (e) {
     console.error(e);
   }
 
   setLoading(false);
-}, [month, plantMaster]);
-
+}, [month, plantMaster, zoneFilter, phaseFilter]);
 
 useEffect(() => {
   loadMonth();
@@ -208,7 +429,6 @@ useEffect(() => {
       remaining: 0,
     }
   );
-
 
 
   const imageToBase64 = async (imageUrl) => {
@@ -295,98 +515,26 @@ doc.text(
   /* =====================================================
      TABLE
   ===================================================== */
-  autoTable(doc, {
-  startY: 27.8,
-  theme: "grid",
+/* ================= TABLE (uniform row height on every page) ================= */
+  const ROWS_PER_PAGE = 40;
+  const BOTTOM_MARGIN = 10;
+  const HEAD_HEIGHT = 9;
+  const SAFETY_BUFFER = 2;
 
-  pageBreak: "avoid",
-  rowPageBreak: "avoid",
-
-  tableWidth: tableWidth,
-  margin: { left: tableX },
-
-styles: {
-  font: "times",
-  fontSize: 4.6,          // 🔽 critical
-  cellPadding: 0.25,      // 🔽 critical
-  textColor: [0, 0, 0],
-  halign: "center",
-  valign: "middle",
-  lineWidth: 0.15,
-  overflow: "linebreak",
-},
-
-
-headStyles: {
-  fillColor: [211, 234, 200], // light green
-  textColor: [0, 0, 0],   // ✅ RED
-  fontStyle: "bold",
-  fontSize: 5.4,
-},
-
-//   didParseCell: function (data) {
-//   if (data.section === "body") {
-//     data.cell.styles.fillColor = [211, 234, 200]; // #D3EAC8
-//   }
-// },
-didParseCell: function (data) {
-  // Only body cells
-  if (data.section === "body") {
-    const rowIndex = data.row.index;   // row number
-    const colIndex = data.column.index; // column number
-
-    // Site Name column index = 4 (0-based)
-    if (colIndex === 4) {
-      const rowData = rows[rowIndex];
-
-      if (rowData?.permanentPower === false) {
-        data.cell.styles.fillColor = [229, 231, 235]; // grey
-        data.cell.styles.textColor = [0, 0, 0]; // dark black text
-      }
-    }
-  }
-},
-
-columnStyles: {
-  0: { cellWidth: 8 },   // S.No
-  1: { cellWidth: 12 },  // Plant ID
-  2: { cellWidth: 20 },  // District
-  3: { cellWidth: 10 },  // KLD
-  4: { cellWidth: 32 },  // Site Name
-  5: { cellWidth: 22 },
-  6: { cellWidth: 22 },
-  7: { cellWidth: 22 },
-  8: { cellWidth: 22 },
-  9: { cellWidth: 22 },
-},
-
-
-  bodyStyles: {
-    textColor: [0, 0, 0],
-  },
-
-footStyles: {
-  fillColor: [95, 143, 228],
-   textColor: [255, 255, 255], 
-  fontStyle: "bold",
-  fontSize: 6,
-  minCellHeight: 5,   // ✅ increases footer row height
-},
-
-  head: [[
+  const headDef = [[
     "SI NO",
     "Plant ID",
     "District",
     "KLD",
     "Site Name",
     "Sludge Received \n (in litres)",
-    oldSludgeHeader (month),
+    oldSludgeHeader(month),
     "Total Sludge\n (in liters)",
     "Sludge Processed \n (in liters)",
     "Remaining Sludge \n (in liters)",
-  ]],
+  ]];
 
-  body: rows.map((r, i) => [
+  const bodyRows = rows.map((r, i) => [
     i + 1,
     r.plantId,
     r.district,
@@ -397,24 +545,114 @@ footStyles: {
     formatNumber(r.total),
     formatNumber(r.sludgeProcessed),
     formatNumber(r.remaining),
-  ]),
+  ]);
 
-  foot: [[
+  const footDef = [[
     "TOTAL", "", "", "", "",
     formatNumber(totals.sludgeReceived),
     formatNumber(totals.oldSludge),
     formatNumber(totals.total),
     formatNumber(totals.sludgeProcessed),
     formatNumber(totals.remaining),
-  ]],
+  ]];
 
+  const chunks = [];
+  for (let i = 0; i < bodyRows.length; i += ROWS_PER_PAGE) {
+    chunks.push(bodyRows.slice(i, i + ROWS_PER_PAGE));
+  }
+  if (chunks.length === 0) chunks.push([]);
 
-});
+  const pageHeight = doc.internal.pageSize.getHeight();
 
+  // ⭐ Compute ONE fixed row height based on a full 50-row page,
+  //    using the continuation-page startY (10) since that's the
+  //    tightest case (least available space).
+  const referenceStartY = 27.8;
+  const referenceFootHeight = 6;
+  const referenceAvailableHeight =
+    pageHeight - referenceStartY - BOTTOM_MARGIN - referenceFootHeight - HEAD_HEIGHT - SAFETY_BUFFER;
+  const UNIFORM_ROW_HEIGHT = referenceAvailableHeight / ROWS_PER_PAGE;
+
+  chunks.forEach((chunkRows, chunkIndex) => {
+    const isFirstChunk = chunkIndex === 0;
+    const isLastChunk = chunkIndex === chunks.length - 1;
+    const startY = isFirstChunk ? 27.8 : 10;
+
+    if (!isFirstChunk) {
+      doc.addPage();
+    }
+
+    autoTable(doc, {
+      startY,
+      theme: "grid",
+      pageBreak: "auto",
+      rowPageBreak: "avoid",
+      tableWidth,
+      margin: { left: tableX },
+
+      styles: {
+        font: "times",
+        fontSize: 4.6,
+        cellPadding: 0.25,
+        textColor: [0, 0, 0],
+        halign: "center",
+        valign: "middle",
+        lineWidth: 0.15,
+        overflow: "linebreak",
+        minCellHeight: UNIFORM_ROW_HEIGHT, // ⭐ same fixed height, every page
+      },
+
+      headStyles: {
+        fillColor: [211, 234, 200],
+        textColor: [0, 0, 0],
+        fontStyle: "bold",
+        fontSize: 5.4,
+      },
+
+      didParseCell(data) {
+        if (data.section === "body" && data.column.index === 4) {
+          const globalIndex = chunkIndex * ROWS_PER_PAGE + data.row.index;
+          const rowData = rows[globalIndex];
+          if (rowData?.noPower) {
+            data.cell.styles.fillColor = [229, 231, 235];
+            data.cell.styles.textColor = [0, 0, 0];
+          }
+        }
+      },
+
+      columnStyles: {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 12 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 10 },
+        4: { cellWidth: 32 },
+        5: { cellWidth: 22 },
+        6: { cellWidth: 22 },
+        7: { cellWidth: 22 },
+        8: { cellWidth: 22 },
+        9: { cellWidth: 22 },
+      },
+
+      bodyStyles: {
+        textColor: [0, 0, 0],
+      },
+
+      footStyles: {
+        fillColor: [95, 143, 228],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 6,
+        minCellHeight: 5,
+      },
+
+      head: headDef,
+      body: chunkRows,
+      foot: isLastChunk ? footDef : undefined,
+    });
+  });
 
   doc.save(`Monthly Report_${formattedMonth}.pdf`);
 };
-
 
 const INDIAN_NUMBER_FORMAT = "#,##,##0";
 
@@ -581,7 +819,7 @@ rows.forEach((r, i) => {
     }
 
     // Grey site name if permanent power false
-    if (colNumber === 5 && r.permanentPower === false) {
+   if (colNumber === 5 && r.noPower) {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
@@ -713,6 +951,33 @@ return (
 
       {/* ===== CONTROLS ===== */}
       <div className="flex flex-wrap gap-3 mb-4">
+        <select
+  value={zoneFilter}
+  onChange={(e) => setZoneFilter(e.target.value)}
+  className="border p-2 text-sm"
+>
+  <option value="All">All Zones</option>
+  {[...new Set(plants.map(p => p.zones).filter(Boolean))]
+    .sort((a,b)=>Number(a)-Number(b))
+    .map(z => (
+      <option key={z} value={z}>Zone {z}</option>
+    ))}
+</select>
+<select
+  value={phaseFilter}
+  onChange={(e) => setPhaseFilter(e.target.value)}
+  className="border p-2 text-sm"
+>
+  <option value="All">All Phases</option>
+
+  {[...new Set(plants.map((p) => p.plantPhase).filter((v) => v != null))]
+    .sort((a, b) => Number(a) - Number(b))
+    .map((phase) => (
+      <option key={phase} value={phase}>
+        Phase {phase}
+      </option>
+    ))}
+</select>
         <input
           type="month"
           value={month}
@@ -798,12 +1063,12 @@ return (
               textAlign: "center",
               // ✅ ONLY SITE NAME CELL
              backgroundColor:
-             idx === 4 && r.permanentPower === false
+            idx === 4 && r.noPower
              ? "#E5E7EB" // grey
              : "transparent",
 
             color:
-           idx === 4 && r.permanentPower === false
+          idx === 4 && r.noPower
            ? "#000000"
           : "#000",
             }}

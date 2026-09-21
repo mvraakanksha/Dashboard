@@ -9,6 +9,7 @@ import {
   LabelList,
   ResponsiveContainer
 } from "recharts";
+import { Zap } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getPlantById } from "../../services/plantService";
 import { getOperationsByDateRange } from "../../services/operationService";
@@ -93,7 +94,40 @@ const PowerTooltip = ({ active, payload }) => {
     </div>
   );
 };
+/* ---------------- THEME ---------------- */
+const theme = {
+  blue: { bg: "bg-blue-50", border: "border-blue-100", barColor: "bg-blue-600", iconColor: "text-blue-600" },
+  emerald: { bg: "bg-emerald-50", border: "border-emerald-100", barColor: "bg-emerald-600", iconColor: "text-emerald-600" },
+  rose: { bg: "bg-rose-50", border: "border-rose-100", barColor: "bg-rose-600", iconColor: "text-rose-600" },
+  indigo: { bg: "bg-indigo-50", border: "border-indigo-100", barColor: "bg-indigo-600", iconColor: "text-indigo-600" },
+};
+/* ---------------- KPI CARD ---------------- */
+const KPICard = ({ label, value, theme, children }) => (
+  <div className={`group relative overflow-hidden p-6 min-h-[180px] rounded-xl border ${theme.bg} ${theme.border} shadow-sm hover:shadow-md flex flex-col justify-between`}>
 
+    <div className={`absolute bottom-0 left-0 h-1.5 w-full ${theme.barColor} origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
+
+    <div>
+      <div className={`p-2 w-fit rounded-lg bg-white shadow-sm ${theme.iconColor}`}>
+        <Zap size={18} />
+      </div>
+
+      <p className="text-[11px] font-black uppercase tracking-wider text-slate-900 mt-3">
+        {label}
+      </p>
+
+      <p className="text-2xl font-black text-slate-900 mt-1">
+        {value}
+      </p>
+    </div>
+
+    {children && (
+      <div className="text-sm font-semibold text-slate-600 mt-3">
+        {children}
+      </div>
+    )}
+  </div>
+);
 
 /* ================= PAGE ================= */
 export default function PowerPage() {
@@ -103,6 +137,7 @@ export default function PowerPage() {
   const [plant, setPlant] = useState(null);
   const [fromDate, setFromDate] = useState(formatDate(subtractDays(new Date(), 10)));
   const [toDate, setToDate] = useState(formatDate(new Date()));
+  const today = new Date().toISOString().split("T")[0];
   const [data, setData] = useState([]);
   const [anySolarExists, setAnySolarExists] = useState(false);
 
@@ -196,47 +231,76 @@ export default function PowerPage() {
         Power Trend – {plant?.plantName ?? "Loading..."} (PID: {plantId} – {plant?.kld ?? "-"} KLD)
       </h2>
 
-      {/* KPI + DATE RANGE */}
-      <div className="flex items-stretch gap-4 mb-6">
-        <div className="flex-1 bg-white rounded-2xl shadow p-4 grid grid-cols-5 gap-4">
-          {[
-            ["Total Power Consumption (Kwh)", rd(totalImport)],
-            ["Total Solar Power Generated (Kwh)", rd(totalExport)],
-            ["Average Power Consumption (Kwh)", rd(avgImport)],
-            ["Average Solar Power Generated (Kwh)", rd(avgExport)]
-          ].map(([label, value], i) => (
-            <div key={i} className="bg-[#013B88] rounded-xl flex flex-col justify-center items-center text-white py-3">
-              <p className="text-sm text-center">{label}</p>
-              <p className="text-2xl font-extrabold text-green-400 mt-1">{value}</p>
-            </div>
-          ))}
+    {/* KPI + DATE RANGE */}
+<div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
 
-          {/* ✅ RUN HOURS KPI */}
-          <div className="bg-[#013B88] rounded-xl flex flex-col justify-center items-center text-white py-3">
-            <p className="text-sm text-center">Total Plant Run Hours</p>
-            <p className="text-2xl font-extrabold text-green-400 mt-1">
-              {rd(totalRunHours)}
-            </p>
-            <p className="text-xs mt-1 text-white">
-  Average Plant Run Hours :
-  <span className="text-green-400 font-semibold ml-1">
-    {avgRunHours.toFixed(2)}
-  </span>
-</p>
+  {/* KPI CARDS */}
+  <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg border border-blue-100 p-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
 
-          </div>
-        </div>
+      <KPICard
+        label="Total Power Consumption (Kwh)"
+        value={rd(totalImport)}
+        theme={theme.blue}
+      />
 
-        <div className="bg-white rounded-xl shadow p-4 space-y-3">
-          <label className="text-xs font-semibold">From</label>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="border p-2 rounded w-full" />
-          <label className="text-xs font-semibold">To</label>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="border p-2 rounded w-full" />
-          <button onClick={fetchRange} className="bg-indigo-600 text-white py-2 rounded font-semibold w-full">
-            GET
-          </button>
-        </div>
-      </div>
+      <KPICard
+        label="Total Solar Power Generated (Kwh)"
+        value={rd(totalExport)}
+        theme={theme.emerald}
+      />
+
+      <KPICard
+        label="Average Power Consumption (Kwh)"
+        value={rd(avgImport)}
+        theme={theme.rose}
+      />
+
+      <KPICard
+        label="Average Solar Power Generated (Kwh)"
+        value={rd(avgExport)}
+        theme={theme.emerald}
+      />
+
+      <KPICard
+        label="Total Plant Run Hours"
+        value={rd(totalRunHours)}
+        theme={theme.blue}
+      >
+        Average: {avgRunHours.toFixed(2)} Hrs
+      </KPICard>
+
+    </div>
+  </div>
+
+  {/* DATE FILTER */}
+  <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
+    <label className="text-xs font-semibold">From</label>
+    <input
+      type="date"
+      value={fromDate}
+      onChange={(e) => setFromDate(e.target.value)}
+      className="border p-2 rounded w-full"
+    />
+
+    <label className="text-xs font-semibold">To</label>
+    <input
+      type="date"
+      max={today}
+      value={toDate}
+      onChange={(e) => setToDate(e.target.value)}
+      className="border p-2 rounded w-full"
+    />
+
+    <button
+      onClick={fetchRange}
+      className="bg-violet-600 text-white py-2 rounded font-semibold w-full hover:bg-violet-700 transition"
+    >
+      GET
+    </button>
+  </div>
+
+</div>
 
       {/* GRAPH */}
       <div className="bg-white rounded-xl shadow p-6">

@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { useParams, useNavigate } from "react-router-dom";
 import { getPlantById } from "../../services/plantService";
-import { getEmployeeOperationsByDateRange } from "../../services/employeeService";
+import { getEmployeeAttendanceDateRange } from "../../services/employeeService";
 import { getEmployeesByPlant } from "../../services/employeeService";
 
 
@@ -25,14 +25,19 @@ const CustomTooltip = ({ active, payload, label }) => {
     <div className="bg-white text-xs border p-2 rounded shadow-md max-w-xs">
       <p className="font-bold text-blue-700">{formatDisplay(label)}</p>
 
-      {row.employees.map((e) => (
-        <p key={e.employeeId}>
-          {e.desination || e.designation || "Staff"}:{" "}
-          <span className="font-semibold">
-            AM {mark(e.att?.attendanceAm)} | PM {mark(e.att?.attendancePm)}
-          </span>
-        </p>
-      ))}
+      {(row.employees || []).map(emp => (
+
+<p key={emp.employeeId}>
+
+{emp.designation}
+
+AM {mark(emp.attendanceAm)}
+
+PM {mark(emp.attendancePm)}
+
+</p>
+
+))}
     </div>
   );
 };
@@ -88,9 +93,10 @@ export default function AttendanceView() {
 
   /* ---------------- STATE ---------------- */
 
-  const [employees, setEmployees] = useState([]);
-  const [daywiseData, setDaywiseData] = useState([]);
-const [plant, setPlant] = useState(null);
+//   const [employees, setEmployees] = useState([]);
+//   const [daywiseData, setDaywiseData] = useState([]);
+// const [plant, setPlant] = useState(null);
+const [attendanceData, setAttendanceData] = useState(null);
 
   const today = formatISO(new Date());
   const tenDaysBack = formatISO(subtractDays(new Date(), 10));
@@ -101,22 +107,22 @@ const [plant, setPlant] = useState(null);
 
 
   /* ---------------- FETCH PLANT ---------------- */
-useEffect(() => {
-  const loadPlant = async () => {
-    const data = await getPlantById(plantId);
-    setPlant(data || null);
-  };
-  loadPlant();
-}, [plantId]);
+// useEffect(() => {
+//   const loadPlant = async () => {
+//     const data = await getPlantById(plantId);
+//     setPlant(data || null);
+//   };
+//   loadPlant();
+// }, [plantId]);
 
   /* ---------------- FETCH EMPLOYEES ---------------- */
-useEffect(() => {
-  const loadEmployees = async () => {
-    const data = await getEmployeesByPlant(plantId);
-    setEmployees(data || []);
-  };
-  loadEmployees();
-}, [plantId]);
+// useEffect(() => {
+//   const loadEmployees = async () => {
+//     const data = await getEmployeesByPlant(plantId);
+//     setEmployees(data || []);
+//   };
+//   loadEmployees();
+// }, [plantId]);
 
   /* ---------------- FETCH ATTENDANCE ---------------- */
   const fetchDaywise = async () => {
@@ -180,22 +186,43 @@ useEffect(() => {
     }
   };
 
+const fetchAttendance = async () => {
+  try {
+    const data = await getEmployeeAttendanceDateRange({
+      plantId,
+      fromDate,
+      toDate,
+    });
+
+    setAttendanceData(data);
+  } catch (err) {
+    console.error("Attendance fetch failed", err);
+    setAttendanceData(null);
+  }
+};
+
 useEffect(() => {
-  if (!employees.length) return;
-  fetchDaywise();
-}, [employees, fromDate, toDate, plantId]);
+  fetchAttendance();
+}, [plantId, fromDate, toDate]);
 
   /* ---------------- KPI CALCULATIONS ---------------- */
-  const totalEmployees = employees.length;
-  const totalPresent = daywiseData.reduce((a, b) => a + b.presentUnits, 0);
-  const noOfDays = daywiseData.length || 1;
-  const totalAbsent = totalEmployees * noOfDays - totalPresent;
-  const avgAttendance = Math.round(totalPresent / noOfDays);
+  const totalEmployees =
+ attendanceData?.totalEmployees ?? 0;
+
+const totalPresent =
+ attendanceData?.totalPresentEmployees ?? 0;
+
+const totalAbsent =
+ attendanceData?.totalAbsentEmployees ?? 0;
+
+const avgAttendance = attendanceData?.averageAttendance != null
+  ? Math.floor(Number(attendanceData.averageAttendance) * 10) / 10
+  : 0;
 
   /* ---------------- BAR LABEL ---------------- */
   const BarTopLabel = ({ x, y, width, index }) => {
-    const row = daywiseData[index];
-    if (!row || row.presentUnits <= 0) return null;
+    const row = attendanceData?.days?.[index];
+    if (!row || row.presentEmployees <= 0) return null;
 
     return (
       <text
@@ -206,7 +233,7 @@ useEffect(() => {
         fontSize={13}
         fontWeight={800}
       >
-        {row.presentUnits} / {row.totalEmployees}
+        {row.presentEmployees} / {attendanceData.totalEmployees}
       </text>
     );
   };
@@ -215,10 +242,16 @@ useEffect(() => {
   const BAR_WIDTH = 45;
   const SCROLL_THRESHOLD = 20;
 
-  const needsScroll = daywiseData.length > SCROLL_THRESHOLD;
-  const chartWidth = needsScroll
-    ? daywiseData.length * BAR_WIDTH
-    : "100%";
+  const totalDays = attendanceData?.days?.length ?? 0;
+
+const needsScroll = totalDays > SCROLL_THRESHOLD;
+
+const chartWidth = needsScroll
+  ? totalDays * BAR_WIDTH
+  : "100%";
+  // const chartWidth = needsScroll
+  //   ? attendanceData?.days?.length || 0 * BAR_WIDTH
+  //   : "100%";
 
   // =====================================================================
   return (
@@ -231,7 +264,9 @@ useEffect(() => {
       </button>
 
     <h2 className="text-2xl font-bold text-blue-900 text-center mb-4 tracking-wide">
-  Attendance – {plant?.plantName ?? "Loading..."} (PID: {plantId} – KLD: {plant?.kld ?? "-"})
+  Attendance –
+{attendanceData?.plantName ?? "Loading..."}
+(PID: {plantId} – KLD: {attendanceData?.kld ?? "-"})
 </h2>
 
 
@@ -272,7 +307,7 @@ useEffect(() => {
             className="border p-2 rounded w-full"
           />
           <button
-            onClick={fetchDaywise}
+           onClick={fetchAttendance}
             className="bg-blue-700 text-white py-2 rounded font-semibold w-full"
           >
             GET
@@ -286,7 +321,7 @@ useEffect(() => {
           <div style={{ width: chartWidth, height: 420 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={daywiseData}
+                data={attendanceData?.days || []}
                 margin={{ top: 40, right: 30, left: 60, bottom: 90 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
@@ -319,7 +354,7 @@ useEffect(() => {
 
                 <Tooltip content={<CustomTooltip />} />
 
-                <Bar dataKey="presentUnits" fill="#032d7cff" barSize={30}>
+                <Bar dataKey="presentEmployees" fill="#032d7cff" barSize={30}>
                   <LabelList content={BarTopLabel} />
                 </Bar>
                 

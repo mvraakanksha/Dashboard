@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 // import companyLogo from '../reports/company_logo.png';
-import companyLogo from '../reports/company_logo1.jpg';
+import companyLogo from '../../reports/company_logo1.jpg';
 
 // import logo from '../reports/logo.png';
-import logo from '../reports/logo1.jpg';
+import logo from '../../reports/logo1.jpg';
 
 // Constants (replace with your actual API endpoints or environment variables)
-import { getAllPlants } from '../../services/plantService'
-import { getOperationsByDate } from "../../services/operationService";
+import { getAllPlants } from '../../../services/plantService'
+import { getOperationsByDate } from "../../../services/operationService";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 
@@ -63,6 +63,7 @@ const getOpField = (op, ...keys) => {
 };
 let cachedCompanyLogo = null;
 let cachedMainLogo = null;
+
 const formatDateDDMMYYYY = (dateStr) => {
   if (!dateStr) return "";
 
@@ -79,7 +80,10 @@ const DailyReportPage = () => {
     const [plantMaster, setPlantMaster] = useState({});
     const [notice, setNotice] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [phaseFilter, setPhaseFilter] = useState("All");
 
+const [zoneFilter, setZoneFilter] = useState("All");
+const [plants, setPlants] = useState([]);
 const formattedDate = formatDateDDMMYYYY(selectedDate);
     // --- Data Processing Logic ---
     const extractRow = useCallback((item) => {
@@ -138,26 +142,33 @@ const formattedDate = formatDateDDMMYYYY(selectedDate);
   return map;
 }, [reportData]);
 
-
 const processedData = Object.entries(plantMaster)
+.filter(([plantId, meta]) => {
+  const zoneMatch =
+    zoneFilter === "All" ||
+    String(meta.zone) === String(zoneFilter);
+
+  const phaseMatch =
+    phaseFilter === "All" ||
+    String(meta.phase) === String(phaseFilter);
+
+  return zoneMatch && phaseMatch;
+})
   .map(([plantId, meta]) => {
     const operationItem = operationsByPlantId[plantId];
 
-    // If operation exists → extract real data
     if (operationItem) {
       const r = extractRow(operationItem);
       r.numericPlantId = Number(plantId);
       return r;
     }
 
-    // ❗ No operation → create EMPTY row for plant
     return {
       plantId,
       numericPlantId: Number(plantId),
       district: meta.district || "-",
       plantName: meta.name || "-",
       kld: meta.kld || "-",
-
       beforeSTL: null,
       sludgeReceived: null,
       sludgeProcessed: null,
@@ -190,13 +201,10 @@ const processedData = Object.entries(plantMaster)
         totalRunHrs: 0,
         totalBiochar: 0,
     });
-
-
-    
+   
     // --- Fetching Logic ---
-
-    // 1. Fetch Plant Master Data on mount
-  useEffect(() => {
+// 1. Fetch Plant Master Data on mount
+useEffect(() => {
   const fetchPlantMaster = async () => {
     try {
       const list = await getAllPlants();
@@ -204,55 +212,35 @@ const processedData = Object.entries(plantMaster)
 
       const newPlantMap = {};
 
-      list.forEach(item => {
-        // keep original permanent power check
-        const permanent =
-          item.permanentPower !== undefined
-            ? item.permanentPower
-            : item.permanent_power !== undefined
-            ? item.permanent_power
-            : null;
+list.forEach((item) => {
 
-        if (permanent !== true) return;
+  // ✅ show plants only if BOTH are completed
+  if (!(item.permanentPower && item.mnit)) return;
 
-        const id = getBest(
-          item.plantID,
-          item.plantId,
-          item.id,
-          item.plant_id
-        );
+  // completion dates must exist
+  if (!item.permanentPowerDateOfCompletion || !item.mnitDateOfCompletion) return;
 
-        if (id === null || id === undefined) return;
+  // selected date must be after both completion dates
+  if (
+    new Date(selectedDate) < new Date(item.permanentPowerDateOfCompletion) ||
+    new Date(selectedDate) < new Date(item.mnitDateOfCompletion)
+  ) return;
 
-        const idStr = String(id);
+  const id = getBest(item.plantID, item.plantId, item.id, item.plant_id);
+  if (id == null) return;
 
-        newPlantMap[idStr] = {
-          name: String(
-            getBest(
-              item.plantName,
-              item.name,
-              item.plant_name,
-              item.plant
-            ) || ""
-          ),
-          district: String(
-            getBest(
-              item.district,
-              item.stateCode,
-              item.District
-            ) || ""
-          ),
-          kld: String(
-            getBest(
-              item.kld,
-              item.KLD
-            ) || ""
-          )
-        };
-      });
+  const idStr = String(id);
 
+newPlantMap[idStr] = {
+  name: String(getBest(item.plantName, item.name, item.plant_name, item.plant) || ""),
+  district: String(getBest(item.district, item.stateCode, item.District) || ""),
+  kld: String(getBest(item.kld, item.KLD) || ""),
+  zone: String(getBest(item.zone, item.zones, item.Zone) || ""),
+  phase: String(getBest(item.plantPhase, item.phase, item.plant_phase) || "")
+};
+});
       setPlantMaster(newPlantMap);
-     
+
     } catch (err) {
       console.warn("Plant master fetch failed:", err);
       setNotice("Warning: could not fetch plant master.");
@@ -261,7 +249,22 @@ const processedData = Object.entries(plantMaster)
   };
 
   fetchPlantMaster();
-}, []);
+}, [selectedDate]);
+
+const zones = useMemo(() => {
+  return [...new Set(Object.values(plantMaster).map(p => p.zone).filter(Boolean))]
+    .sort((a, b) => Number(a) - Number(b));
+}, [plantMaster]);
+
+const phases = useMemo(() => {
+  return [
+    ...new Set(
+      Object.values(plantMaster)
+        .map((p) => p.phase)
+        .filter((p) => p !== "" && p !== null && p !== undefined)
+    ),
+  ].sort((a, b) => Number(a) - Number(b));
+}, [plantMaster]);
 
 // 2. Fetch Report Data (SERVICE LAYER BASED)
 const fetchReport = useCallback(async () => {
@@ -520,21 +523,35 @@ const headerRow = sheet.addRow([
     "-",
   ]);
 
-  totalRow.eachCell(cell => {
-    cell.font = { bold: true, color: { argb: "FF000000" } };
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFFFFFFF" },
-    };
-    cell.border = {
-      top: { style: "thin" },
-      bottom: { style: "thin" },
-      left: { style: "thin" },
-      right: { style: "thin" },
-    };
-  });
+totalRow.eachCell((cell, colNumber) => {
+  cell.font = {
+    bold: true,
+    color: { argb: "FF000000" },
+  };
+
+  cell.alignment = {
+    horizontal: "center",
+    vertical: "middle",
+  };
+
+  cell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFFFFFF" },
+  };
+
+  cell.border = {
+    top: { style: "thin" },
+    bottom: { style: "thin" },
+    left: { style: "thin" },
+    right: { style: "thin" },
+  };
+
+  // ✅ Apply Indian comma format to numeric total columns
+  if (colNumber >= 5 && colNumber <= 10) {
+    cell.numFmt = "#,##,##0";
+  }
+});
 
   sheet.mergeCells(
     totalRow.number,
@@ -604,52 +621,6 @@ const imageToBase64Compressed = (image, quality = 0.6, maxWidth = 800) => {
   });
 };
 
-// const drawFirstPageHeader = (
-//   doc,
-//   companyLogoBase64,
-//   logoBase64,
-//   reportDate,
-//   fetchedAt
-// ) => {
-//   const pageWidth = doc.internal.pageSize.getWidth();
-
-//   /* ===== LEFT: COMPANY LOGO ===== */
-// doc.addImage(companyLogoBase64, "JPEG", 15, 6, 20, 15);
-
-
-//   /* ===== CENTER: MAIN LOGO ===== */
-//   const centerLogoWidth = 90;
-//   const centerLogoHeight = 26;
-
-//   doc.addImage(
-//     logoBase64,
-//      "JPEG",
-//     pageWidth / 2 - centerLogoWidth / 2,
-//     6,
-//     centerLogoWidth,
-//     centerLogoHeight
-//   );
-
-//   /* ===== RIGHT: TEXT ===== */
-//   doc.setFont("times", "bold");
-//   doc.setFontSize(11);
-//   doc.setTextColor(0);
-//   doc.text(
-//     "DAILY PLANT OPERATIONS REPORT",
-//     pageWidth - 10,
-//     14,
-//     { align: "right" }
-//   );
-
-//   doc.setFont("times", "normal");
-//   doc.setFontSize(8);
-//   doc.text(`Report Date: ${reportDate}`, pageWidth - 10, 19, { align: "right" });
-//   doc.text(`Generated: ${fetchedAt}`, pageWidth - 10, 24, { align: "right" });
-
-//   /* ===== SEPARATOR ===== */
-//   doc.setLineWidth(0.4);
-//   doc.line(10, 32, pageWidth - 10, 32);
-// };
 
 const downloadPdf = async () => {
   if (!processedData.length) return alert("No data");
@@ -729,112 +700,152 @@ const downloadPdf = async () => {
 
     doc.text(`FSTP Daily Operation Report -  ${reportDate}`, tableCenterX, 24, { align: "center" });
   
-    // Report Date → table end
-  // doc.setFont("times", "normal");
-  // doc.setFontSize(8);
-  // doc.text(
-  //   `Report Date: ${reportDate}`,
-  //   tableEndX,
-  //   14,
-  //   { align: "right" }
-  // );
 
   /* =====================================================
      TABLE
   ===================================================== */
-  autoTable(doc, {
-      startY: 26,
-  theme: "grid",
+const ROWS_PER_PAGE = 40;
 
-  margin: {
-    left: SIDE_MARGIN,
-    right: SIDE_MARGIN,
-    top: 8,
-    bottom: 8,
-  },
+const headDef = [[
+  "S.No",
+  "ID / KLD",
+  "District",
+  "Plant name",
+  "Opening\nSTL (L)",
+  "Sludge\nReceived (L)",
+  "Sludge\nProcessed (L)",
+  "Closing\nSTL (L)",
+  "Plant run\nhrs",
+  "Biochar\nquantity (kgs)",
+  "Power\n(Kwh)",
+  "Remarks",
+]];
 
-  tableWidth: "auto",
+const bodyRows = processedData.map((r, i) => [
+  i + 1,
+  `${r.plantId || r.numericPlantId || "-"}${r.kld ? " / " + r.kld : ""}`,
+  r.district || "-",
+  r.plantName || "-",
+  formatNumberNice(r.beforeSTL),
+  formatNumberNice(r.sludgeReceived),
+  formatNumberNice(r.sludgeProcessed),
+  formatNumberNice(r.afterSTL),
+  r.plantRunHrs ?? "-",
+  formatNumberNice(r.biocharProduced),
+  formatNumberNice(r.power),
+  r.remarks || "-",
+]);
 
-  styles: {
-    font: "times",
-    fontSize: 5,
-    cellPadding: 0.25,
-    halign: "center",
-    valign: "middle",
+const footDef = [[
+  "TOTAL",
+  "",
+  "",
+  "",
+  formatNumberNice(totals.totalBefore),
+  formatNumberNice(totals.totalReceived),
+  formatNumberNice(totals.totalProcessed),
+  formatNumberNice(totals.totalAfter),
+  formatNumberNice(totals.totalRunHrs),
+  formatNumberNice(totals.totalBiochar),
+  "-",
+  "-",
+]];
 
-    lineWidth: 0.2,          // 🔥 THICK INNER GRID
-    lineColor: [0, 0, 0],    // solid black
-    textColor: [0, 0, 0],
-  },
+const chunks = [];
 
-  headStyles: {
-    fontStyle: "bold",
-    lineWidth: 0.2,          // 🔥 EXTRA THICK HEADER
-    fillColor: [255, 255, 255],
-    textColor: [0, 0, 0],
-  },
+for (let i = 0; i < bodyRows.length; i += ROWS_PER_PAGE) {
+    chunks.push(bodyRows.slice(i, i + ROWS_PER_PAGE));
+}
 
-  bodyStyles: {
-    lineWidth: 0.2,          // 🔥 BODY GRID
-  },
+if (!chunks.length) chunks.push([]);
+ 
+const pageHeight = doc.internal.pageSize.getHeight();
 
-  footStyles: {
-    fontStyle: "bold",
-    lineWidth: 0.2,          // 🔥 EXTRA THICK FOOTER
-    fillColor: [255, 255, 255],
-    textColor: [0, 0, 0],
-  },
+const referenceStartY = 26;
 
-columnStyles: {
-  11: {
-    halign: "center",   // ✅ center text horizontally
-    valign: "middle",  // ✅ center vertically
-  },
-},
+const BOTTOM_MARGIN = 8;
 
-    head: [[
-      "S.No",
-      "ID / KLD",
-      "District",
-      "Plant name",
-      "Opening\nSTL (L)",
-      "Sludge\nReceived (L)",
-      "Sludge\nProcessed (L)",
-      "Closing\nSTL (L)",
-      "Plant run\nhrs",
-      "Biochar\nquantity (kgs)",
-      "Power\n(Kwh)",
-      "Remarks",
-    ]],
+const HEAD_HEIGHT = 8;
 
-    body: processedData.map((r, i) => [
-      i + 1,
-      `${r.plantId || r.numericPlantId || "-"}${r.kld ? " / " + r.kld : ""}`,
-      r.district || "-",
-      r.plantName || "-",
-      formatNumberNice(r.beforeSTL),
-      formatNumberNice(r.sludgeReceived),
-      formatNumberNice(r.sludgeProcessed),
-      formatNumberNice(r.afterSTL),
-      r.plantRunHrs ?? "-",
-      formatNumberNice(r.biocharProduced),
-      formatNumberNice(r.power),
-      r.remarks || "-",
-    ]),
+const FOOT_HEIGHT = 6;
 
-    foot: [[
-      "TOTAL", "", "", "",
-      formatNumberNice(totals.totalBefore),
-      formatNumberNice(totals.totalReceived),
-      formatNumberNice(totals.totalProcessed),
-      formatNumberNice(totals.totalAfter),
-      formatNumberNice(totals.totalRunHrs),
-      formatNumberNice(totals.totalBiochar),
-      "-",
-      "-",
-    ]],
-  });
+const SAFETY_BUFFER = 2;
 
+const availableHeight =
+    pageHeight -
+    referenceStartY -
+    BOTTOM_MARGIN -
+    FOOT_HEIGHT -
+    HEAD_HEIGHT -
+    SAFETY_BUFFER;
+
+const UNIFORM_ROW_HEIGHT =
+    availableHeight / ROWS_PER_PAGE;
+
+    chunks.forEach((chunkRows, index) => {
+
+    if (index > 0) {
+        doc.addPage();
+    }
+
+    autoTable(doc, {
+
+        startY: index === 0 ? 26 : 10,
+
+        theme: "grid",
+
+        margin: {
+            left: SIDE_MARGIN,
+            right: SIDE_MARGIN,
+            bottom: 8,
+        },
+
+        tableWidth: "auto",
+
+        styles: {
+            font: "times",
+            fontSize: 5,
+            cellPadding: 0.25,
+            halign: "center",
+            valign: "middle",
+            lineWidth: 0.2,
+            lineColor: [0, 0, 0],
+            textColor: [0, 0, 0],
+
+            minCellHeight: UNIFORM_ROW_HEIGHT,
+        },
+
+        headStyles: {
+            fontStyle: "bold",
+            fillColor: [255,255,255],
+            textColor: [0,0,0],
+        },
+
+        footStyles: {
+            fontStyle: "bold",
+            fillColor: [255,255,255],
+            textColor: [0,0,0],
+        },
+
+        columnStyles: {
+            11: {
+                halign: "center",
+                valign: "middle",
+            },
+        },
+
+        head: headDef,
+
+        body: chunkRows,
+
+        foot: index === chunks.length - 1 ? footDef : undefined,
+
+        pageBreak: "avoid",
+
+        rowPageBreak: "avoid",
+    });
+
+});
   /* =====================================================
      SAVE
   ===================================================== */
@@ -982,7 +993,31 @@ Power<br />(Kwh)</th>
                 {/* Card and Controls */}
                 <div className="bg-white p-3 shadow">
                    <div className="flex flex-wrap gap-2 mb-2 print:hidden no-print">
+                        <select
+  value={zoneFilter}
+  onChange={(e) => setZoneFilter(e.target.value)}
+  className="p-2 border border-gray-300 rounded-md"
+>
+  <option value="All">All Zones</option>
+  {zones.map(z => (
+    <option key={z} value={z}>
+      Zone {z}
+    </option>
+  ))}
+</select>
+                       <select
+  value={phaseFilter}
+  onChange={(e) => setPhaseFilter(e.target.value)}
+  className="p-2 border border-gray-300 rounded-md"
+>
+  <option value="All">All Phases</option>
 
+  {phases.map((phase) => (
+    <option key={phase} value={phase}>
+      Phase {phase}
+    </option>
+  ))}
+</select>
                         <input
                             id="dateInput"
                             type="date"
@@ -991,6 +1026,7 @@ Power<br />(Kwh)</th>
                             onChange={(e) => setSelectedDate(e.target.value)}
                             className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#b31818]"
                         />
+ 
                         <button
                             id="loadBtn"
                             className="bg-[#b31818] text-white px-3 py-2 rounded-md cursor-pointer hover:bg-red-700 disabled:opacity-50"

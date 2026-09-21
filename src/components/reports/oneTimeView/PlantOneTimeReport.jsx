@@ -3,10 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { X, Download } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import logo from '../reports/company_logo.png';
-import { getPlantById } from "../../services/plantService";
-import { getVehiclesByPlant } from "../../services/vehicleService";
-import { getEmployeesByPlant } from "../../services/employeeService";
+import logo from '../../reports/company_logo.png'
+import { getPlantById } from "../../../services/plantService";
+import { getVehiclesByPlant } from "../../../services/vehicleService";
+import { getEmployeesByPlant } from "../../../services/employeeService";
 
 /* ================= INFO ROW ================= */
 const InfoRow = ({ label, value }) => (

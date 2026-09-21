@@ -24,3 +24,40 @@
   color: #1e3a8a !important;
 }
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* custom utilities */
+/* .scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+} */
+ /* Horizontal scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 6px; /* thickness */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #ffffff; /* slate-400 */
+  border-radius: 999px; /* 🔥 fully rounded */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ffffff; /* slate-500 */
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff transparent;
+}

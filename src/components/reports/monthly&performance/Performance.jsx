@@ -9,15 +9,15 @@ import {
   ResponsiveContainer,
   LabelList
 } from "recharts";
-import MonthlyReportPage from "./MonthlyReportPage";
 
 import autoTable from "jspdf-autotable";
-
-import { getOperationsByDateRange } from "../../services/operationService";
-import { getAllPlants } from "../../services/plantService";
-
+import PerformanceSingle from "./PerformanceSingle";
+import { getOperationsByDateRange } from "../../../services/operationService";
+import { getAllPlants } from "../../../services/plantService";
+import ExcelJS from "exceljs";
+import { addMonthlyReportSheet, addTop10Sheet, addZeroSheet } from './excelReportBuilder';
 import jsPDF from "jspdf";
-import companyLogo from '../../components/reports/company_logo1.jpg'
+import companyLogo from '../../reports/company_logo1.jpg'
 
 import { addMonthlyReportToPdf } from "./monthlyPdfBuilder";
 
@@ -93,7 +93,7 @@ const BarValueLabel = ({ x, y, width, value }) => {
   );
 };
 
-const addTextHeaderOnly = (doc, pageWidth, zone) => {
+const addTextHeaderOnly = (doc, pageWidth, zone, fromDate, toDate) => {
   doc.setFont("Times", "bold");
   doc.setFontSize(18);
   doc.setTextColor(179, 24, 24);
@@ -107,8 +107,19 @@ const addTextHeaderOnly = (doc, pageWidth, zone) => {
     22,
     { align: "center" }
   );
-};
 
+  // 🔹 ADD DATE RANGE (only if provided)
+  if (fromDate && toDate) {
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+    doc.text(
+      `${formatDisplayDate(fromDate)} - ${formatDisplayDate(toDate)}`,
+      pageWidth / 2,
+      26,
+      { align: "center" }
+    );
+  }
+};
 /* ================= SIMPLE TABLE ================= */
 const SimpleTable = ({ metric, data }) => (
   <table className="w-full border-collapse text-sm">
@@ -208,7 +219,9 @@ const Section = ({ title, metric, data, chartRef }) => (
         bg-white rounded-xl shadow p-4
       "
     >
-      <h4 className="font-bold text-blue-900 mb-3">{title}</h4>
+     <h4 className="font-bold text-blue-900 mb-3 pl-8">
+  {title} - Graphical View
+</h4>
 
       <div className="w-full h-[320px] sm:h-[380px] md:h-[420px]">
         <div
@@ -295,8 +308,18 @@ const formatMonthYear = (dateStr) => {
     year: "numeric",
   });
 };
-
-
+const formatDisplayDate = (date) => {
+  return new Date(date).toLocaleDateString("en-GB"); // 01-04-2026
+};
+const KLD_OPTIONS = [
+  "All",
+  "≤ 5",
+  "≤ 10",
+  "≤ 15",
+  "≤ 20",
+  "≤ 25",
+  "≤ 35"
+];
 /* ================= MAIN ================= */
 export default function Performance() {
   // const [mode, setMode] = useState("top10"); // top10 | zero
@@ -306,9 +329,11 @@ const [toDate, setToDate] = useState(TODAY);
 const [includeMonthly, setIncludeMonthly] = useState(false);
 
   const [zone, setZone] = useState("All");
-
+  const [phase, setPhase] = useState("All");
+const [selectedKlds, setSelectedKlds] = useState([]);
   const [plants, setPlants] = useState([]);
   const [zones, setZones] = useState([]);
+  const [phases, setPhases] = useState([]);
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -316,7 +341,7 @@ const [includeMonthly, setIncludeMonthly] = useState(false);
 
 const receivedChartRef = useRef(null);
 const processedChartRef = useRef(null);
-
+const [viewMode, setViewMode] = useState("overall"); // overall | single
 
 
 const monthYearLabel = formatMonthYear(fromDate);
@@ -327,10 +352,23 @@ useEffect(() => {
     setPlants(plantsData);
     
 const sortedZones = [
-  ...new Set(plantsData.map(p => p.zones))
+  ...new Set(
+    plantsData
+      .map((p) => p.zones)
+      .filter((z) => z != null)
+  ),
 ].sort((a, b) => Number(a) - Number(b));
 
-    setZones(sortedZones);
+const sortedPhases = [
+  ...new Set(
+    plantsData
+      .map((p) => p.plantPhase)
+      .filter((p) => p != null)
+  ),
+].sort((a, b) => Number(a) - Number(b));
+
+setZones(sortedZones);
+setPhases(sortedPhases); 
   });
 }, []);
 
@@ -343,11 +381,51 @@ const sortedZones = [
       .finally(() => setLoading(false));
   }, [fromDate, toDate, zone]);
 
-  /* ================= DATA ================= */
-  const visiblePlants = useMemo(() => {
-    if (zone === "All") return plants;
-    return plants.filter(p => String(p.zones) === String(zone));
-  }, [plants, zone]);
+const kldOptions = useMemo(() => {
+  return [...new Set(plants.map(p => Number(p.kld)).filter(Boolean))]
+    .sort((a, b) => a - b);
+}, [plants]);
+const toggleKld = (kld) => {
+  setSelectedKlds(prev =>
+    prev.includes(kld)
+      ? prev.filter(v => v !== kld)
+      : [...prev, kld]
+  );
+};
+const visiblePlants = useMemo(() => {
+  let filtered = plants;
+
+  // ✅ ONLY MNIT COMPLETED
+  filtered = filtered.filter(
+    p =>
+      p.mnit === true &&
+      p.mnitDateOfCompletion
+  );
+
+  // Zone filter
+// Zone filter
+if (zone !== "All") {
+  filtered = filtered.filter(
+    (p) => String(p.zones) === String(zone)
+  );
+}
+
+// Phase filter
+if (phase !== "All") {
+  filtered = filtered.filter(
+    (p) => String(p.plantPhase) === String(phase)
+  );
+}
+
+// KLD filter
+if (selectedKlds.length > 0) {
+  filtered = filtered.filter((p) =>
+    selectedKlds.includes(Number(p.kld))
+  );
+}
+
+return filtered;
+}, [plants, zone, phase, selectedKlds]);
 
   const aggregated = useMemo(() => {
     const map = {};
@@ -427,8 +505,15 @@ const drawTop10Section = async ({
   doc.setFont("times", "bold");
   doc.setFontSize(12);
   doc.setTextColor(30, 64, 175);
-  doc.text(title, PAGE_MARGIN_X, startY - 4);
+// 🔹 TABLE TITLE (LEFT)
+doc.setFont("times", "bold");
+doc.setFontSize(12);
+doc.setTextColor(30, 64, 175);
 
+doc.text(title, TABLE_X, startY - 4);
+
+// 🔹 GRAPH TITLE (RIGHT)
+doc.text(`${title} - Graphical View`, GRAPH_X + 5, startY - 4);
   // ✅ GRAPH ON RIGHT
   const chartImg = await svgToImage(chartRef.current);
 
@@ -544,20 +629,17 @@ const downloadPdf = async () => {
 
   /* ========= PAGE 1 ========= */
 if (includeMonthly) {
-  // Monthly page → full header handled internally
-  await addMonthlyReportToPdf({
-    doc,
-    month: fromDate.slice(0, 7),
-    logos: { company: cachedCompanyLogo },
-  });
+await addMonthlyReportToPdf({
+  doc,
+  month: fromDate.slice(0, 7),
+  logos: { company: cachedCompanyLogo },
+  zoneFilter: zone,
+  phaseFilter: phase,
+});
 } else {
-  // ✅ Text header only
-  addTextHeaderOnly(doc, pageWidth, zone);
-
-  // ✅ Small logo only
+  addTextHeaderOnly(doc, pageWidth, zone, fromDate, toDate);
   addSmallLogo(doc, cachedCompanyLogo);
 }
-
 
 
   /* ========= PAGE 2 : TOP 10 ========= */
@@ -613,7 +695,23 @@ if (includeMonthly) {
   doc.setFont("times", "bold");
   doc.setFontSize(14);
   doc.setTextColor(30, 64, 175);
-  doc.text("Zero Sludge Received Plants", PAGE_MARGIN_X, 32);
+const zeroTitle = "Zero Sludge Received Plants";
+const dateText = `${formatDisplayDate(fromDate)} - ${formatDisplayDate(toDate)}`;
+
+// 🔹 LEFT TITLE
+doc.text(zeroTitle, PAGE_MARGIN_X, 32);
+
+// 🔹 RIGHT DATE (same line)
+doc.setFont("times", "normal");
+doc.setFontSize(10);
+doc.setTextColor(80);
+
+doc.text(
+  dateText,
+  pageWidth - PAGE_MARGIN_X,
+  32,
+  { align: "right" }
+);
 
 autoTable(doc, {
   startY: 40,
@@ -659,89 +757,208 @@ autoTable(doc, {
   doc.save(`Monthly Report_${monthYearLabel}.pdf`);
 };
 
+const downloadExcel = async () => {
+  if (!cachedCompanyLogo) {
+    cachedCompanyLogo = await loadImage(companyLogo);
+  }
 
+  // Reuse the exact same chart images used in the PDF
+  const receivedImage = await svgToImage(receivedChartRef.current);
+  const processedImage = await svgToImage(processedChartRef.current);
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "MVR Technology";
+  workbook.created = new Date();
+
+  // Sheet order mirrors the PDF page order
+  if (includeMonthly) {
+    await addMonthlyReportSheet(workbook, {
+      month: fromDate.slice(0, 7),
+      zoneFilter: zone,
+      phaseFilter: phase,
+      logoBase64: cachedCompanyLogo,
+    });
+  }
+
+  addTop10Sheet(workbook, {
+    receivedData,
+    processedData,
+    receivedImage,
+    processedImage,
+    fromDate,
+    toDate,
+    zone,
+    logoBase64: cachedCompanyLogo,
+  });
+
+  addZeroSheet(workbook, {
+    zeroSludgePlants,
+    fromDate,
+    toDate,
+    zone,
+    logoBase64: cachedCompanyLogo,
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Monthly Report_${monthYearLabel}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
 
 
   /* ================= UI ================= */
-  return (
-    <div className="space-y-6">
+return (
+  <div className="space-y-6">
 
-      {/* FILTER */}
-      <div className="bg-white rounded-xl shadow p-4 flex flex-wrap gap-4">
-        <DateInput label="From" value={fromDate} onChange={setFromDate} />
-        <DateInput label="To" value={toDate} onChange={setToDate} min={fromDate} />
+    {/* 🔹 TOGGLE BUTTONS */}
+    <div className="flex gap-3 mb-4">
+      <button
+        onClick={() => setViewMode("overall")}
+        className={`px-4 py-1 rounded font-bold text-sm ${
+          viewMode === "overall"
+            ? "bg-blue-600 text-white"
+            : "bg-gray-200 text-gray-700"
+        }`}
+      >
+        All Plants
+      </button>
 
-        <Select
-          label="Zone"
-          value={zone}
-          onChange={setZone}
-          options={["All", ...zones]}
-        />
-
-      <label className="flex items-center gap-2 text-xs font-bold">
-  <input
-    type="checkbox"
-    checked={includeMonthly}
-    onChange={(e) => setIncludeMonthly(e.target.checked)}
-  />
-  Include Monthly Report in PDF
-</label>
-
-
-        <button
-          onClick={downloadPdf}
-          className="bg-red-600 text-white px-4 py-1 rounded text-xs font-bold hover:bg-red-700"
-        >
-          Download PDF
-        </button>
-      </div>
-
-      {/* CONTENT */}
-<div ref={contentRef} className="pdf-safe space-y-10">
-
-  {/* PAGE 1 CONTENT */}
-  <div className="pdf-page" id="pdf-top10">
-<Section
-  title="Top 10 Plants – Sludge Received (L)"
-  metric={METRICS.received}
-  data={receivedData}
-  chartRef={receivedChartRef}
-/>
-
-<Section
-  title="Top 10 Plants – Sludge Processed (L)"
-  metric={METRICS.processed}
-  data={processedData}
-  chartRef={processedChartRef}
-/>
-
-  </div>
-
-  {/* PAGE 2 CONTENT */}
-<div className="pdf-page" id="pdf-zero">
-  <h2 className="font-bold text-blue-900 mb-3">
-    Zero Sludge Received Plants
-  </h2>
-
- <div className="overflow-x-auto">
-  <ZeroReceivedTable data={zeroSludgePlants} />
-</div>
-
-</div>
-
-
-</div>
-
-
-      {loading && (
-        <p className="text-center font-bold text-slate-500">
-          Loading data...
-        </p>
-      )}
-
-
+      <button
+        onClick={() => setViewMode("single")}
+        className={`px-4 py-1 rounded font-bold text-sm ${
+          viewMode === "single"
+            ? "bg-blue-600 text-white"
+            : "bg-gray-200 text-gray-700"
+        }`}
+      >
+        Single Plant
+      </button>
     </div>
-  );
+
+    {/* 🔹 SWITCH VIEW */}
+    {viewMode === "single" ? (
+      <PerformanceSingle />
+    ) : (
+      <>
+        {/* FILTER */}
+        <div className="bg-white rounded-xl shadow p-4 flex flex-wrap gap-4">
+          <DateInput label="From" value={fromDate} onChange={setFromDate} />
+          <DateInput label="To" value={toDate} onChange={setToDate} min={fromDate} />
+
+<Select
+  label="Zone"
+  value={zone}
+  onChange={setZone}
+  options={["All", ...zones]}
+  formatOption={(o) =>
+    o === "All" ? "All Zones" : `Zone ${o}`
+  }
+/>
+
+<Select
+  label="Phase"
+  value={phase}
+  onChange={setPhase}
+  options={["All", ...phases]}
+  formatOption={(o) =>
+    o === "All" ? "All Phases" : `Phase ${o}`
+  }
+/>
+
+<div>
+  <label className="text-xs font-bold block mb-1">KLD</label>
+
+  <div className="flex flex-wrap gap-2 max-w-[500px]">
+    {kldOptions.map(kld => (
+      <label
+        key={kld}
+        className="flex items-center gap-1 text-xs border px-2 py-1 rounded cursor-pointer"
+      >
+        <input
+          type="checkbox"
+          checked={selectedKlds.includes(kld)}
+          onChange={() => toggleKld(kld)}
+        />
+        {kld} KLD
+      </label>
+    ))}
+  </div>
+</div>
+          <label className="flex items-center gap-2 text-xs font-bold">
+            <input
+              type="checkbox"
+              checked={includeMonthly}
+              onChange={(e) => setIncludeMonthly(e.target.checked)}
+            />
+            Include Monthly Report in PDF
+          </label>
+
+          <button
+            onClick={downloadPdf}
+            className="bg-red-600 text-white px-4 py-1 rounded text-xs font-bold hover:bg-red-700"
+          >
+            Download PDF
+          </button>
+          <button
+  onClick={downloadExcel}
+  className="bg-green-600 text-white px-4 py-1 rounded text-xs font-bold hover:bg-green-700"
+>
+  Download Excel
+</button>
+
+        </div>
+
+        {/* CONTENT */}
+        <div ref={contentRef} className="pdf-safe space-y-10">
+
+          {/* PAGE 1 CONTENT */}
+          <div className="pdf-page" id="pdf-top10">
+            <Section
+              title="Top 10 Plants – Sludge Received (L)"
+              metric={METRICS.received}
+              data={receivedData}
+              chartRef={receivedChartRef}
+            />
+
+            <Section
+              title="Top 10 Plants – Sludge Processed (L)"
+              metric={METRICS.processed}
+              data={processedData}
+              chartRef={processedChartRef}
+            />
+          </div>
+
+          {/* PAGE 2 CONTENT */}
+          <div className="pdf-page" id="pdf-zero">
+            <h2 className="font-bold text-blue-900 mb-3">
+              Zero Sludge Received Plants
+            </h2>
+
+            <div className="overflow-x-auto">
+              <ZeroReceivedTable data={zeroSludgePlants} />
+            </div>
+          </div>
+
+        </div>
+
+        {loading && (
+          <p className="text-center font-bold text-slate-500">
+            Loading data...
+          </p>
+        )}
+      </>
+    )}
+    
+  </div>
+);
 }
 
 /* ================= SMALL ================= */
@@ -759,22 +976,20 @@ const DateInput = ({ label, value, onChange, min }) => (
   </div>
 );
 
-const Select = ({ label, value, onChange, options }) => (
+const Select = ({ label, value, onChange, options, formatOption }) => (
   <div>
     <label className="text-xs font-bold block">{label}</label>
+
     <select
       value={value}
-      onChange={e => onChange(e.target.value)}
+      onChange={(e) => onChange(e.target.value)}
       className="border rounded px-2 py-1"
     >
-      {options.map(o => (
+      {options.map((o) => (
         <option key={o} value={o}>
-          {o === "All" ? "All Zones" : `Zone ${o}`}
+          {formatOption ? formatOption(o) : o}
         </option>
       ))}
     </select>
-
-
   </div>
-
 );

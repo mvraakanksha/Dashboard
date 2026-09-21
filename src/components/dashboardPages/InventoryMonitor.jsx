@@ -142,9 +142,9 @@ export default function InventoryMonitor({ kpis, isDark, cardClass, formatValue 
 
 <InventoryRow
   title="Polymer Usage (kg)"
-  used={kpis.totalPolymerUsed / 1000}
+  used={kpis.totalPolymerUsed}
   stock={kpis.polymerStock}
-  avg={kpis.avgPolymerUsage / 1000}
+  avg={kpis.avgPolymerUsage}
   unit="kg"
   low={kpis.hasLowPolymerStock}
   color="emerald"

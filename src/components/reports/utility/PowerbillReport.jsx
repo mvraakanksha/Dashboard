@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { getAllPlants } from "../../services/plantService";
+import { getAllPlants } from "../../../services/plantService";
 import axios from "axios";
-import { getLatestPowerBill } from '../../services/operationService';
+import { getLatestPowerBill } from '../../../services/operationService';
 
 const PowerBillReport = () => {
   const [rows, setRows] = useState([]);
