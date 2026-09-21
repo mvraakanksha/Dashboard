@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 
 import { getAllPlants } from '../../services/plantService'
 import { getOperationsByDate } from '../../services/operationService'
-
+import { getPowerDashboard,getDashboardSummaryCount, } from "../../services/dashboardService";
 
 
 /* ================= BAR TOP VALUE ================= */
@@ -144,8 +144,9 @@ export default function Power({ date, zone, selectedPlants = [], }) {
 
   const [plants, setPlants] = useState([]);
   const [operations, setOperations] = useState([]);
-
-const [sortBy, setSortBy] = useState(); 
+const [powerSummary, setPowerSummary] = useState(null);
+const [summary, setSummary] = useState(null);
+const [sortBy, setSortBy] = useState("import");
 
 useEffect(() => {
   const loadPlants = async () => {
@@ -177,6 +178,48 @@ useEffect(() => {
 
   loadOperations();
 }, [date]);
+
+useEffect(() => {
+  if (!date) return;
+
+  const loadSummary = async () => {
+    try {
+      const data = await getDashboardSummaryCount({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
+
+      setSummary(data || {});
+    } catch (err) {
+      console.error(err);
+      setSummary(null);
+    }
+  };
+
+  loadSummary();
+}, [date, zone, selectedPlants]);
+
+useEffect(() => {
+  if (!date) return;
+
+  const loadPowerSummary = async () => {
+    try {
+      const data = await getPowerDashboard({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
+
+      setPowerSummary(data || {});
+    } catch (err) {
+      console.error("Failed to fetch power summary", err);
+      setPowerSummary(null);
+    }
+  };
+
+  loadPowerSummary();
+}, [date, zone, selectedPlants]);
 
 const theme = {
   blue: {
@@ -276,7 +319,7 @@ const rawChartData = useMemo(() => {
     });
 }, [plants, operations, zone, selectedPlants]);
 
-const totalPlants = rawChartData.length;
+const totalPlants = summary?.totalPlants || 0;
 const chartData = useMemo(() => {
   const data = [...rawChartData];
 
@@ -303,12 +346,30 @@ const chartData = useMemo(() => {
     navigate(`/power-view/${plant.plantId}/${plant.label}`);
   };
 
-  const totalImport = chartData.reduce((s, p) => s + p.importPower, 0);
-  const totalExport = chartData.reduce((s, p) => s + p.exportPower, 0);
-  const avgImport = chartData.length ? totalImport / chartData.length : 0;
-  const avgExport = chartData.length ? totalExport / chartData.length : 0;
-  const totalRunHours = chartData.reduce((s, p) => s + p.runHours, 0);
-  const avgRunHours = chartData.length ? totalRunHours / chartData.length : 0;
+  // const totalImport = chartData.reduce((s, p) => s + p.importPower, 0);
+  // const totalExport = chartData.reduce((s, p) => s + p.exportPower, 0);
+  // const avgImport = chartData.length ? totalImport / chartData.length : 0;
+  // const avgExport = chartData.length ? totalExport / chartData.length : 0;
+  // const totalRunHours = chartData.reduce((s, p) => s + p.runHours, 0);
+  // const avgRunHours = chartData.length ? totalRunHours / chartData.length : 0;
+
+  const totalImport =
+  powerSummary?.powerConsumption || 0;
+
+const totalExport =
+  powerSummary?.solarGenerated || 0;
+
+const avgImport =
+  powerSummary?.avgPowerConsumption || 0;
+
+const avgExport =
+  powerSummary?.avgSolarGenerated || 0;
+
+const totalRunHours =
+  powerSummary?.plantRunHours || 0;
+
+const avgRunHours =
+  powerSummary?.avgRunHours || 0;
   /* ---------------- ENTRY COUNT ---------------- */
 
 const entryCount = useMemo(() => {

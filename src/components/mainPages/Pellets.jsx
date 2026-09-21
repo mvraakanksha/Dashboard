@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { Box } from "lucide-react";
 import { getAllPlants } from "../../services/plantService";
 import { getOperationsByDateRange } from "../../services/operationService";
+import { getInventoryDashboard, getDashboardSummaryCount} from "../../services/dashboardService";
 
 const formatIN = (value, decimals = 1) => {
   if (value === null || value === undefined || isNaN(value)) return "0";
@@ -100,6 +101,8 @@ export default function Pellets({ isDark, date, zone, selectedPlants = [],  }) {
 
   const [plants, setPlants] = useState([]);
   const [ops, setOps] = useState([]);
+  const [inventorySummary, setInventorySummary] = useState(null);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
 const [sortBy, setSortBy] = useState("stock"); // "stock" | "plantId"
 
   const [materialType, setMaterialType] = useState("pellets");
@@ -171,9 +174,47 @@ useEffect(() => {
   loadOps();
 }, [date]);
 
+useEffect(() => {
+  if (!date) return;
 
+  const loadInventorySummary = async () => {
+    try {
+      const data = await getInventoryDashboard({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
 
+      setInventorySummary(data || {});
+    } catch (err) {
+      console.error("Failed to fetch inventory summary", err);
+      setInventorySummary(null);
+    }
+  };
 
+  loadInventorySummary();
+}, [date, zone, selectedPlants]);
+
+useEffect(() => {
+  if (!date) return;
+
+  const loadDashboardSummary = async () => {
+    try {
+      const data = await getDashboardSummaryCount({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
+
+      setDashboardSummary(data || {});
+    } catch (err) {
+      console.error("Failed to fetch dashboard summary", err);
+      setDashboardSummary(null);
+    }
+  };
+
+  loadDashboardSummary();
+}, [date, zone, selectedPlants]);
 
 const lastStockMap = useMemo(() => {
   const map = {};
@@ -364,33 +405,23 @@ const sortedChartData = useMemo(() => {
 /* ---------------- METRICS ---------------- */
 
 // USED
-const totalPelletsUsed = chartData.reduce(
-  (s, p) => s + p.pelletsUsed,
-  0
-);
+const totalPelletsUsed =
+  inventorySummary?.pelletsUsed || 0;
 
-const totalPolymerUsed = chartData.reduce(
-  (s, p) => s + p.polymerUsed,
-  0
-);
+const totalPelletsStock =
+  inventorySummary?.pelletsStock || 0;
 
-// STOCK (last entered, summed)
-const totalPelletsStock = chartData.reduce(
-  (s, p) => s + (p.pelletsStock !== null ? p.pelletsStock : 0),
-  0
-);
-
-const totalPolymerStock = chartData.reduce(
-  (s, p) => s + (p.polymerStock !== null ? p.polymerStock : 0),
-  0
-);
-
-// AVERAGE USED
 const avgPellets =
-  chartData.length > 0 ? totalPelletsUsed / chartData.length : 0;
+  inventorySummary?.avgPelletsPerPlant || 0;
+
+const totalPolymerUsed =
+  (inventorySummary?.polymerUsed || 0) * 1000;
+
+const totalPolymerStock =
+  inventorySummary?.polymerStock || 0;
 
 const avgPolymer =
-  chartData.length > 0 ? totalPolymerUsed / chartData.length : 0;
+  (inventorySummary?.avgPolymerPerPlant || 0) * 1000;
 
 
 const selectedKey = useMemo(() => {
@@ -552,7 +583,7 @@ const KPICard = ({ label, value, unit, theme, icon, isDark }) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
   <KPICard
     label="Total Plants"
-    value={chartData.length}
+    value={dashboardSummary?.totalPlants || 0}
     theme={theme.blue}
     icon={<Box />}
     isDark={isDark}

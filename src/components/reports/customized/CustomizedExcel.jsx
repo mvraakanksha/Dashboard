@@ -287,129 +287,172 @@ const excelSideTotalMetrics = metrics
     return true;
   });
   
+
   /* =====================================================
-        SINGLE PLANT
-     ===================================================== */
-  if (isSinglePlant) {
-    const header = [
-      "S.No",
-      "Plant ID",
-      "Plant Name",
-      "KLD",
-      "Date",
-      ...nonVehicleMetrics.map(m => m.label),
-      ...(isVehicleEnabled ? ["Vehicle No"] : []),
-      ...(showVehicleOdometer ? ["Odometer AM", "Odometer PM"] : []),
-      ...(showVehicleDistance ? ["Distance"] : []),
-      ...(showVehicleTrips ? ["Trips"] : [])
-    ];
+  SINGLE PLANT
+===================================================== */
+if (isSinglePlant) {
+  const header = [
+    "S.No",
+    "Plant ID",
+    "Plant Name",
+    "KLD",
+    "Date",
+    ...nonVehicleMetrics.map((m) => m.label),
+    ...(isVehicleEnabled ? ["Vehicle No"] : []),
+    ...(showVehicleOdometer ? ["Odometer AM", "Odometer PM"] : []),
+    ...(showVehicleDistance ? ["Distance"] : []),
+    ...(showVehicleTrips ? ["Trips"] : []),
+  ];
 
-    const headerRow = sheet.addRow(header);
-    headerRow.eachCell(c =>
-      applyCellStyle(c, true, {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFB7DEE8" }
-      })
-    );
+  const headerRow = sheet.addRow(header);
 
-    const plantStartRow = sheet.rowCount + 1;
+  headerRow.eachCell((c) =>
+    applyCellStyle(c, true, {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFB7DEE8" },
+    })
+  );
 
-    dates.forEach(date => {
-      const vehicles = singlePlantRow.values?.[date]?.vehicleRows || [{}];
-      const dateStartRow = sheet.rowCount + 1;
+  const plantStartRow = sheet.rowCount + 1;
 
-      vehicles.forEach((v, vIdx) => {
-        const row = [];
+  dates.forEach((date) => {
+    const vehicles = singlePlantRow.values?.[date]?.vehicleRows || [{}];
+    const dateStartRow = sheet.rowCount + 1;
 
-        if (sheet.rowCount === plantStartRow - 1) {
-          row.push(
-            1,
-            singlePlantRow.plant.plantID,
-            singlePlantRow.plant.plantName,
-            singlePlantRow.plant.kld
-          );
-        } else {
-          row.push("", "", "", "");
-        }
+    vehicles.forEach((v, vIdx) => {
+      const row = [];
 
-        if (vIdx === 0) {
-          row.push(formatDisplayDate(date));
-          nonVehicleMetrics.forEach(m =>
-            row.push(formatIndian(singlePlantRow.values?.[date]?.[m.metric]))
-          );
-        } else {
-          row.push("");
-          nonVehicleMetrics.forEach(() => row.push(""));
-        }
+      if (sheet.rowCount === plantStartRow - 1) {
+        row.push(
+          1,
+          singlePlantRow.plant.plantID,
+          singlePlantRow.plant.plantName,
+          singlePlantRow.plant.kld
+        );
+      } else {
+        row.push("", "", "", "");
+      }
 
-        if (isVehicleEnabled) row.push(v.vehicleNo || "-");
-        if (showVehicleOdometer) row.push(v.am ?? "-", v.pm ?? "-");
-        if (showVehicleDistance) row.push(formatIndian(v.distance));
-        if (showVehicleTrips) row.push(formatIndian(v.trips));
+      if (vIdx === 0) {
+        row.push(formatDisplayDate(date));
 
-        const excelRow = sheet.addRow(row);
-        excelRow.eachCell(c => applyCellStyle(c));
-      });
+        nonVehicleMetrics.forEach((m) => {
+          row.push(formatIndian(singlePlantRow.values?.[date]?.[m.metric]));
+        });
+      } else {
+        row.push("");
+        nonVehicleMetrics.forEach(() => row.push(""));
+      }
 
-      const dateEndRow = sheet.rowCount;
-      let col = 5;
+      if (isVehicleEnabled) row.push(v.vehicleNo || "-");
 
+      if (showVehicleOdometer) row.push(v.am ?? "-", v.pm ?? "-");
+
+      if (showVehicleDistance) row.push(formatIndian(v.distance));
+
+      if (showVehicleTrips) row.push(formatIndian(v.trips));
+
+      const excelRow = sheet.addRow(row);
+      excelRow.eachCell((c) => applyCellStyle(c));
+    });
+
+    const dateEndRow = sheet.rowCount;
+    let col = 5;
+
+    if (dateStartRow < dateEndRow) {
       sheet.mergeCells(dateStartRow, col, dateEndRow, col);
-      col++;
+    }
 
-      nonVehicleMetrics.forEach(() => {
+    col++;
+
+    nonVehicleMetrics.forEach(() => {
+      if (dateStartRow < dateEndRow) {
         sheet.mergeCells(dateStartRow, col, dateEndRow, col);
-        col++;
-      });
+      }
+      col++;
     });
+  });
 
-    const plantEndRow = sheet.rowCount;
-    [1, 2, 3, 4].forEach(col =>
-      sheet.mergeCells(plantStartRow, col, plantEndRow, col)
-    );
+  const totalRowLength =
+    5 +
+    nonVehicleMetrics.length +
+    (isVehicleEnabled ? 1 : 0) +
+    (showVehicleOdometer ? 2 : 0) +
+    (showVehicleDistance ? 1 : 0) +
+    (showVehicleTrips ? 1 : 0);
 
-    /* ===== SINGLE PLANT TOTAL ===== */
+  finalTotalRow = Array(totalRowLength).fill("");
 
-    finalTotalRow = ["TOTAL", "", "", "", ""];
+  finalTotalRow[0] = "TOTAL";
 
-    nonVehicleMetrics.forEach(m => {
-      const value = shouldExcludeExcelSingleBottomTotal(m)
-        ? "-"
-        : sumMetricOverall([singlePlantRow], dates, m.metric);
+  let totalColIndex = 5;
 
-      finalTotalRow.push(
-        typeof value === "number" ? formatIndian(value) : "-"
-      );
-    });
+  nonVehicleMetrics.forEach((m) => {
+    const value = shouldExcludeExcelSingleBottomTotal(m)
+      ? "-"
+      : sumMetricOverall([singlePlantRow], dates, m.metric);
 
-    if (isVehicleEnabled) finalTotalRow.push("-");
-    if (showVehicleOdometer) finalTotalRow.push("-", "-");
+    finalTotalRow[totalColIndex] =
+      typeof value === "number" ? formatIndian(value) : "-";
 
-if (showVehicleDistance)
-  finalTotalRow.push(
-    formatIndian(
-      sumSinglePlantVehicleMetricExcel(
-        singlePlantRow,
-        dates,
-        "distance"
-      )
-    )
-  );
+    totalColIndex += 1;
+  });
 
-if (showVehicleTrips)
-  finalTotalRow.push(
-    formatIndian(
-      sumSinglePlantVehicleMetricExcel(
-        singlePlantRow,
-        dates,
-        "trips"
-      )
-    )
-  );
-
+  if (isVehicleEnabled) {
+    finalTotalRow[totalColIndex] = "-";
+    totalColIndex += 1;
   }
 
+  if (showVehicleOdometer) {
+    finalTotalRow[totalColIndex] = "-";
+    finalTotalRow[totalColIndex + 1] = "-";
+    totalColIndex += 2;
+  }
+
+  if (showVehicleDistance) {
+    finalTotalRow[totalColIndex] = formatIndian(
+      sumSinglePlantVehicleMetricExcel(singlePlantRow, dates, "distance")
+    );
+    totalColIndex += 1;
+  }
+
+  if (showVehicleTrips) {
+    finalTotalRow[totalColIndex] = formatIndian(
+      sumSinglePlantVehicleMetricExcel(singlePlantRow, dates, "trips")
+    );
+  }
+
+  const totalExcelRow = sheet.addRow(finalTotalRow);
+
+  totalExcelRow.eachCell((cell, colNumber) => {
+    applyCellStyle(cell, true);
+
+    const value = Number(cell.value);
+    if (!isNaN(value)) {
+      const rounded = Math.round(value * 100) / 100;
+      cell.value = rounded;
+      cell.numFmt = Number.isInteger(rounded)
+        ? "#,##,##0"
+        : "#,##,##0.00";
+    }
+  });
+
+  sheet.mergeCells(totalExcelRow.number, 1, totalExcelRow.number, 4);
+  totalExcelRow.getCell(1).alignment = {
+    horizontal: "center",
+    vertical: "middle",
+  };
+
+  const plantEndRow = totalExcelRow.number - 1;
+
+  [1, 2, 3, 4].forEach((col) => {
+    if (plantStartRow < plantEndRow) {
+      sheet.mergeCells(plantStartRow, col, plantEndRow, col);
+    }
+  });
+}
   /* =====================================================
         MULTI PLANT
      ===================================================== */

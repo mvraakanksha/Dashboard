@@ -19,6 +19,8 @@ import {
 
 import { useNavigate } from "react-router-dom";
 import { getAllPlants } from "../../services/plantService";
+import { getVehicleDashboard,getDashboardSummaryCount, } from "../../services/dashboardService";
+
 import { getVehicleOperationsByDate, getVehiclesByPlant} from "../../services/vehicleService";
 import { getOperationsByDate,getOperationsByDateRange} from "../../services/operationService";
 import { getEmployeesByPlant } from "../../services/employeeService";
@@ -195,6 +197,8 @@ export default function Vehicle({ date, zone, selectedPlants = [], })
 const [vehiclesMap, setVehiclesMap] = useState({});
   const [vehicleSortMode, setVehicleSortMode] = useState("distance");
 const [operationsData, setOperationsData] = useState([]);
+const [summaryCount, setSummaryCount] = useState(null);
+const [vehicleSummary, setVehicleSummary] = useState(null);
 const [employeesMap, setEmployeesMap] = useState({});
 const [pdfFilter, setPdfFilter] = useState("all"); // "all", "expired", "soon", "both"
 
@@ -230,6 +234,49 @@ useEffect(() => {
 
   loadVehicleOps();
 }, [date]);
+
+
+useEffect(() => {
+  if (!date) return;
+
+  const loadSummaryCount = async () => {
+    try {
+      const data = await getDashboardSummaryCount({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
+
+      setSummaryCount(data || {});
+    } catch (err) {
+      console.error("Failed to fetch dashboard summary", err);
+      setSummaryCount(null);
+    }
+  };
+
+  loadSummaryCount();
+}, [date, zone, selectedPlants]);
+
+useEffect(() => {
+  if (!date) return;
+
+  const loadVehicleSummary = async () => {
+    try {
+      const data = await getVehicleDashboard({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
+
+      setVehicleSummary(data || {});
+    } catch (err) {
+      console.error("Failed to fetch vehicle summary", err);
+      setVehicleSummary(null);
+    }
+  };
+
+  loadVehicleSummary();
+}, [date, zone, selectedPlants]);
 
 
 useEffect(() => {
@@ -302,7 +349,7 @@ useEffect(() => {
   loadVehicles();
 }, [filteredPlants]);
 
-const totalPlants = filteredPlants.length;
+const totalPlants = summaryCount?.totalPlants || 0;
 
   const filteredVehicleOps = useMemo(() => {
     const plantIds = new Set(filteredPlants.map((p) => p.plantID));
@@ -421,16 +468,12 @@ const insuranceAlertMap = useMemo(() => {
   }, [filteredPlants, filteredVehicleOps]);
 
   /* ---------------- METRICS ---------------- */
-  const totalDistance = chartData.reduce(
-    (sum, p) => sum + p.bar1 + p.bar2,
-    0
-  );
+const totalDistance =
+  vehicleSummary?.totalDistance || 0;
 
 
-  const totalVehicles = filteredPlants.reduce(
-    (sum, p) => sum + (p.noOfVehicle || 0),
-    0
-  );
+ const totalVehicles =
+  vehicleSummary?.totalVehicles || 0;
 
   const totalDrivers = useMemo(() => {
   let total = 0;
@@ -445,24 +488,11 @@ const insuranceAlertMap = useMemo(() => {
 
   return total;
 }, [employeesMap]);
-  const movedVehicles = useMemo(() => {
-    const set = new Set();
-    filteredVehicleOps.forEach((v) => {
-      const am = v.vehicleOp?.vehicleReadingAm;
-      const pm = v.vehicleOp?.vehicleReadingPm;
-      if (am != null && pm != null && pm - am > 0) {
-        set.add(v.vehicle?.vehicleID);
-      }
-    });
-    return set.size;
-  }, [filteredVehicleOps]);
+const movedVehicles =
+  vehicleSummary?.movedVehicles || 0;
 
-  const totalTrips = useMemo(() => {
-    return filteredVehicleOps.reduce(
-      (sum, v) => sum + (v.vehicleOp?.noOfTrips || 0),
-      0
-    );
-  }, [filteredVehicleOps]);
+const totalTrips =
+  vehicleSummary?.totalTrips || 0;
 
   const totalOwnSludge = useMemo(() => {
   return filteredVehicleOps.reduce(
@@ -487,8 +517,8 @@ const totalPrivateSludge = useMemo(() => {
 
 
 
-  const avgDistance =
-    movedVehicles > 0 ? (totalDistance / movedVehicles).toFixed(1) : "0.0";
+ const avgDistance =
+  vehicleSummary?.avgDistance || 0;
 
   /* ---------------- PLANT MAP ---------------- */
   const plantMap = {};
@@ -742,20 +772,45 @@ items.forEach((text, index) => {
 doc.setDrawColor(0, 0, 0);
 doc.setLineWidth(0.5); 
 
-  Object.entries(group).forEach(([plantId, vehicles]) => {
-    const plant = getPlant(plantId);
+Object.entries(group).forEach(([plantId, vehicles]) => {
+  const plant = getPlant(plantId);
 
-    vehicles.forEach((v, i) => {
-      body.push([
-        i === 0 ? plant?.plantID ?? plantId : "",
-        i === 0 ? plant?.plantName ?? "-" : "",
-        i === 0 ? plant?.zones ?? "-" : "",
-        v.vehicleNumber,
-        v.expiry,
-        v.status
-      ]);
-    });
-  });
+  const totalRows = Math.max(vehicles.length, 1);
+
+  for (let r = 0; r < totalRows; r++) {
+    const row = [];
+
+    if (r === 0) {
+      row.push(
+        {
+          content: String(plant?.plantID ?? plantId),
+          rowSpan: totalRows,
+          styles: { valign: "middle" }
+        },
+        {
+          content: String(plant?.plantName ?? "-"),
+          rowSpan: totalRows,
+          styles: { valign: "middle" }
+        },
+        {
+          content: String(plant?.zones ?? "-"),
+          rowSpan: totalRows,
+          styles: { valign: "middle" }
+        }
+      );
+    }
+
+    const vehicle = vehicles[r];
+
+    row.push(
+      vehicle?.vehicleNumber ?? "-",
+      vehicle?.expiry ?? "-",
+      vehicle?.status ?? "-"
+    );
+
+    body.push(row);
+  }
+});
 
   /* ===== TABLE ===== */
 autoTable(doc, {
@@ -1206,8 +1261,8 @@ return (
           { label: "Total Vehicles", value: totalVehicles, subValue: `Total Drivers : ${totalDrivers}`, icon: <Truck size={18} />, bg: "#DBEAFE", bar: "#2563EB" },
           { label: "Moved Vehicles", value: movedVehicles, icon: <Navigation size={18} />, bg: "#D1FAE5", bar: "#059669" },
           { label: "Own Vehicle Trips", value: totalTrips, subValue: `Sludge collected : ${totalOwnSludge.toLocaleString()} L`, icon: <Milestone size={18} />, bg: "#E0E7FF", bar: "#4F46E5" },
-          { label: "Total Distance", value: Math.round(totalDistance), icon: <Activity size={18} />, bg: "#FFE4E6", bar: "#E11D48" },
-          { label: "Avg Distance", value: Math.round(avgDistance), icon: <Activity size={18} />, bg: "#FEF3C7", bar: "#D97706" },
+          { label: "Total Distance(Km)", value: Math.round(totalDistance), icon: <Activity size={18} />, bg: "#FFE4E6", bar: "#E11D48" },
+          { label: "Avg Distance(Km)", value: Math.round(avgDistance), icon: <Activity size={18} />, bg: "#FEF3C7", bar: "#D97706" },
           { label: "Private Vehicle Trips", value: totalPrivateTrips, subValue: `Sludge collected : ${totalPrivateSludge.toLocaleString()} L`, icon: <Milestone size={18} />, bg: "#EDE9FE", bar: "#7C3AED" }
 
         ].map((card, i) => (

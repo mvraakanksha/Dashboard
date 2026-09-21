@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { getAllPlants } from "../../services/plantService";
 import { getOperationsByDate } from "../../services/operationService";
+import { getDashboardSummaryCount } from "../../services/dashboardService";
 import companyLogo from '../reports/company_logo1.jpg'
 /* ================= UTILS ================= */
 const formatIndianNumber = (num) => {
@@ -103,7 +104,11 @@ export default function SludgeReports({
 
   const [plants, setPlants] = useState([]);
   const [operationsMap, setOperationsMap] = useState(new Map());
-
+const [summary, setSummary] = useState({
+  totalPlants: 0,
+  mnitPlants: 0,
+  permanentPower: 0,
+});
   const [receivedMode, setReceivedMode] = useState("received");
   const [processedMode, setProcessedMode] = useState("processed");
 
@@ -201,6 +206,13 @@ const zonePlants = useMemo(() => {
       });
 
       setOperationsMap(map);
+      const dashboardSummary = await getDashboardSummaryCount({
+  date,
+  zone,
+  plantIds: selectedPlants,
+});
+
+setSummary(dashboardSummary);
     } catch (err) {
       console.error("Failed to fetch operations", err);
       setOperationsMap(new Map());
@@ -211,8 +223,12 @@ const zonePlants = useMemo(() => {
 
   const id = setInterval(fetchOperations, 5000);
   return () => clearInterval(id);
-}, [date]);
+}, [date, zone, selectedPlants]);
 
+
+const totalPlants = summary.totalPlants;
+const permanentPowerCount = summary.permanentPower;
+const mnitCount = summary.mnitPlants;
 
 //KPI caluculation -----------
 
@@ -236,8 +252,15 @@ const totalBiochar = zonePlants.reduce((sum, p) => {
 }, 0);
 
   // Calculations
-  const totalPlants = zonePlants.length;
-  const permanentPowerCount = zonePlants.filter(p => p.permanentPower).length;
+//   const summary = await getDashboardSummaryCount({
+//   date,
+//   zone,
+//   plantIds: selectedPlants,
+// });
+
+// const totalPlants = summary.totalPlants;
+// const permanentPowerCount = summary.permanentPower;
+// const mnitCount = summary.mnitPlants;
 
 const chartData = useMemo(() => {
   return zonePlants.map(p => {

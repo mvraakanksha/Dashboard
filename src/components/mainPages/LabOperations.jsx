@@ -20,6 +20,9 @@ import {
 // import { FlaskConical } from "lucide-react";
 import { getAllPlants } from "../../services/plantService";
 import { getLabOperationsByDate } from "../../services/operationService";
+import {
+  getLabDashboard,
+} from "../../services/dashboardService";
 
 const formatIndian = (value, decimals = 1) => {
   const num = Number(value || 0);
@@ -50,10 +53,12 @@ const KPICard = ({ label, value, unit, theme, icon }) => (
         <p className="text-[10px] font-black uppercase tracking-wider text-slate-900">
           {label}
         </p>
-        <p className="text-xl font-black text-slate-900">
-           {formatIndian(value)}
-          {unit && <span className="text-sm ml-1">{unit}</span>}
-        </p>
+       <p className="text-xl font-black text-slate-900">
+  {label === "Total Plants"
+    ? formatIndian(value, 0)
+    : formatIndian(value)}
+  {unit && <span className="text-sm ml-1">{unit}</span>}
+</p>
       </div>
     </div>
   </div>
@@ -162,6 +167,7 @@ export default function LabOperations({ date, zone, selectedPlants = [],}) {
   const navigate = useNavigate();
   const [plants, setPlants] = useState([]);
   const [labOps, setLabOps] = useState([]);
+  const [labSummary, setLabSummary] = useState(null);
 const [sortBy, setSortBy] = useState("flow"); 
 const [labSortBy, setLabSortBy] = useState("metric"); 
 // metric | plantId
@@ -226,6 +232,27 @@ useEffect(() => {
   loadLabOps();
 }, [date]);
 
+useEffect(() => {
+  if (!date) return;
+
+  const loadLabSummary = async () => {
+    try {
+      const data = await getLabDashboard({
+        date,
+        zone,
+        plantIds: selectedPlants,
+      });
+
+      setLabSummary(data || {});
+    } catch (err) {
+      console.error("Failed to fetch lab summary", err);
+      setLabSummary(null);
+    }
+  };
+
+  loadLabSummary();
+}, [date, zone, selectedPlants]);
+
   const zones = [...new Set(plants.map(p => p.zones))];
 
   /* ---------------- FILTER ---------------- */
@@ -243,7 +270,7 @@ const filteredPlants = useMemo(() => {
   });
 }, [plants, zone, selectedPlants]);
 
-const totalPlants = filteredPlants.length;
+// const totalPlants = filteredPlants.length;
 
   /* ---------------- DATA ---------------- */
   const chartData = useMemo(() => {
@@ -267,29 +294,58 @@ const totalPlants = filteredPlants.length;
     });
   }, [filteredPlants, labOps]);
 
+
+  const totalPlants =
+  labSummary?.totalPlants || 0;
+
+const avgCod =
+  labSummary?.avgCod || 0;
+
+const avgBod =
+  labSummary?.avgBod || 0;
+
+const avgTn =
+  labSummary?.avgTn || 0;
+
+const avgTss =
+  labSummary?.avgTss || 0;
+
+const avgPh =
+  labSummary?.avgPh || 0;
+
+const avgTemperature =
+  labSummary?.avgTemperature || 0;
+
+const totalFlow =
+  labSummary?.totalFlow || 0;
+
+const avgFlow =
+  labSummary?.avgFlow || 0;
+
+
   /* ---------------- KPI AVG ---------------- */
-  const avg = (k) => {
-  const valid = chartData.filter(
-    d => d[k] !== null && d[k] !== undefined && d[k] !== 0 && !isNaN(d[k])
-  );
+//   const avg = (k) => {
+//   const valid = chartData.filter(
+//     d => d[k] !== null && d[k] !== undefined && d[k] !== 0 && !isNaN(d[k])
+//   );
 
-  if (!valid.length) return "0.00";
+//   if (!valid.length) return "0.00";
 
-  const sum = valid.reduce((s, d) => s + Number(d[k]), 0);
-  return (sum / valid.length).toFixed(1);
-};
+//   const sum = valid.reduce((s, d) => s + Number(d[k]), 0);
+//   return (sum / valid.length).toFixed(1);
+// };
 
 /* ---------------- KPI SUM ---------------- */
-const sum = (k) => {
-  const valid = chartData.filter(
-    d => d[k] !== null && d[k] !== undefined && !isNaN(d[k])
-  );
+// const sum = (k) => {
+//   const valid = chartData.filter(
+//     d => d[k] !== null && d[k] !== undefined && !isNaN(d[k])
+//   );
 
-  if (!valid.length) return "0.0";
+//   if (!valid.length) return "0.0";
 
-  const total = valid.reduce((s, d) => s + Number(d[k] || 0), 0);
-  return total.toFixed(1);
-};
+//   const total = valid.reduce((s, d) => s + Number(d[k] || 0), 0);
+//   return total.toFixed(1);
+// };
 
   const needsScroll = chartData.length > 12;
   const chartWidth = needsScroll ? chartData.length * 90 : "100%";
@@ -404,23 +460,23 @@ const labEntryCount = useMemo(() => {
   theme={theme.amber}
   icon={<Activity />}
 />
-        <KPICard label="Avg COD" value={avg("cod")} unit="mg/L" theme={theme.blue} icon={<FlaskConical />} />
-        <KPICard label="Avg BOD" value={avg("bod")} unit="mg/L" theme={theme.indigo} icon={<FlaskConical />} />
-        <KPICard label="Avg TN" value={avg("tn")} unit="mg/L" theme={theme.emerald} icon={<Activity />} />
-        <KPICard label="Avg TSS" value={avg("tss")} unit="mg/L" theme={theme.emerald} icon={<Waves />} />
-        <KPICard label="Avg pH" value={avg("ph")} theme={theme.amber} icon={<Thermometer />} />
-        <KPICard label="Avg Temp" value={avg("temperature")} unit="°C" theme={theme.amber} icon={<Thermometer />} />
+        <KPICard label="Avg COD" value={avgCod} unit="mg/L" theme={theme.blue} icon={<FlaskConical />} />
+        <KPICard label="Avg BOD" value={avgBod} unit="mg/L" theme={theme.indigo} icon={<FlaskConical />} />
+        <KPICard label="Avg TN" value={avgTn} unit="mg/L" theme={theme.emerald} icon={<Activity />} />
+        <KPICard label="Avg TSS" value={avgTss} unit="mg/L" theme={theme.emerald} icon={<Waves />} />
+        <KPICard label="Avg pH" value={avgPh} theme={theme.amber} icon={<Thermometer />} />
+        <KPICard label="Avg Temp" value={avgTemperature} unit="°C" theme={theme.amber} icon={<Thermometer />} />
         
         <KPICard
   label="Total Flow"
-  value={sum("cumulativeFlow")}
+  value={totalFlow}
   unit="L"
   theme={theme.indigo}
   icon={<Droplets />}
 />
 <KPICard
   label="Avg Flow"
-  value={avg("cumulativeFlow")}
+  value={avgFlow}
   unit="L"
   theme={theme.blue}
   icon={<Droplets />}

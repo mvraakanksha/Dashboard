@@ -457,7 +457,7 @@ sheet.getCell("A4").value =
   <div className="ml-auto flex gap-3">
     <button
       onClick={downloadTablePdf}
-      className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-semibold"
+      className="bg-red-600 text-white px-5 py-2 rounded-lg text-sm font-semibold"
     >
       Download PDF
     </button>
