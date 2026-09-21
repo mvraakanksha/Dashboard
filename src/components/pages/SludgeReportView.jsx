@@ -379,47 +379,48 @@ const privateVehicleTrips = operationsData.reduce(
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
       {/* TOTAL */}
-      <KPICard
-        label={labels[activeMode][0]}
-        value={formatIndianRounded(totalValue)}
-        theme={theme.blue}
-        icon={<Layers size={18} />}
-      />
+     {/* TOTAL */}
+{activeMode !== "tank" && (
+  <KPICard
+    label={labels[activeMode][0]}
+    value={formatIndianRounded(totalValue)}
+    theme={theme.blue}
+    icon={<Layers size={18} />}
+  />
+)}
 
-      {/* AVERAGE */}
-    {/* AVERAGE / TRIPS */}
+{/* AVERAGE */}
 {activeMode === "received" ? (
-<KPICard
- label={
-  <span className="text-sm font-black text-slate-900">
-    Vehicle Trips Count -{" "}
-    {formatIndianRounded(
-      ownVehicleTrips + privateVehicleTrips
-    )}
-  </span>
-}
-  value={
-    <span className="text-sm font-semibold text-indigo-700">
-      Own Vehicle Trips: {formatIndianRounded(ownVehicleTrips)}
-    </span>
-  }
-  theme={theme.indigo}
-  icon={<Droplets size={18} />}
->
-  <div className="text-sm font-semibold text-indigo-700">
-    Private Vehicle Trips:{" "}
-    {formatIndianRounded(privateVehicleTrips)}
-  </div>
-</KPICard>
-) : (
+  <KPICard
+    label={
+      <span className="text-sm font-black text-slate-900">
+        Vehicle Trips Count -{" "}
+        {formatIndianRounded(
+          ownVehicleTrips + privateVehicleTrips
+        )}
+      </span>
+    }
+    value={
+      <span className="text-sm font-semibold text-indigo-700">
+        Own Vehicle Trips: {formatIndianRounded(ownVehicleTrips)}
+      </span>
+    }
+    theme={theme.indigo}
+    icon={<Droplets size={18} />}
+  >
+    <div className="text-sm font-semibold text-indigo-700">
+      Private Vehicle Trips:{" "}
+      {formatIndianRounded(privateVehicleTrips)}
+    </div>
+  </KPICard>
+) : activeMode !== "tank" ? (
   <KPICard
     label={labels[activeMode][1]}
     value={formatIndianRounded(avgValue)}
     theme={theme.indigo}
     icon={<Droplets size={18} />}
   />
-)}
-
+) : null}
       {/* EXTRA TANK CARDS (ONLY WHEN NOT BIOCHAR) */}
       {activeMode !== "biochar" && (
         <>

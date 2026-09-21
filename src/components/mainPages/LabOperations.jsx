@@ -54,11 +54,16 @@ const KPICard = ({ label, value, unit, theme, icon }) => (
           {label}
         </p>
        <p className="text-xl font-black text-slate-900">
+
   {label === "Total Plants"
+
     ? formatIndian(value, 0)
+
     : formatIndian(value)}
+
   {unit && <span className="text-sm ml-1">{unit}</span>}
 </p>
+ 
       </div>
     </div>
   </div>
