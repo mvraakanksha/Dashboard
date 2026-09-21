@@ -28,6 +28,15 @@ export const getOperationsByDateRange = (startDate, endDate) => {
   );
 };
 
+export const getPlantOperationsReport = (plantId, fromDate, toDate) => {
+  if (!plantId || !fromDate || !toDate)
+    throw new Error("Plant ID, From date and To date are required");
+
+  return apiFetch(
+    `/operations/plant/${plantId}/date-range?fromDate=${fromDate}&toDate=${toDate}`
+  );
+};
+
 /**
  * Operations for a specific plant on a specific date
  * (Used in preview)
@@ -102,4 +111,29 @@ export const getPowerBillDetailsByPlant = (plantId) => {
 export const getWaterDetailsByPlant = (plantId) => {
   if (!plantId) throw new Error("Plant ID is required");
   return apiFetch(`/operations/water/${plantId}`);
+};
+
+/**
+ * Fetch merged plant + operation rows for the sludge charts in one call.
+ * Backend handles filtering (zone, plantIds) and sorting (sortField, sortOrder),
+ * so no client-side join/merge/sort is needed.
+ *
+ * @param {Object} p
+ * @param {string} p.date - required, YYYY-MM-DD
+ * @param {string} [p.sortField] - one of SLUDGE_RECEIVED | SLUDGE_TANK_LEVEL | SLUDGE_PROCESSED | BIOCHAR_PRODUCED | PLANT_ID
+ * @param {string} [p.sortOrder] - ASC | DESC
+ * @param {number[]} [p.plantIds]
+ * @param {string|number} [p.zone] - omit or "All" to skip zone filtering
+ */
+export const getSludgeChartData = ({ date, sortField, sortOrder, plantIds, zone } = {}) => {
+  if (!date) throw new Error("Date is required");
+
+  const qs = new URLSearchParams();
+  qs.set("date", date);
+  if (sortField) qs.set("sortField", sortField);
+  if (sortOrder) qs.set("sortOrder", sortOrder);
+  if (plantIds && plantIds.length) qs.set("plantIds", plantIds.join(","));
+  if (zone && zone !== "All") qs.set("zone", zone);
+
+  return apiFetch(`/operations/sludge-chart?${qs.toString()}`);
 };
