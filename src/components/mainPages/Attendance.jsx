@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback,useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, LabelList, CartesianGrid, Label
@@ -6,14 +6,20 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Users, UserCheck, UserMinus, Activity , Layers} from "lucide-react";
 
-import { getAllPlants } from "../../services/plantService";
-import {
-  getEmployeesByPlant,
-  getEmployeeOperationsByDate,
-  getDeletedEmployeesByPlantAndDate,
-  getEmployeeOperationsByDateRangeFull
+// import { getAllPlants } from "../../services/plantService";
+// import {
+//   getEmployeesByPlant,
+//   getEmployeeOperationsByDate,
+//   getDeletedEmployeesByPlantAndDate,
+//   getEmployeeOperationsByDateRangeFull
 
+// } from "../../services/employeeService";
+
+import {
+  getAttendanceSummaryPlantWise, getAttendanceDashboardDesignation,
 } from "../../services/employeeService";
+
+// import { getAttendanceDashboard } from "../../services/dashboardService";
 
 /* ---------------- UTIL ---------------- */
 const mark = (v) => {
@@ -94,32 +100,26 @@ return (
       PID: {plant.plantId} - {plant.label} - {plant.kld} KLD
     </p>
 
-    {plant.employees
-      .filter((e) => {
-        if (!e.dateOfJoining) return false;
+    {plant.employees.map(emp => (
 
-        // ✅ exclude future joiners
-        if (e.dateOfJoining > plant.date) return false;
+<p
+ key={emp.employeeId}
+ className="border-t pt-1 mt-1"
+>
 
-        // ✅ exclude employees already left
-        if (e.dateOfLeaving && e.dateOfLeaving < plant.date) return false;
+<span className="font-medium">
+{emp.designation}
+</span>
 
-        return true;
-      })
-      .map((e) => {
-        const key = `${e.employeeId}_${e.dateOfJoining}`;
-        const op = plant.attendanceMap?.[key];
+<span className="font-semibold">
+ AM {mark(emp.attendanceAm)}
+ |
+ PM {mark(emp.attendancePm)}
+</span>
 
-        return (
-          <p key={key} className="border-t pt-1 mt-1">
-            <span className="font-medium">{e.designation}</span>:
-            <span className="font-semibold">
-              {" "}AM {mark(op?.plantOp?.attendanceAm)} | PM{" "}
-              {mark(op?.plantOp?.attendancePm)}
-            </span>
-          </p>
-        );
-      })}
+</p>
+
+))}
   </div>
 );
 
@@ -130,15 +130,16 @@ return (
 export default function Attendance({ isDark, date, zone, selectedPlants }) {
   const navigate = useNavigate();
 
-  const [plants, setPlants] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [attendanceOps, setAttendanceOps] = useState([]);
-const [historyOps, setHistoryOps] = useState([]);
-
+  // const [plants, setPlants] = useState([]);
+//   const [employees, setEmployees] = useState([]);
+//   const [attendanceOps, setAttendanceOps] = useState([]);
+// const [historyOps, setHistoryOps] = useState([]);
+const [attendanceSummary, setAttendanceSummary] = useState([]);
+const [designationSummary, setDesignationSummary] = useState(null);
 const [attendanceSortMode, setAttendanceSortMode] =
   useState("attendanceDesc");
 
-  const abortRef = useRef(null);
+  // const abortRef = useRef(null);
 
   
 const DESIGNATION_ORDER = [
@@ -150,460 +151,179 @@ const DESIGNATION_ORDER = [
 ];
 
   /* ---------- LOAD PLANTS ---------- */
-  useEffect(() => {
-    getAllPlants().then(setPlants).catch(console.error);
-  }, []);
+  // useEffect(() => {
+  //   getAllPlants().then(setPlants).catch(console.error);
+  // }, []);
 
   /* ---------- LOAD ATTENDANCE ---------- */
-  useEffect(() => {
-    if (!date) return;
-    getEmployeeOperationsByDate(date)
-      .then(setAttendanceOps)
-      .catch(console.error);
-  }, [date]);
-
+// useEffect(() => {
+//   abortRef.current?.abort();
+//   ...
+// }, [date]);
   /* ---------- LOAD EMPLOYEES (PER PLANT) ---------- */
+// useEffect(() => {
+//   abortRef.current?.abort();
+//   abortRef.current = new AbortController();
+//   const signal = abortRef.current.signal;
+
+//   const run = async () => {
+//     try {
+//       const plantsData = await getAllPlants({ signal });
+//       setPlants(plantsData);
+
+//       if (!date) return;
+
+//       const attendance = await getEmployeeOperationsByDate(date, { signal });
+//       setAttendanceOps(attendance);
+
+//       // 🔥 parallel employee fetch
+//       const employeesData = await Promise.all(
+//         plantsData.map(p =>
+//           getEmployeesByPlant(p.plantID, { signal }).then(arr =>
+//             arr.map(e => ({ ...e, plantId: p.plantID }))
+//           )
+//         )
+//       );
+// const history = await getEmployeeOperationsByDateRangeFull(date, date);
+// setHistoryOps(history);
+
+//       setEmployees(employeesData.flat());
+//     } catch (err) {
+//       if (err.name !== "AbortError") {
+//         console.error(err);
+//       }
+//     }
+//   };
+
+//   run();
+
+//   return () => abortRef.current?.abort();
+// }, [date]);
+
 useEffect(() => {
-  abortRef.current?.abort();
-  abortRef.current = new AbortController();
-  const signal = abortRef.current.signal;
+  if (!date) return;
 
-  const run = async () => {
+  const loadData = async () => {
     try {
-      const plantsData = await getAllPlants({ signal });
-      setPlants(plantsData);
 
-      if (!date) return;
+      const [kpiData, graphData] =
+        await Promise.all([
 
-      const attendance = await getEmployeeOperationsByDate(date, { signal });
-      setAttendanceOps(attendance);
+          getAttendanceDashboardDesignation({
+            date,
+            zone,
+            plantIds: selectedPlants,
+          }),
 
-      // 🔥 parallel employee fetch
-      const employeesData = await Promise.all(
-        plantsData.map(p =>
-          getEmployeesByPlant(p.plantID, { signal }).then(arr =>
-            arr.map(e => ({ ...e, plantId: p.plantID }))
-          )
-        )
-      );
-const history = await getEmployeeOperationsByDateRangeFull(date, date);
-setHistoryOps(history);
+          getAttendanceSummaryPlantWise({
+            date,
+            zone,
+            plantIds: selectedPlants,
+          })
 
-      setEmployees(employeesData.flat());
+        ]);
+
+     setDesignationSummary(kpiData);
+setAttendanceSummary(graphData.plants || []);
+
     } catch (err) {
-      if (err.name !== "AbortError") {
-        console.error(err);
-      }
+      console.error(err);
+      setDesignationSummary(null);
+      setAttendanceSummary([]);
     }
   };
 
-  run();
+  loadData();
 
-  return () => abortRef.current?.abort();
-}, [date]);
+}, [date, zone, selectedPlants]);
 
-const isEmployeeValid = (emp, selectedDate) => {
-  if (!emp.dateOfJoining) return false;
-
-  const doj = emp.dateOfJoining;
-  const dol = emp.dateOfLeaving;
-
-  if (doj > selectedDate) return false;
-
-  if (dol && dol < selectedDate) return false;
-
-  return true;
-};
-  /* ---------- CALCULATE PER PLANT ---------- */
-const employeesByPlant = useMemo(() => {
-  const map = {};
-
-employees.forEach(e => {
-  if (!isEmployeeValid(e, date)) return;
-
-  const key = `${e.employeeId}_${e.dateOfJoining}`;
-
-  map[e.plantId] ||= [];
-
-  if (!map[e.plantId].some(
-    x => `${x.employeeId}_${x.dateOfJoining}` === key
-  )) {
-    map[e.plantId].push(e);
-  }
-});
-  // 🔥 ADD EXIT EMPLOYEES FROM HISTORY
-  historyOps.forEach(op => {
-    const emp = {
-      employeeId: op.employeeId,
-      plantId: op.plantId,
-      employeeName: op.employeeName,
-      designation: op.designation,
-      dateOfJoining: op.dateOfJoining,
-      dateOfLeaving: op.dateOfLeaving
-    };
-
-    if (!isEmployeeValid(emp, date)) return;
-
-    const key = `${emp.employeeId}_${emp.dateOfJoining}`;
-map[op.plantId] ||= [];
-
-if (!map[op.plantId].some(e => `${e.employeeId}_${e.dateOfJoining}` === key)) {
-  map[op.plantId].push(emp);
-}
-  });
-
-  return map;
-}, [employees, historyOps, date]);
-
-const attendanceByPlant = useMemo(() => {
-  const map = {};
-attendanceOps.forEach(o => {
-  const empList = employeesByPlant[o.plantId] || [];
-
-  const isValid = empList.some(
-    e => e.employeeId === o.employeeId
-  );
-
-  if (isValid) {
-    (map[o.plantId] ||= []).push(o);
-  }
-});
-  return map;
-}, [attendanceOps]);
-
-// const empLookup = useMemo(() => {
-//   const map = {};
-
-//   employees.forEach(e => {
-//     map[e.employeeId] = e;
-//   });
-
-//   historyOps.forEach(e => {
-//     map[e.employeeId] = e;
-//   });
-
-//   return map;
-// }, [employees, historyOps]);
-
-/* ---------- ATTENDANCE MAP ---------- */
-const attendanceMap = useMemo(() => {
-  const map = {};
-
-  // ACTIVE
-attendanceOps.forEach(o => {
-  const empList = employeesByPlant[o.plantId] || [];
-
-  empList.forEach(emp => {
-    if (emp.employeeId === o.employeeId) {
-      const key = `${emp.employeeId}_${emp.dateOfJoining}`;
-      map[key] = o;
-    }
-  });
-});
-historyOps.forEach(o => {
-  const key = `${o.employeeId}_${o.dateOfJoining}`;
-
-  const validOp = (o.operations || []).find(op => {
-    if (!o.dateOfLeaving) return true;
-
-    return op.operationDate <= o.dateOfLeaving;
-  });
-
-  if (validOp) {
-    map[key] = {
-      plantOp: validOp
-    };
-  }
-});
-  return map;
-}, [attendanceOps, historyOps]);
-
-
-const calculatePlant = useCallback(
-  (plantId) => {
-    const emps = employeesByPlant[plantId] || [];
-    const ops = attendanceByPlant[plantId] || [];
-
-    let presentUnits = 0;
-
-    emps.forEach(emp => {
-     const key = `${emp.employeeId}_${emp.dateOfJoining}`;
-const rec = attendanceMap[key];
-
-      if (!isEmployeeValid(emp, date)) return;
-
-      if (emp.dateOfLeaving && emp.dateOfLeaving < date) return;
-
-      if (
-        rec?.plantOp?.attendanceAm === true &&
-        (rec?.plantOp?.attendancePm === null ||
-         rec?.plantOp?.attendancePm === true)
-      ) {
-        presentUnits += 1;
-      } else if (
-        rec?.plantOp?.attendanceAm === true ||
-        rec?.plantOp?.attendancePm === true
-      ) {
-        presentUnits += 0.5;
-      }
-    });
-
-    return {
-      presentUnits,
-      employees: emps,
-      attendance: ops   // ✅ FIX
-    };
-  },
-  [employeesByPlant, attendanceMap, attendanceByPlant, date]
-);
-
-
-  /* ---------- BUILD CHART DATA ---------- */
 const allPlantsData = useMemo(() => {
-  return plants
-    .filter((p) => {
-      const zoneMatch =
-        zone === "All" ||
-        String(p.zones) === String(zone);
+  return attendanceSummary.map(item => ({
+    label: item.plantName,
+    plantId: item.plantId,
+    kld: item.kld,
+    presentUnits: item.presentEmployees,
+    totalEmployees: item.totalEmployees,
+    employees: item.employees || [],
+  }));
+}, [attendanceSummary]);
 
-      const plantMatch =
-        selectedPlants.length === 0 ||
-        selectedPlants.includes(p.plantID);
-
-      return zoneMatch && plantMatch;
-    })
-    .map((p) => {
-      const stats = calculatePlant(p.plantID);
-
-      return {
-        label: p.plantName,
-        plantId: p.plantID,
-        kld: p.kld,
-        presentUnits: stats.presentUnits,
-        employees: stats.employees,
-        attendance: stats.attendance,
-        attendanceMap,
-        date,
-
-        totalEmployees: stats.employees.filter((e) =>
-          isEmployeeValid(e, date)
-        ).length,
-      };
-    });
-}, [
-  plants,
-  zone,
-  selectedPlants,
-  calculatePlant,
-  attendanceMap,
-  date,
-]);
-
-const totalPlants = allPlantsData.length;
-
-  const sortedAttendanceData = useMemo(() => {
+const sortedAttendanceData = useMemo(() => {
   const data = [...allPlantsData];
 
   switch (attendanceSortMode) {
     case "plantId":
       return data.sort((a, b) => a.plantId - b.plantId);
 
-    case "attendanceDesc":
     default:
       return data.sort((a, b) => b.presentUnits - a.presentUnits);
   }
 }, [allPlantsData, attendanceSortMode]);
 
-/* ---------------- ENTRY COUNT ---------------- */
 const entryCount = useMemo(() => {
-  if (!sortedAttendanceData?.length) return 0;
-
   return sortedAttendanceData.filter(
     p => Number(p.presentUnits) > 0
   ).length;
-
 }, [sortedAttendanceData]);
-  /* ---------- KPIs ---------- */
-/* ---------- KPIs (CORRECT LOGIC) ---------- */
 
-const zonePlantIds = useMemo(() => {
-  return plants
-    .filter((p) => {
-      const zoneMatch =
-        zone === "All" ||
-        String(p.zones) === String(zone);
+// const strengthSummary = useMemo(() => {
+//   const summary = {};
 
-      const plantMatch =
-        selectedPlants.length === 0 ||
-        selectedPlants.includes(p.plantID);
+//   // init all designations
+//   DESIGNATION_ORDER.forEach(d => {
+//     summary[d] = 0;
+//   });
 
-      return zoneMatch && plantMatch;
-    })
-    .map((p) => p.plantID);
-}, [plants, zone, selectedPlants]);
+//   // ✅ only zone plants
+// const zonePlantIds = plants
+//   .filter((p) => {
+//     const zoneMatch =
+//       zone === "All" ||
+//       String(p.zones) === String(zone);
 
-const zoneEmployees = useMemo(() => {
-  return zonePlantIds.flatMap(pid => employeesByPlant[pid] || []);
-}, [employeesByPlant, zonePlantIds]);
+//     const plantMatch =
+//       selectedPlants.length === 0 ||
+//       selectedPlants.includes(p.plantID);
 
-/* ---------- DESIGNATION SUMMARY ---------- */
-/* ---------- DESIGNATION SUMMARY (CORRECT HALF DAY LOGIC) ---------- */
-const designationSummary = useMemo(() => {
-  const summary = {};
+//     return zoneMatch && plantMatch;
+//   })
+//   .map((p) => p.plantID);
 
-const zonePlantIds = plants
-  .filter((p) => {
-    const zoneMatch =
-      zone === "All" ||
-      String(p.zones) === String(zone);
+//   const zoneEmployees = zonePlantIds.flatMap(
+//     pid => employeesByPlant[pid] || []
+//   );
 
-    const plantMatch =
-      selectedPlants.length === 0 ||
-      selectedPlants.includes(p.plantID);
+//   zoneEmployees.forEach(emp => {
+//     if (!isEmployeeValid(emp, date)) return;
 
-    return zoneMatch && plantMatch;
-  })
-  .map((p) => p.plantID);
+//     if (summary.hasOwnProperty(emp.designation)) {
+//       summary[emp.designation] += 1;
+//     }
+//   });
 
-const zoneEmployees = zonePlantIds.flatMap(
-  pid => employeesByPlant[pid] || []
-);
+//   return summary;
+// }, [
+//   employeesByPlant,
+//   plants,
+//   zone,
+//   selectedPlants,
+//   date,
+// ]);
 
-zoneEmployees.forEach(emp => {
-  if (!isEmployeeValid(emp, date)) return;
+const totalPlants =
+  designationSummary?.totalPlants || 0;
 
-  const key = `${emp.employeeId}_${emp.dateOfJoining}`;
-  const rec = attendanceMap[key];
+const totalEmployees =
+  designationSummary?.totalStrength?.total || 0;
 
-  if (!summary[emp.designation]) {
-    summary[emp.designation] = { present: 0, absent: 0 };
-  }
+const totalPresent =
+  designationSummary?.totalPresent?.total || 0;
 
-  // 🔥 DEFAULT: fully absent
-  let presentValue = 0;
+const totalAbsent =
+  designationSummary?.totalAbsent?.total || 0;
 
-  // ✅ Only calculate if valid record exists
-  if (rec?.plantOp) {
-    const opDate = rec.plantOp.operationDate;
-
-    // 🔥 Ignore operations AFTER leaving
-    if (emp.dateOfLeaving && opDate > emp.dateOfLeaving) {
-      presentValue = 0;
-    } else {
-      if (
-        rec.plantOp.attendanceAm === true &&
-        (rec.plantOp.attendancePm === null ||
-         rec.plantOp.attendancePm === true)
-      ) {
-        presentValue = 1;
-      } else if (
-        rec.plantOp.attendanceAm === true ||
-        rec.plantOp.attendancePm === true
-      ) {
-        presentValue = 0.5;
-      }
-    }
-  }
-
-  summary[emp.designation].present += presentValue;
-  summary[emp.designation].absent += (1 - presentValue);
-});
-
-  return summary;
-}, [
-  employees,
-  attendanceMap,
-  plants,
-  zone,
-  selectedPlants,
-  employeesByPlant,
-  date,
-]);
-
-const strengthSummary = useMemo(() => {
-  const summary = {};
-
-  // init all designations
-  DESIGNATION_ORDER.forEach(d => {
-    summary[d] = 0;
-  });
-
-  // ✅ only zone plants
-const zonePlantIds = plants
-  .filter((p) => {
-    const zoneMatch =
-      zone === "All" ||
-      String(p.zones) === String(zone);
-
-    const plantMatch =
-      selectedPlants.length === 0 ||
-      selectedPlants.includes(p.plantID);
-
-    return zoneMatch && plantMatch;
-  })
-  .map((p) => p.plantID);
-
-  const zoneEmployees = zonePlantIds.flatMap(
-    pid => employeesByPlant[pid] || []
-  );
-
-  zoneEmployees.forEach(emp => {
-    if (!isEmployeeValid(emp, date)) return;
-
-    if (summary.hasOwnProperty(emp.designation)) {
-      summary[emp.designation] += 1;
-    }
-  });
-
-  return summary;
-}, [
-  employeesByPlant,
-  plants,
-  zone,
-  selectedPlants,
-  date,
-]);
-
-const totalEmployees = zoneEmployees.length;
-
-const totalPresent = zoneEmployees.reduce((sum, emp) => {
-  if (!isEmployeeValid(emp, date)) return sum;
-
-  const key = `${emp.employeeId}_${emp.dateOfJoining}`;
-  const rec = attendanceMap[key];
-
-  let presentValue = 0; // ✅ default absent
-
-  if (rec?.plantOp) {
-    const opDate = rec.plantOp.operationDate;
-
-    if (emp.dateOfLeaving && opDate > emp.dateOfLeaving) {
-      presentValue = 0;
-    } else {
-      if (
-        rec.plantOp.attendanceAm === true &&
-        (rec.plantOp.attendancePm === null ||
-         rec.plantOp.attendancePm === true)
-      ) {
-        presentValue = 1;
-      } else if (
-        rec.plantOp.attendanceAm === true ||
-        rec.plantOp.attendancePm === true
-      ) {
-        presentValue = 0.5;
-      }
-    }
-  }
-
-  return sum + presentValue;
-
-}, 0);
-
-const totalAbsent = totalEmployees - totalPresent;
-
-const avgAttendance = zonePlantIds.length
-  ? (totalPresent / zonePlantIds.length).toFixed(1)
-  : 0;
+const avgAttendance =
+  designationSummary?.avgPerPlant || 0;
 
 const plantMap = useMemo(() => {
   return Object.fromEntries(
@@ -690,9 +410,18 @@ const renderBarLabel = useCallback(({ x, y, width, index }) => {
         {(c.type === "present" || c.type === "absent" || c.type === "strength") && (
           <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
             {DESIGNATION_ORDER.map((desig) => {
-              const present = designationSummary[desig]?.present || 0;
-              const absent = designationSummary[desig]?.absent || 0;
-              const strength = strengthSummary[desig] || 0;
+              const present =
+  designationSummary?.totalPresent?.designation
+    ?.find(d => d.designation === desig)
+    ?.count || 0;
+              const absent =
+  designationSummary?.totalAbsent?.designation
+    ?.find(d => d.designation === desig)
+    ?.count || 0;
+             const strength =
+  designationSummary?.totalStrength?.designation
+    ?.find(d => d.designation === desig)
+    ?.count || 0;
 
               let value = 0;
 

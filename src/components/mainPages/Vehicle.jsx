@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+
 import {
   BarChart,
   Bar,
@@ -8,25 +9,27 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+
 import {
   Truck,
   Navigation,
   Milestone,
   Activity,
-  Fuel,
-  Layers
+  Layers,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
-import { getAllPlants } from "../../services/plantService";
-import { getVehicleOperationsByDate, getVehiclesByPlant} from "../../services/vehicleService";
-import { getOperationsByDate,getOperationsByDateRange} from "../../services/operationService";
-import { getEmployeesByPlant } from "../../services/employeeService";
+
+import {
+  getVehicleGraphDashboard,
+} from "../../services/vehicleService";
+
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import companyLogo from '../reports/company_logo1.jpg'
+import companyLogo from "../reports/company_logo1.jpg";
+
 /* ---------------- CLICKABLE X-TICK ---------------- */
 const ClickableTick = ({
   x,
@@ -58,7 +61,7 @@ const firstAlert = alerts?.[0];
       }}
     >
       {/* hover tooltip */}
-      {alert && (
+    {firstAlert && (
        <title>
 {alerts
   ?.map(a =>
@@ -87,12 +90,8 @@ const firstAlert = alerts?.[0];
 /* ---------------- TOOLTIP ---------------- */
 const CombinedTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
 
-  const distance = (am, pm) =>
-    pm != null && am != null
-      ? Number(Math.max(pm - am, 0).toFixed(1))
-      : 0;
+  const d = payload[0].payload;
 
   return (
     <div className="bg-white border rounded shadow-md p-2 text-xs w-64">
@@ -105,11 +104,12 @@ const CombinedTooltip = ({ active, payload }) => {
           <p className="font-semibold text-blue-400">
             Vehicle 1 – {d.v1.vehicleNumber}
           </p>
-          <p>Distance: {distance(d.v1.am, d.v1.pm)} Km</p>
+
+          <p>Distance: {d.v1.distance ?? 0} Km</p>
           <p>Fuel: {d.v1.fuel ?? "-"}</p>
-          <p>No. of Trips: {d.v1.trips ?? 0}</p>         
-          <p>Sludge Collected: {d.v1.sludge ?? 0} L</p> 
-           <p>Remark: {d.v1.remark ?? "-"}</p>     
+          <p>No. of Trips: {d.v1.trips ?? 0}</p>
+          <p>Sludge Collected: {d.v1.sludge ?? 0} L</p>
+          <p>Remark: {d.v1.remark ?? "-"}</p>
         </div>
       )}
 
@@ -118,11 +118,12 @@ const CombinedTooltip = ({ active, payload }) => {
           <p className="font-semibold text-blue-800">
             Vehicle 2 – {d.v2.vehicleNumber}
           </p>
-          <p>Distance: {distance(d.v2.am, d.v2.pm)} Km</p>
+
+          <p>Distance: {d.v2.distance ?? 0} Km</p>
           <p>Fuel: {d.v2.fuel ?? "-"}</p>
-          <p>No. of Trips: {d.v2.trips ?? 0}</p>         
-          <p>Sludge Collected: {d.v2.sludge ?? 0} L</p>  
-           <p>Remark: {d.v2.remark ?? "-"}</p>   
+          <p>No. of Trips: {d.v2.trips ?? 0}</p>
+          <p>Sludge Collected: {d.v2.sludge ?? 0} L</p>
+          <p>Remark: {d.v2.remark ?? "-"}</p>
         </div>
       )}
     </div>
@@ -147,348 +148,186 @@ const TopBarLabel = React.memo(({ x, y, width, value }) => {
   );
 });
 
-const EXPIRY_DAYS = 30;
-
-const checkInsuranceStatus = (expiryDate, selectedDate) => {
-  if (!expiryDate || !selectedDate) return null;
-
-  const exp = new Date(expiryDate);
-  const sel = new Date(selectedDate);
-
-  // ⭐ remove time
-  exp.setHours(0,0,0,0);
-  sel.setHours(0,0,0,0);
-
-  const diffDays = Math.floor((exp - sel) / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) return "expired";
-  if (diffDays <= 30) return "soon";
-  return "valid";
-};
-
-
-const getInsuranceAlert = (expiryDate, selectedDate) => {
-  if (!expiryDate || !selectedDate) return null;
-
-  const exp = new Date(expiryDate);
-  const sel = new Date(selectedDate);
-
-  const diffDays = Math.ceil((exp - sel) / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) return "red";       // expired
-  if (diffDays <= 30) return "yellow";  // expiring soon
-
-  return null;
-};
-
-
-
 /* ================================================= */
 /* VEHICLE COMPONENT */
 /* ================================================= */
-export default function Vehicle({ date, zone, selectedPlants = [], })
- {
+export default function Vehicle({
+  date,
+  zone,
+  apiZone,
+  selectedPlants = [],
+}) {
   const navigate = useNavigate();
 
-  const [plants, setPlants] = useState([]);
-  const [vehicleOps, setVehicleOps] = useState([]);
-const [vehiclesMap, setVehiclesMap] = useState({});
-  const [vehicleSortMode, setVehicleSortMode] = useState("distance");
-const [operationsData, setOperationsData] = useState([]);
-const [employeesMap, setEmployeesMap] = useState({});
-const [pdfFilter, setPdfFilter] = useState("all"); // "all", "expired", "soon", "both"
+const [vehicleDashboard, setVehicleDashboard] = useState(null);
+const [vehicleSortMode, setVehicleSortMode] = useState("distance");
+const [pdfFilter, setPdfFilter] = useState("all");
 
+const selectedPlantIdsKey = useMemo(() => {
+  if (!Array.isArray(selectedPlants) || selectedPlants.length === 0) {
+    return "";
+  }
 
-  /* ---------------- FETCH PLANTS ---------------- */
-useEffect(() => {
-  const loadPlants = async () => {
-    try {
-      const data = await getAllPlants();
-      setPlants(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("Failed to load plants", e);
-      setPlants([]);
-    }
-  };
-
-  loadPlants();
-}, []);
-
-  /* ---------------- FETCH VEHICLE OPS ---------------- */
-useEffect(() => {
-  if (!date) return;
-
-  const loadVehicleOps = async () => {
-    try {
-      const data = await getVehicleOperationsByDate(date);
-      setVehicleOps(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("Failed to load vehicle operations", e);
-      setVehicleOps([]);
-    }
-  };
-
-  loadVehicleOps();
-}, [date]);
-
+  return selectedPlants
+    .map(Number)
+    .filter((id) => Number.isFinite(id))
+    .sort((a, b) => a - b)
+    .join(",");
+}, [selectedPlants]);
 
 useEffect(() => {
   if (!date) return;
 
-  const loadOperations = async () => {
+  const loadVehicleDashboard = async () => {
     try {
-      const data = await getOperationsByDate(date); // or date-range version
-      setOperationsData(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("Failed to load operations", e);
-      setOperationsData([]);
+      const data = await getVehicleGraphDashboard({
+  operationDate: date,
+  zone: apiZone ?? zone,
+  plantIds: selectedPlants,
+  expiryFilter: "ALL",
+  sortBy:
+    vehicleSortMode === "id"
+      ? "PLANT_ID"
+      : "TOTAL_DISTANCE",
+  sortDirection:
+    vehicleSortMode === "id"
+      ? "ASC"
+      : "DESC",
+});
+
+      setVehicleDashboard(data || null);
+    } catch (error) {
+      console.error(
+        "Failed to load vehicle dashboard:",
+        error
+      );
+      setVehicleDashboard(null);
     }
   };
 
-  loadOperations();
-}, [date]);
+  loadVehicleDashboard();
+}, [
+  date,
+  apiZone,
+  zone,
+  selectedPlants,
+  vehicleSortMode,
+]);
 
-  /* ---------------- ZONE FILTERED DATA ---------------- */
-const filteredPlants = useMemo(() => {
-  return plants.filter((p) => {
-    const zoneMatch =
-      zone === "All" ||
-      String(p.zones) === String(zone);
+const summary = vehicleDashboard?.summary || {};
 
-    const plantMatch =
-      selectedPlants.length === 0 ||
-      selectedPlants.includes(p.plantID);
+const totalPlants = summary.totalPlants ?? 0;
 
-    return zoneMatch && plantMatch;
-  });
-}, [plants, zone, selectedPlants]);
+const totalVehicles = summary.totalVehicles ?? 0;
 
+const totalDrivers = summary.totalDrivers ?? 0;
 
-useEffect(() => {
-  if (!filteredPlants.length) return;
+const movedVehicles = summary.movedVehicles ?? 0;
 
-  const loadEmployees = async () => {
-    const map = {};
+const totalTrips = summary.ownVehicleTrips ?? 0;
 
-    for (const plant of filteredPlants) {
-      const list = await getEmployeesByPlant(plant.plantID);
-      map[plant.plantID] = Array.isArray(list) ? list : [];
-    }
+const totalOwnSludge = summary.ownSludgeCollected ?? 0;
 
-    setEmployeesMap(map);
-  };
+const totalDistance = summary.totalDistance ?? 0;
 
-  loadEmployees();
-}, [filteredPlants]);
+const avgDistance = summary.avgDistance ?? 0;
 
-useEffect(() => {
-  if (!filteredPlants.length) return;
+const totalPrivateTrips = summary.privateVehicleTrips ?? 0;
 
-  const loadVehicles = async () => {
-    const map = {};
-
-    for (const plant of filteredPlants) {
-      try {
-        const list = await getVehiclesByPlant(plant.plantID);
-        map[plant.plantID] = Array.isArray(list) ? list : [];
-      } catch (e) {
-        map[plant.plantID] = [];
-      }
-    }
-
-    setVehiclesMap(map);
-  };
-
-  loadVehicles();
-}, [filteredPlants]);
-
-const totalPlants = filteredPlants.length;
-
-  const filteredVehicleOps = useMemo(() => {
-    const plantIds = new Set(filteredPlants.map((p) => p.plantID));
-    return vehicleOps.filter((v) => plantIds.has(v.plantId));
-  }, [vehicleOps, filteredPlants]);
-
-  const filteredOperationsData = useMemo(() => {
-  const plantIds = new Set(filteredPlants.map((p) => p.plantID));
-
-  return operationsData.filter((op) =>
-    plantIds.has(op.plantId)
-  );
-}, [operationsData, filteredPlants]);
-
-  /* ---------------- Insurance---------------- */
-
-const expiringVehicles = useMemo(() => {
-  return filteredVehicleOps
-    .map(v => {
-      const expiry = v.vehicle?.insuranceExpiryDate;
-
-      const status = checkInsuranceStatus(expiry, date);
-
-      if (status === "expired" || status === "soon") {
-        return {
-          vehicleNumber: v.vehicle?.vehicleNumber,
-          plantId: v.plantId,
-          expiry,
-          status
-        };
-      }
-
-      return null;
-    })
-    .filter(Boolean);
-}, [filteredVehicleOps, date]);
+const totalPrivateSludge = summary.privateSludgeCollected ?? 0;
 
 
-const expiredCount = useMemo(
-  () => expiringVehicles.filter(v => v.status === "expired").length,
-  [expiringVehicles]
-);
+// const filteredOperationsData = useMemo(() => {
+//   const plantIds = new Set(filteredPlants.map((p) => p.plantID));
 
-const expiringSoonCount = useMemo(
-  () => expiringVehicles.filter(v => v.status === "soon").length,
-  [expiringVehicles]
-);
+//   return operationsData.filter((op) =>
+//     plantIds.has(op.plantId)
+//   );
+// }, [operationsData, filteredPlants]);
 
+/* ---------------- INSURANCE ALERT MAP ---------------- */
 const insuranceAlertMap = useMemo(() => {
   const map = {};
 
-  Object.entries(vehiclesMap).forEach(([plantId, vehicles]) => {
-    const plant = plants.find(p => p.plantID === Number(plantId));
-    if (!plant) return;
+  (vehicleDashboard?.plants || []).forEach((plant) => {
+    const alerts = (plant.vehicles || [])
+      .filter(
+        (vehicle) =>
+          vehicle.expiredStatus === true ||
+          vehicle.expirySoonStatus === true
+      )
+      .map((vehicle) => ({
+        vehicleNumber: vehicle.vehicleNumber,
+        expiry: vehicle.insuranceExpiryDate,
+        type: vehicle.expiredStatus === true ? "red" : "yellow",
+      }));
 
-    vehicles.forEach(v => {
-      const expiry = v.insuranceExpiryDate;
-      const alert = getInsuranceAlert(expiry, date);
-
-      if (!alert) return;
-
-      if (!map[plant.plantName]) map[plant.plantName] = [];
-
-      map[plant.plantName].push({
-        type: alert,
-        vehicleNumber: v.vehicleNumber,
-        expiry
-      });
-    });
+    if (alerts.length > 0) {
+      map[plant.plantName] = alerts;
+    }
   });
 
   return map;
-}, [vehiclesMap, plants, date]);
+}, [vehicleDashboard]);
 
-  /* ---------------- BUILD CHART DATA ---------------- */
-  const chartData = useMemo(() => {
-    return filteredPlants.map((p) => {
-      const records = filteredVehicleOps.filter(
-        (v) => v.plantId === p.plantID
-      );
+/* ---------------- BUILD CHART DATA ---------------- */
+const chartData = useMemo(() => {
+  return (vehicleDashboard?.plants || []).map((plant) => {
+    const v1 = plant.vehicles?.[0];
+    const v2 = plant.vehicles?.[1];
 
-      const sorted = [...records].sort(
-        (a, b) => a.vehicle.vehicleID - b.vehicle.vehicleID
-      );
+    return {
+      label: plant.plantName,
+      plantId: plant.plantId,
+      kld: plant.kld,
 
-      const getVehicle = (v) =>
-        v
-          ? {
-              vehicleNumber: v.vehicle?.vehicleNumber,
-              am: v.vehicleOp?.vehicleReadingAm,
-              pm: v.vehicleOp?.vehicleReadingPm,
-              fuel: v.vehicleOp?.vehicleFuelLevel,
-              trips: v.vehicleOp?.noOfTrips,          
-              sludge: v.vehicleOp?.sludgeCollect,  
-              remark: v.vehicleOp?.vehicleRemark,
-        
-            }
-          : null;
+      v1: v1
+        ? {
+            vehicleNumber: v1.vehicleNumber,
+            distance: v1.distance ?? 0,
+            fuel: v1.fuel ?? 0,
+            trips: v1.noOfTrips ?? 0,
+            sludge: v1.sludgeCollected ?? 0,
+            remark: v1.remark ?? "-",
+            insuranceExpiryDate: v1.insuranceExpiryDate,
+            expiredStatus: v1.expiredStatus,
+            expirySoonStatus: v1.expirySoonStatus,
+          }
+        : null,
 
-      const v1 = getVehicle(sorted[0]);
-      const v2 = getVehicle(sorted[1]);
+      v2: v2
+        ? {
+            vehicleNumber: v2.vehicleNumber,
+            distance: v2.distance ?? 0,
+            fuel: v2.fuel ?? 0,
+            trips: v2.noOfTrips ?? 0,
+            sludge: v2.sludgeCollected ?? 0,
+            remark: v2.remark ?? "-",
+            insuranceExpiryDate: v2.insuranceExpiryDate,
+            expiredStatus: v2.expiredStatus,
+            expirySoonStatus: v2.expirySoonStatus,
+          }
+        : null,
 
-      const distance = (v) =>
-        v?.pm != null && v?.am != null ? Math.max(v.pm - v.am, 0) : 0;
-
-      return {
-        label: p.plantName,
-        plantId: p.plantID,
-        kld: p.kld,
-        v1,
-        v2,
-        bar1: distance(v1),
-        bar2: distance(v2),
-      };
-    });
-  }, [filteredPlants, filteredVehicleOps]);
-
-  /* ---------------- METRICS ---------------- */
-  const totalDistance = chartData.reduce(
-    (sum, p) => sum + p.bar1 + p.bar2,
-    0
-  );
-
-
-  const totalVehicles = filteredPlants.reduce(
-    (sum, p) => sum + (p.noOfVehicle || 0),
-    0
-  );
-
-  const totalDrivers = useMemo(() => {
-  let total = 0;
-
-  Object.values(employeesMap).forEach(list => {
-    list.forEach(emp => {
-      if (emp.designation === "Driver") {
-        total++;
-      }
-    });
+      bar1: v1?.distance ?? 0,
+      bar2: v2?.distance ?? 0,
+    };
   });
+}, [vehicleDashboard]);
 
-  return total;
-}, [employeesMap]);
-  const movedVehicles = useMemo(() => {
-    const set = new Set();
-    filteredVehicleOps.forEach((v) => {
-      const am = v.vehicleOp?.vehicleReadingAm;
-      const pm = v.vehicleOp?.vehicleReadingPm;
-      if (am != null && pm != null && pm - am > 0) {
-        set.add(v.vehicle?.vehicleID);
-      }
-    });
-    return set.size;
-  }, [filteredVehicleOps]);
+/* ---------------- METRICS ---------------- */
+// const summary = vehicleDashboard?.summary || {};
 
-  const totalTrips = useMemo(() => {
-    return filteredVehicleOps.reduce(
-      (sum, v) => sum + (v.vehicleOp?.noOfTrips || 0),
-      0
-    );
-  }, [filteredVehicleOps]);
-
-  const totalOwnSludge = useMemo(() => {
-  return filteredVehicleOps.reduce(
-    (sum, v) => sum + (v.vehicleOp?.sludgeCollect || 0),
-    0
-  );
-}, [filteredVehicleOps]);
-
-
-const totalPrivateTrips = useMemo(() => {
-  return filteredOperationsData.reduce((sum, op) => {
-    return sum + (op.operation?.noOfTripsPrivateVehicle || 0);
-  }, 0);
-}, [filteredOperationsData]);
-
-
-const totalPrivateSludge = useMemo(() => {
-  return filteredOperationsData.reduce((sum, op) => {
-    return sum + (op.operation?.sludgeCollectPrivateVehicle || 0);
-  }, 0);
-}, [filteredOperationsData]);
-
-
-
-  const avgDistance =
-    movedVehicles > 0 ? (totalDistance / movedVehicles).toFixed(1) : "0.0";
+// const totalPlants = summary.totalPlants ?? 0;
+// const totalVehicles = summary.totalVehicles ?? 0;
+// const totalDrivers = summary.totalDrivers ?? 0;
+// const movedVehicles = summary.movedVehicles ?? 0;
+// const totalTrips = summary.ownVehicleTrips ?? 0;
+// const totalOwnSludge = summary.ownSludgeCollected ?? 0;
+// const totalDistance = summary.totalDistance ?? 0;
+// const avgDistance = summary.avgDistance ?? 0;
+// const totalPrivateTrips = summary.privateVehicleTrips ?? 0;
+// const totalPrivateSludge = summary.privateSludgeCollected ?? 0;
 
   /* ---------------- PLANT MAP ---------------- */
   const plantMap = {};
@@ -504,46 +343,15 @@ const totalPrivateSludge = useMemo(() => {
     ? chartData.length * BAR_SLOT_WIDTH
     : "100%";
 
-  /* ---------------- SORTING ---------------- */
-  const sortedChartData = useMemo(() => {
-    const data = [...chartData];
-
-    switch (vehicleSortMode) {
-      case "v1":
-        return data.sort((a, b) => b.bar1 - a.bar1);
-      case "v2":
-        return data.sort((a, b) => b.bar2 - a.bar2);
-      case "distance":
-        return data.sort(
-          (a, b) => b.bar1 + b.bar2 - (a.bar1 + a.bar2)
-        );
-      case "id":
-      default:
-        return data.sort((a, b) => a.plantId - b.plantId);
-    }
-  }, [chartData, vehicleSortMode]);
+const sortedChartData = chartData;
 
 /* ---------------- ENTRY COUNT ---------------- */
 const entryCount = useMemo(() => {
   if (!sortedChartData?.length) return 0;
 
-  switch (vehicleSortMode) {
-
-    case "v1":
-      return sortedChartData.filter(p => p.bar1 > 0).length;
-
-    case "v2":
-      return sortedChartData.filter(p => p.bar2 > 0).length;
-
-    case "distance":
-      return sortedChartData.filter(p => (p.bar1 + p.bar2) > 0).length;
-
-    case "id":
-    default:
-      return sortedChartData.filter(
-        p => p.bar1 > 0 || p.bar2 > 0
-      ).length;
-  }
+  return vehicleSortMode === "id"
+    ? sortedChartData.filter((p) => p.bar1 > 0 || p.bar2 > 0).length
+    : sortedChartData.filter((p) => p.bar1 + p.bar2 > 0).length;
 }, [sortedChartData, vehicleSortMode]);
 
     const loadAndCompressImage = (
@@ -617,48 +425,49 @@ doc.setFont("times", "bold");
 doc.setFontSize(12);
 doc.setTextColor(0);
 doc.text(reportTitle, pageWidth / 2, 27, { align: "center" });
-  const getPlant = id =>
-    plants.find(p => Number(p.plantID) === Number(id));
-
+const getPlant = (id) =>
+  (vehicleDashboard?.plants || []).find(
+    (p) => Number(p.plantId) === Number(id)
+  );
   /* ===== BUILD MASTER LIST ===== */
   const allVehicles = [];
-
 
 let expiredCount = 0;
 let soonCount = 0;
 let goodCount = 0;
 
-Object.entries(vehiclesMap).forEach(([plantId, vehicles]) => {
-  vehicles.forEach(v => {
-    const raw = v.insuranceExpiryDate
-      ? checkInsuranceStatus(v.insuranceExpiryDate, date)
-      : null;
+(vehicleDashboard?.plants || []).forEach((plant) => {
+  (plant.vehicles || []).forEach((v) => {
+    const status = v.expiredStatus
+      ? "Expired"
+      : v.expirySoonStatus
+      ? "Expiring Soon"
+      : "Good";
 
+    if (status === "Expired") {
+      expiredCount++;
+    }
 
-    const status =
-      !raw
-        ? "-"
-        : raw === "valid"
-        ? "Good"
-        : raw === "expired"
-        ? "Expired"
-        : "Expiring Soon";
+    if (status === "Expiring Soon") {
+      soonCount++;
+    }
 
-    if (status === "Expired") expiredCount++;
-    if (status === "Expiring Soon") soonCount++;
-    if (status === "Good") goodCount++;
+    if (status === "Good") {
+      goodCount++;
+    }
 
     allVehicles.push({
-      plantId: Number(plantId),
+      plantId: Number(plant.plantId),
+      plantName: plant.plantName,
+      zone: plant.zone ?? "-",
       vehicleNumber: v.vehicleNumber,
       expiry: v.insuranceExpiryDate
         ? new Date(v.insuranceExpiryDate).toLocaleDateString("en-IN")
         : "-",
-      status
+      status,
     });
   });
 });
-
   /* ===== FILTER ===== */
 let list = allVehicles;
 
@@ -673,14 +482,6 @@ if (pdfFilter === "both")
     v => v.status === "Expired" || v.status === "Expiring Soon"
   );
 
-  /* ===== TOTALS ===== */
-/* ===== TOTALS ===== */
-
-/* ===== TOTALS ===== */
-
-const totalVehicles = allVehicles.length;
-
-/* ===== TOTALS (ALIGNED WITH TABLE WIDTH) ===== */
 
 // const pageWidth = doc.internal.pageSize.getWidth();
 const tableLeft = 14; // default autoTable margin
@@ -750,26 +551,25 @@ Object.entries(group).forEach(([plantId, vehicles]) => {
   for (let r = 0; r < totalRows; r++) {
     const row = [];
  
-    if (r === 0) {
-      row.push(
-        {
-          content: String(plant?.plantID ?? plantId),
-          rowSpan: totalRows,
-          styles: { valign: "middle" }
-        },
-        {
-          content: String(plant?.plantName ?? "-"),
-          rowSpan: totalRows,
-          styles: { valign: "middle" }
-        },
-        {
-          content: String(plant?.zones ?? "-"),
-          rowSpan: totalRows,
-          styles: { valign: "middle" }
-        }
-      );
+   if (r === 0) {
+  row.push(
+    {
+      content: String(plant?.plantId ?? plantId),
+      rowSpan: totalRows,
+      styles: { valign: "middle" }
+    },
+    {
+      content: String(plant?.plantName ?? "-"),
+      rowSpan: totalRows,
+      styles: { valign: "middle" }
+    },
+    {
+      content: String(plant?.zone ?? "-"),
+      rowSpan: totalRows,
+      styles: { valign: "middle" }
     }
- 
+  );
+}
     const vehicle = vehicles[r];
  
     row.push(
@@ -943,33 +743,28 @@ ws.getCell("A3").alignment = {
   vertical: "middle"
 };
   ws.mergeCells("A4:G4");
+/* ===== BUILD MASTER LIST ===== */
 
-  /* ===== BUILD MASTER LIST ===== */
+const allVehicles = [];
 
-  const allVehicles = [];
+(vehicleDashboard?.plants || []).forEach((plant) => {
+  (plant.vehicles || []).forEach((v) => {
+    const status = v.expiredStatus
+      ? "Expired"
+      : v.expirySoonStatus
+      ? "Expiring Soon"
+      : "Good";
 
-  Object.entries(vehiclesMap).forEach(([plantId, vehicles]) => {
-    vehicles.forEach(v => {
-      const raw = v.insuranceExpiryDate
-        ? checkInsuranceStatus(v.insuranceExpiryDate, date)
-        : null;
-
-      allVehicles.push({
-        plantId: Number(plantId),
-        vehicleNumber: v.vehicleNumber,
-        expiry: v.insuranceExpiryDate,
-        status:
-          !raw
-            ? "-"
-            : raw === "valid"
-            ? "Good"
-            : raw === "expired"
-            ? "Expired"
-            : "Expiring Soon"
-      });
+    allVehicles.push({
+      plantId: Number(plant.plantId),
+      plantName: plant.plantName,
+      zone: plant.zone ?? "-",
+      vehicleNumber: v.vehicleNumber,
+      expiry: v.insuranceExpiryDate,
+      status,
     });
   });
-
+});
   /* ===== FILTER ===== */
   let list = allVehicles;
 
@@ -986,8 +781,8 @@ ws.getCell("A3").alignment = {
 
   /* ===== TOTALS ===== */
 
-  const totalPlants = filteredPlants.length;
-  const totalVehicles = allVehicles.length;
+  // const totalPlants = filteredPlants.length;
+  // const totalVehicles = allVehicles.length;
   const goodCount = allVehicles.filter(v => v.status === "Good").length;
   const expiredCount = allVehicles.filter(v => v.status === "Expired").length;
   const soonCount = allVehicles.filter(v => v.status === "Expiring Soon").length;
@@ -1057,9 +852,10 @@ ws.lastRow.eachCell(cell => {
   };
 });
 
-  const getPlant = id =>
-    plants.find(p => Number(p.plantID) === Number(id));
-
+const getPlant = (id) =>
+  (vehicleDashboard?.plants || []).find(
+    (p) => Number(p.plantId) === Number(id)
+  );
   /* ===== GROUP + MERGE ===== */
 
   const group = {};
@@ -1072,18 +868,19 @@ ws.lastRow.eachCell(cell => {
     const plant = getPlant(plantId);
     const startRow = ws.lastRow.number + 1;
 
-    vehicles.forEach(v => {
-      ws.addRow([
-        plant?.plantID ?? plantId,
-        plant?.plantName ?? "-",
-        plant?.zones ?? "-",
-        vehicles.length,
-        v.vehicleNumber,
-        v.expiry ? new Date(v.expiry).toLocaleDateString("en-IN") : "-",
-        v.status
-      ]);
-    });
-
+  vehicles.forEach((v) => {
+  ws.addRow([
+    plant?.plantId ?? plantId,
+    plant?.plantName ?? "-",
+    plant?.zone ?? "-",
+    vehicles.length,
+    v.vehicleNumber,
+    v.expiry
+      ? new Date(v.expiry).toLocaleDateString("en-IN")
+      : "-",
+    v.status
+  ]);
+});
     const endRow = ws.lastRow.number;
 
     if (vehicles.length > 1) {
@@ -1093,74 +890,219 @@ ws.lastRow.eachCell(cell => {
       ws.mergeCells(`D${startRow}:D${endRow}`);
     }
   });
+ws.columns = [
+  { width: 14 }, // Plant ID
+  { width: 24 }, // Plant Name
+  { width: 14 }, // Zone
+  { width: 16 }, // Vehicle Count
+  { width: 20 }, // Vehicle Number
+  { width: 16 }, // Expiry
+  { width: 20 }, // Status
+];
 
-  ws.columns.forEach(col => (col.width = 20));
-
-  /* ===== STYLE ENTIRE SHEET ===== */
-
-// ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-//   row.eachCell({ includeEmpty: true }, (cell) => {
-
-//    ws.eachRow(row => {
-//   row.height = 22;
-// });
-
-//     // Font - Times New Roman for all
-//     cell.font = {
-//       name: "Times New Roman",
-//       size: 11,
-//       bold: rowNumber === 1 || rowNumber === 2 || rowNumber === 5 || rowNumber === 6 // keep headers bold
-//     };
-
-//     // Alignment - Center + Middle
-//     cell.alignment = {
-//       horizontal: "center",
-//       vertical: "middle",
-//       wrapText: true
-//     };
-
-//     // Borders
-//     cell.border = {
-//       top: { style: "thin" },
-//       left: { style: "thin" },
-//       bottom: { style: "thin" },
-//       right: { style: "thin" }
-//     };
-//   });
-// });
 const tableEndRow = ws.lastRow.number;
 
-/* ===== STYLE TABLE ONLY ===== */
+/* =========================================================
+   STYLE ENTIRE SHEET
+========================================================= */
 
-for (let i = tableStartRow; i <= tableEndRow; i++) {
-  const row = ws.getRow(i);
+ws.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+  row.height = 22;
 
   row.eachCell({ includeEmpty: true }, (cell) => {
-
-    // Font
     cell.font = {
       name: "Times New Roman",
       size: 11,
-      bold: i === tableStartRow // only table header bold
+      bold:
+        rowNumber === 1 ||
+        rowNumber === 2 ||
+        rowNumber === 3 ||
+        rowNumber === 5 ||
+        rowNumber === tableStartRow,
+      color: { argb: "FF000000" },
     };
 
-    // Alignment
     cell.alignment = {
       horizontal: "center",
       vertical: "middle",
-      wrapText: true
+      wrapText: true,
     };
 
-    // ✅ Apply borders to BOTH header + data rows
     cell.border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
+      top: { style: "thin", color: { argb: "FF000000" } },
+      left: { style: "thin", color: { argb: "FF000000" } },
+      bottom: { style: "thin", color: { argb: "FF000000" } },
+      right: { style: "thin", color: { argb: "FF000000" } },
     };
   });
+});
+
+/* =========================================================
+   HEADER STYLING
+========================================================= */
+
+// MVR TECHNOLOGY
+ws.getCell("A1").font = {
+  name: "Times New Roman",
+  size: 18,
+  bold: true,
+  color: { argb: "FFFF0000" },
+};
+
+ws.getCell("A1").alignment = {
+  horizontal: "center",
+  vertical: "middle",
+};
+
+ws.getRow(1).height = 28;
+
+// FSTP RAJASTHAN
+ws.getCell("A2").font = {
+  name: "Times New Roman",
+  size: 13,
+  bold: true,
+  color: { argb: "FF000000" },
+};
+
+ws.getCell("A2").alignment = {
+  horizontal: "center",
+  vertical: "middle",
+};
+
+ws.getRow(2).height = 24;
+
+// REPORT TITLE
+ws.getCell("A3").font = {
+  name: "Times New Roman",
+  size: 12,
+  bold: true,
+  color: { argb: "FF000000" },
+};
+
+ws.getCell("A3").alignment = {
+  horizontal: "center",
+  vertical: "middle",
+};
+
+ws.getRow(3).height = 22;
+
+/* =========================================================
+   SUMMARY ROW
+========================================================= */
+
+["A5", "C5", "E5"].forEach((cellRef) => {
+  ws.getCell(cellRef).font = {
+    name: "Times New Roman",
+    size: 11,
+    bold: true,
+    color: { argb: "FF000000" },
+  };
+
+  ws.getCell(cellRef).alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true,
+  };
+});
+
+ws.getRow(5).height = 24;
+
+/* =========================================================
+   TABLE HEADER
+========================================================= */
+
+ws.getRow(tableStartRow).eachCell({ includeEmpty: true }, (cell) => {
+  cell.font = {
+    name: "Times New Roman",
+    size: 11,
+    bold: true,
+    color: { argb: "FF000000" },
+  };
+
+  cell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFD9D9D9" },
+  };
+
+  cell.alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true,
+  };
+
+  cell.border = {
+    top: { style: "thin", color: { argb: "FF000000" } },
+    left: { style: "thin", color: { argb: "FF000000" } },
+    bottom: { style: "thin", color: { argb: "FF000000" } },
+    right: { style: "thin", color: { argb: "FF000000" } },
+  };
+});
+
+ws.getRow(tableStartRow).height = 28;
+
+/* =========================================================
+   TABLE BODY
+========================================================= */
+
+for (let i = tableStartRow + 1; i <= tableEndRow; i++) {
+  const row = ws.getRow(i);
 
   row.height = 22;
+
+  row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    cell.font = {
+      name: "Times New Roman",
+      size: 11,
+      bold: false,
+      color: { argb: "FF000000" },
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
+
+    cell.border = {
+      top: { style: "thin", color: { argb: "FF000000" } },
+      left: { style: "thin", color: { argb: "FF000000" } },
+      bottom: { style: "thin", color: { argb: "FF000000" } },
+      right: { style: "thin", color: { argb: "FF000000" } },
+    };
+
+    /* Status column */
+    if (colNumber === 7) {
+      const status = cell.value;
+
+      if (status === "Expired") {
+        cell.font = {
+          name: "Times New Roman",
+          size: 11,
+          bold: true,
+          color: { argb: "FFDC2626" },
+        };
+      }
+
+      if (status === "Expiring Soon") {
+        cell.font = {
+          name: "Times New Roman",
+          size: 11,
+          bold: true,
+          color: { argb: "FFB45309" },
+        };
+      }
+
+      if (status === "Good") {
+        cell.font = {
+          name: "Times New Roman",
+          size: 11,
+          bold: true,
+          color: { argb: "FF059669" },
+        };
+      }
+    }
+  });
 }
 ws.getCell("A1").font = {
   name: "Times New Roman",
@@ -1208,20 +1150,6 @@ return (
       </div>
     </div>
 
-{/* {expiringVehicles.length > 0 && (
-  <div className="mb-4 p-4 rounded-xl bg-red-50 border border-red-300 shadow">
-    <p className="font-bold text-red-700 mb-2">
-      ⚠ Vehicle Insurance Alert
-    </p>
-
-    {expiringVehicles.map((v, i) => (
-      <p key={i} className="text-sm text-red-800">
-        {v.vehicleNumber} — expires on {v.expiry}
-        {v.status === "expired" ? " (Expired)" : " (Expiring soon)"}
-      </p>
-    ))}
-  </div>
-)} */}
 
     {/* ================= KPI CARDS ================= */}
     <div className="rounded-2xl p-6 bg-white shadow-lg mb-6">
@@ -1232,8 +1160,8 @@ return (
           { label: "Total Vehicles", value: totalVehicles, subValue: `Total Drivers : ${totalDrivers}`, icon: <Truck size={18} />, bg: "#DBEAFE", bar: "#2563EB" },
           { label: "Moved Vehicles", value: movedVehicles, icon: <Navigation size={18} />, bg: "#D1FAE5", bar: "#059669" },
           { label: "Own Vehicle Trips", value: totalTrips, subValue: `Sludge collected : ${totalOwnSludge.toLocaleString()} L`, icon: <Milestone size={18} />, bg: "#E0E7FF", bar: "#4F46E5" },
-          { label: "Total Distance", value: Math.round(totalDistance), icon: <Activity size={18} />, bg: "#FFE4E6", bar: "#E11D48" },
-          { label: "Avg Distance", value: Math.round(avgDistance), icon: <Activity size={18} />, bg: "#FEF3C7", bar: "#D97706" },
+          { label: "Total Distance(Km)", value: Math.round(totalDistance), icon: <Activity size={18} />, bg: "#FFE4E6", bar: "#E11D48" },
+          { label: "Avg Distance(Km)", value: Math.round(avgDistance), icon: <Activity size={18} />, bg: "#FEF3C7", bar: "#D97706" },
           { label: "Private Vehicle Trips", value: totalPrivateTrips, subValue: `Sludge collected : ${totalPrivateSludge.toLocaleString()} L`, icon: <Milestone size={18} />, bg: "#EDE9FE", bar: "#7C3AED" }
 
         ].map((card, i) => (
@@ -1319,18 +1247,15 @@ return (
           <span className="text-xs font-semibold text-slate-500">
             Sort by
           </span>
-
-          <select
-            value={vehicleSortMode}
-            onChange={(e) => setVehicleSortMode(e.target.value)}
-            className="border rounded-md px-3 py-1 text-xs font-semibold
-                       bg-white border-slate-300 outline-none"
-          >
-            <option value="distance">Total Distance</option>
-            <option value="v1">Vehicle 1 Distance</option>
-            <option value="v2">Vehicle 2 Distance</option>
-            <option value="id">Plant ID</option>
-          </select>
+       <select
+          value={vehicleSortMode}
+          onChange={(e) => setVehicleSortMode(e.target.value)}
+          className="border rounded-md px-3 py-1 text-xs font-semibold
+                    bg-white border-slate-300 outline-none"
+        >
+          <option value="distance">Total Distance</option>
+          <option value="id">Plant ID</option>
+        </select>
         </div>
 
       </div>

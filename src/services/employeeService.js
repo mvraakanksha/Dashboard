@@ -65,3 +65,89 @@ export const getEmployeeOperationsByDateRangeFull = (from, to) => {
     `/historyEmployees/employee-operations?startDate=${from}&endDate=${to}`
   );
 };
+
+/**
+ * Attendance Summary - Plant Wise
+ * GET /employee-operations/summary/all-plant-wise
+ *
+ * Examples:
+ * ?date=2026-07-24
+ * ?date=2026-07-24&plantIds=1,2,3
+ * ?date=2026-07-24&zone=1
+ */
+export const getAttendanceSummaryPlantWise = ({
+  date,
+  plantIds = [],
+  zone = "",
+}) => {
+  if (!date) throw new Error("Date is required");
+
+  const params = new URLSearchParams();
+  params.append("date", date);
+
+  if (plantIds?.length) {
+    params.append("plantIds", plantIds.join(","));
+  }
+
+  if (zone && zone !== "All") {
+    params.append("zone", zone);
+  }
+
+  return apiFetch(
+    `/employee-operations/summary/all-plant-wise?${params.toString()}`
+  );
+};
+
+
+/**
+ * Attendance Dashboard Designation Summary
+ * GET /employee-operations/attendance-dashboard-designation
+ *
+ * Examples:
+ * ?date=2026-07-24
+ * ?date=2026-07-24&plantIds=1,2,3
+ * ?date=2026-07-24&zone=1
+ */
+export const getAttendanceDashboardDesignation = ({
+  date,
+  plantIds = [],
+  zone = "",
+}) => {
+  if (!date) throw new Error("Date is required");
+
+  const params = new URLSearchParams();
+  params.append("date", date);
+
+  if (plantIds?.length) {
+    params.append("plantIds", plantIds.join(","));
+  }
+
+  if (zone && zone !== "All") {
+    params.append("zone", zone);
+  }
+
+  return apiFetch(
+    `/employee-operations/attendance-dashboard-designation?${params.toString()}`
+  );
+};
+
+// ================= Attendance Date Range (Plant Wise) =================
+export const getEmployeeAttendanceDateRange = async ({
+  plantId,
+  fromDate,
+  toDate,
+}) => {
+  if (!plantId || !fromDate || !toDate) {
+    throw new Error("plantId, fromDate and toDate are required");
+  }
+
+  const params = new URLSearchParams({
+    plantId,
+    fromDate,
+    toDate,
+  });
+
+  return apiFetch(
+    `/employee-operations/attendance/date-range?${params.toString()}`
+  );
+};

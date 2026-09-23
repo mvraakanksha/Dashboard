@@ -22,7 +22,7 @@ import {
   Thermometer,
   Activity
 } from "lucide-react";
-import { getAllPlants } from "../../services/plantService";
+// import { getAllPlants } from "../../services/plantService";
 import { getSludgeChartData } from "../../services/operationService";
 import companyLogo from '../reports/company_logo1.jpg'
 
@@ -156,13 +156,12 @@ export default function SludgeReports({
   zone,
   setZones,
   selectedPlants = [],
+  plants = [],
 }) {
-
   const navigate = useNavigate();
 
   // Only used now for zones + permanentPower (fields the sludge-chart API doesn't return)
-  const [plants, setPlants] = useState([]);
-
+ 
   const [receivedRows, setReceivedRows] = useState([]);
   const [processedRows, setProcessedRows] = useState([]);
 
@@ -187,19 +186,19 @@ export default function SludgeReports({
   }, [navigate]);
 
   // ---- fetch plant list once (zones + permanentPower only) ----
-  useEffect(() => {
-    getAllPlants()
-      .then(data => {
-        setPlants(data);
+  // useEffect(() => {
+  //   getAllPlants()
+  //     .then(data => {
+  //       setPlants(data);
 
-        const derivedZones = [...new Set(
-          data.map(p => p.zones).filter(Boolean)
-        )].sort((a, b) => a - b);
+  //       const derivedZones = [...new Set(
+  //         data.map(p => p.zones).filter(Boolean)
+  //       )].sort((a, b) => a - b);
 
-        setZones(derivedZones);
-      })
-      .catch(console.error);
-  }, [setZones]);
+  //       setZones(derivedZones);
+  //     })
+  //     .catch(console.error);
+  // }, [setZones]);
 
   const permanentPowerCount = useMemo(() => {
     let filtered =

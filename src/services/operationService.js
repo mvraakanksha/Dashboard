@@ -137,3 +137,198 @@ export const getSludgeChartData = ({ date, sortField, sortOrder, plantIds, zone 
 
   return apiFetch(`/operations/sludge-chart?${qs.toString()}`);
 };
+
+export const getPowerDashboard = async ({
+  date,
+  zone,
+  plantIds = [],
+  sortField = "POWER_CONSUMPTION",
+  sortOrder = "DESC",
+}) => {
+  const params = new URLSearchParams();
+
+  if (date) {
+    params.append("date", date);
+  }
+
+  if (zone && zone !== "All") {
+    params.append("zone", zone);
+  }
+
+  if (plantIds?.length > 0) {
+    params.append("plantIds", plantIds.join(","));
+  }
+
+  if (sortField) {
+    params.append("sortField", sortField);
+  }
+
+  if (sortOrder) {
+    params.append("sortOrder", sortOrder);
+  }
+
+  return await apiFetch(
+    `/operations/get-power-solar/dashboard-graph?${params.toString()}`
+  );
+};
+
+
+/* ---------- Power Plant Wise Date Range ---------- */
+
+export const getPowerPlantWiseDateRange = async ({
+  plantId,
+  fromDate,
+  toDate,
+}) => {
+  const params = new URLSearchParams();
+
+  if (plantId) {
+    params.append("plantId", plantId);
+  }
+
+  if (fromDate) {
+    params.append("fromDate", fromDate);
+  }
+
+  if (toDate) {
+    params.append("toDate", toDate);
+  }
+
+  return await apiFetch(
+    `/operations/get-power-solar/plant-wise/date-range?${params.toString()}`
+  );
+};
+
+
+export const getPelletsGraphDashboard = async ({
+  date,
+  zone,
+  plantIds = [],
+  sortField = "STOCK",
+  sortOrder = "DESC",
+}) => {
+  const params = new URLSearchParams();
+
+  if (date) params.append("date", date);
+
+  if (zone && zone !== "All") {
+    params.append("zone", zone);
+  }
+
+  if (plantIds?.length > 0) {
+    params.append("plantIds", plantIds.join(","));
+  }
+
+  if (sortField) {
+    params.append("sortField", sortField);
+  }
+
+  if (sortOrder) {
+    params.append("sortOrder", sortOrder);
+  }
+
+  return await apiFetch(
+    `/operations/inventory/pellets-graph?${params.toString()}`
+  );
+};
+
+
+export const getPolymerGraphDashboard = async ({
+  date,
+  zone,
+  plantIds = [],
+  sortField = "STOCK",
+  sortOrder = "DESC",
+}) => {
+  const params = new URLSearchParams();
+
+  if (date) params.append("date", date);
+
+  if (zone && zone !== "All") {
+    params.append("zone", zone);
+  }
+
+  if (plantIds?.length > 0) {
+    params.append("plantIds", plantIds.join(","));
+  }
+
+  if (sortField) {
+    params.append("sortField", sortField);
+  }
+
+  if (sortOrder) {
+    params.append("sortOrder", sortOrder);
+  }
+
+  return await apiFetch(
+    `/operations/inventory/polymer-graph?${params.toString()}`
+  );
+};
+
+/* =========================================================
+   PELLETS DATE RANGE - PLANT WISE
+   ========================================================= */
+
+export const getPelletsDateRangeByPlant = async ({
+  plantId,
+  fromDate,
+  toDate,
+}) => {
+  const params = new URLSearchParams();
+
+  if (fromDate) {
+    params.append("fromDate", fromDate);
+  }
+
+  if (toDate) {
+    params.append("toDate", toDate);
+  }
+
+  return await apiFetch(
+    `/operations/inventory/pellets/date-range/${plantId}?${params.toString()}`
+  );
+};
+
+
+/* =========================================================
+   POLYMER DATE RANGE - PLANT WISE
+   ========================================================= */
+
+export const getPolymerDateRangeByPlant = async ({
+  plantId,
+  fromDate,
+  toDate,
+}) => {
+  const params = new URLSearchParams();
+
+  if (fromDate) {
+    params.append("fromDate", fromDate);
+  }
+
+  if (toDate) {
+    params.append("toDate", toDate);
+  }
+
+  return await apiFetch(
+    `/operations/inventory/polymer/date-range/${plantId}?${params.toString()}`
+  );
+};
+// export const getPelletsDateRangeByPlant = async ({
+//   plantId,
+//   fromDate,
+//   toDate,
+// }) => {
+//   const params = new URLSearchParams();
+
+//   if (fromDate) {
+//     params.append("fromDate", fromDate);
+//   }
+
+//   if (toDate) {
+//     params.append("toDate", toDate);
+//   }
+
+//   return await apiFetch(
+//     `/operations/inventory/pellets/date-range/${plantId}?${params.toString()}`
+//   );
+// };

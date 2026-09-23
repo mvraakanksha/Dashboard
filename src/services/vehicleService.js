@@ -54,7 +54,68 @@ export const getLatestVehicleFuel = (vehicleId, date) => {
 
 
 /* ================= VEHICLE ================= */
+
 export const getVehicleFuelDetails = (vehicleId) => {
-  if (!vehicleId) throw new Error("Vehicle ID is required");
+  if (!vehicleId) {
+    throw new Error("Vehicle ID is required");
+  }
+
   return apiFetch(`/vehicle-operations/fuel/${vehicleId}`);
+};
+
+
+export const getVehicleGraphDashboard = async ({
+  operationDate,
+  zone,
+  plantIds = [],
+  expiryFilter = "ALL",
+  sortBy,
+  sortDirection,
+}) => {
+  const params = new URLSearchParams();
+
+  if (operationDate) {
+    params.append("operationDate", operationDate);
+  }
+
+  // Only send zone when actually selected
+  if (
+    zone &&
+    zone !== "All" &&
+    zone !== "ALL" &&
+    zone !== ""
+  ) {
+    params.append("zone", zone);
+  }
+
+  // Only send selected plant IDs
+  if (Array.isArray(plantIds) && plantIds.length > 0) {
+    params.append("plantIds", plantIds.join(","));
+  }
+
+  if (expiryFilter) {
+    params.append("expiryFilter", expiryFilter);
+  }
+
+  if (sortBy) {
+    params.append("sortBy", sortBy);
+  }
+
+  if (sortDirection) {
+    params.append("sortDirection", sortDirection);
+  }
+
+  return apiFetch(
+    `/vehicle-operations/dashboard-vehicle-graph?${params.toString()}`
+  );
+};
+
+export const getVehicleOperationsDashboardByDateRange = async (
+  plantId,
+  fromDate,
+  toDate
+) => {
+  return apiFetch(
+    `/vehicle-operations/dashboard-vehicle-graph/date-range/${plantId}?fromDate=${fromDate}&toDate=${toDate}`
+  );
 };

@@ -13,7 +13,7 @@ import {
 
 import { getAllPlants } from "../services/plantService";
 
-const STORAGE_KEY = "fstp_report_filters_v1";
+const STORAGE_KEY = "fstp_report_filters_v2";
 
 export default function FilterBar({
   isDark,
@@ -64,32 +64,50 @@ export default function FilterBar({
           persisted = null;
         }
 
-        const validPersistedPlantIDs = persisted?.selectedPlants
-          ? persisted.selectedPlants.filter((id) =>
-              data.some((p) => p.plantID === id)
-            )
-          : null;
+const validPersistedPlantIDs = Array.isArray(
+  persisted?.selectedPlants
+)
+  ? persisted.selectedPlants.filter((id) =>
+      data.some(
+        (p) => Number(p.plantID) === Number(id)
+      )
+    )
+  : [];
 
-        const initialDate = persisted?.date || today;
-        const initialZone = persisted?.zone || "All";
-        const initialPlants =
-          validPersistedPlantIDs && validPersistedPlantIDs.length > 0
-            ? validPersistedPlantIDs
-            : data.map((p) => p.plantID);
+// Date and zone can be restored normally
+const initialDate = persisted?.date || today;
+const initialZone = persisted?.zone || "All";
 
-        setDraftDate(initialDate);
-        setDraftZone(initialZone);
-        setDraftSelectedPlants(initialPlants);
+// First load:
+// Show all plants as selected in the UI,
+// but do NOT treat them as an API plant filter.
+const initialPlants =
+  persisted?.plantFilterApplied === true
+    ? validPersistedPlantIDs
+    : data.map((p) => p.plantID);
 
-        setDate(initialDate);
-        setZone(initialZone);
-        setSelectedPlants(initialPlants);
+const initialPlantFilterApplied =
+  persisted?.plantFilterApplied === true;
 
-        onFetch({
-          date: initialDate,
-          zone: initialZone,
-          selectedPlants: initialPlants,
-        });
+setDraftDate(initialDate);
+setDraftZone(initialZone);
+setDraftSelectedPlants(initialPlants);
+
+setDate(initialDate);
+setZone(initialZone);
+
+setSelectedPlants(
+  initialPlantFilterApplied ? initialPlants : []
+);
+
+onFetch({
+  date: initialDate,
+  zone: initialZone,
+  apiZone: initialZone,
+  selectedPlants: initialPlantFilterApplied
+    ? initialPlants
+    : [],
+});
       } catch (err) {
         console.error("Failed to fetch plants", err);
       }
@@ -126,20 +144,22 @@ export default function FilterBar({
       : plants.filter((p) => Number(p.zones) === Number(draftZone));
   }, [plants, draftZone]);
 
-  const handleZoneChange = useCallback(
-    (e) => {
-      const newZone = e.target.value;
-      setDraftZone(newZone);
+const handleZoneChange = useCallback((e) => {
+  const newZone = e.target.value;
 
-      const newFiltered =
-        newZone === "All"
-          ? plants
-          : plants.filter((p) => Number(p.zones) === Number(newZone));
+  setDraftZone(newZone);
 
-      setDraftSelectedPlants(newFiltered.map((p) => p.plantID));
-    },
-    [plants]
-  );
+  // Select all plants belonging to the selected zone
+  if (newZone === "All") {
+    setDraftSelectedPlants(plants.map((p) => p.plantID));
+  } else {
+    const zonePlants = plants
+      .filter((p) => Number(p.zones) === Number(newZone))
+      .map((p) => p.plantID);
+
+    setDraftSelectedPlants(zonePlants);
+  }
+}, [plants]);
 
   const persistFilters = useCallback((filters) => {
     try {
@@ -149,41 +169,148 @@ export default function FilterBar({
     }
   }, []);
 
-  const handleGetData = useCallback(() => {
-    setDate(draftDate);
-    setZone(draftZone);
-    setSelectedPlants(draftSelectedPlants);
+  const getEffectiveApiFilters = useCallback(() => {
+  const hasZone =
+    draftZone &&
+    draftZone !== "All" &&
+    draftZone !== "ALL" &&
+    draftZone !== "";
 
-    const filters = {
-      date: draftDate,
-      zone: draftZone,
+  const selectedPlantObjects = draftSelectedPlants
+    .map((id) =>
+      plants.find(
+        (plant) => Number(plant.plantID) === Number(id)
+      )
+    )
+    .filter(Boolean);
+
+  const selectedZones = [
+    ...new Set(
+      selectedPlantObjects
+        .map((plant) => Number(plant.zones))
+        .filter(Number.isFinite)
+    ),
+  ];
+
+  /*
+   * CASE 1:
+   * No plants selected.
+   *
+   * API should use zone if selected.
+   */
+  if (selectedPlantObjects.length === 0) {
+    return {
+      apiZone: hasZone ? draftZone : "All",
+      selectedPlants: [],
+    };
+  }
+
+  /*
+   * CASE 2:
+   * Plants belong to multiple zones.
+   *
+   * Do NOT send the selected zone because it could
+   * conflict with some selected plants.
+   *
+   * API should filter only by plantIds.
+   */
+  if (selectedZones.length > 1) {
+    return {
+      apiZone: "All",
       selectedPlants: draftSelectedPlants,
     };
+  }
 
-    persistFilters(filters);
-    onFetch(filters);
-  }, [draftDate, draftZone, draftSelectedPlants, setDate, setZone, setSelectedPlants, persistFilters, onFetch]);
+  /*
+   * CASE 3:
+   * Specific plants selected and they belong to
+   * one zone.
+   *
+   * If a zone is selected, send both.
+   */
+  if (hasZone) {
+    return {
+      apiZone: draftZone,
+      selectedPlants: draftSelectedPlants,
+    };
+  }
 
-  const handleResetFilters = useCallback(() => {
-    const allPlantIDs = plants.map((p) => p.plantID);
+  /*
+   * CASE 4:
+   * Zone = All, but specific plants selected.
+   *
+   * Send only plantIds.
+   */
+  return {
+    apiZone: "All",
+    selectedPlants: draftSelectedPlants,
+  };
+}, [draftZone, draftSelectedPlants, plants]);
 
-    setDraftDate(today);
-    setDraftZone("All");
-    setDraftSelectedPlants(allPlantIDs);
+const handleGetData = useCallback(() => {
+  const effectiveFilters = getEffectiveApiFilters();
 
-    setDate(today);
-    setZone("All");
-    setSelectedPlants(allPlantIDs);
+  setDate(draftDate);
+  setZone(draftZone);
+  setSelectedPlants(effectiveFilters.selectedPlants);
 
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (e) {
-      console.error("Failed to clear persisted filters", e);
-    }
+ const filters = {
+  date: draftDate,
+  zone: draftZone,
+  apiZone: effectiveFilters.apiZone,
+  selectedPlants: effectiveFilters.selectedPlants,
+  plantFilterApplied: effectiveFilters.selectedPlants.length > 0,
+};
 
-    onFetch({ date: today, zone: "All", selectedPlants: allPlantIDs });
-  }, [plants, today, setDate, setZone, setSelectedPlants, onFetch]);
+persistFilters(filters);
+onFetch(filters);
+}, [
+  draftDate,
+  draftZone,
+  getEffectiveApiFilters,
+  setDate,
+  setZone,
+  setSelectedPlants,
+  persistFilters,
+  onFetch,
+]);
 
+const handleResetFilters = useCallback(() => {
+  const allPlantIds = plants.map((p) => p.plantID);
+
+  setDraftDate(today);
+  setDraftZone("All");
+
+  // Select ALL plants in UI after reset
+  setDraftSelectedPlants(allPlantIds);
+
+  setDate(today);
+  setZone("All");
+
+  // Do not apply plant IDs as an API filter automatically
+  setSelectedPlants([]);
+
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {
+    console.error("Failed to clear persisted filters", e);
+  }
+
+  onFetch({
+    date: today,
+    zone: "All",
+    apiZone: "All",
+    selectedPlants: [],
+    plantFilterApplied: false,
+  });
+}, [
+  today,
+  plants,
+  setDate,
+  setZone,
+  setSelectedPlants,
+  onFetch,
+]);
   const allFilteredSelected =
     filteredPlants.length > 0 &&
     filteredPlants.every((p) => draftSelectedPlants.includes(p.plantID));
@@ -193,20 +320,21 @@ export default function FilterBar({
   ).length;
 
   // ---- IS ANY FILTER ACTUALLY APPLIED? (drives Reset enable/disable) ----
-  const isFilterApplied = useMemo(() => {
-    if (plants.length === 0) return false;
+const isFilterApplied = useMemo(() => {
+  const dateChanged = draftDate !== today;
+  const zoneChanged = draftZone !== "All";
 
-    const dateChanged = draftDate !== today;
-    const zoneChanged = draftZone !== "All";
+  // Specific plants are an applied filter only
+  // when the user actually selected them.
+  const plantsChanged = draftSelectedPlants.length > 0;
 
-    const allPlantIDs = plants.map((p) => p.plantID);
-    const plantsChanged =
-      draftSelectedPlants.length !== allPlantIDs.length ||
-      !allPlantIDs.every((id) => draftSelectedPlants.includes(id));
-
-    return dateChanged || zoneChanged || plantsChanged;
-  }, [draftDate, draftZone, draftSelectedPlants, plants, today]);
-
+  return dateChanged || zoneChanged || plantsChanged;
+}, [
+  draftDate,
+  draftZone,
+  draftSelectedPlants,
+  today,
+]);
   // ---- FRIENDLY HELPER TEXT (updates live as user adjusts filters) ----
   const helperText = useMemo(() => {
     const prettyDate = draftDate
